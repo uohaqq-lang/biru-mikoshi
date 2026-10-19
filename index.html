@@ -3298,7 +3298,7 @@ function start(DATA, isAsakusa) {
     if (peek) { camera.position.copy(peek.pos); camera.lookAt(peek.look); }
     else if (mode === 'pick') {
       if (opening) {
-        if (opening.t0 === null) { opening.t0 = t; $('skip').style.display = 'block'; }
+        if (opening.t0 === null) opening.t0 = t;   /* 降りてくる所に「飛ばす」は出さない（画面に触れれば終わる） */
         const q = Math.min(1, (t - opening.t0) / opening.dur), e = 1 - Math.pow(1 - q, 3);
         camera.position.copy(opening.fromPos).lerp(mapPos(), e);
         camera.lookAt(opening.fromLook.clone().lerp(V(mapCam.x, mapCam.y, 0), e));

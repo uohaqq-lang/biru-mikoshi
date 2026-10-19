@@ -299,7 +299,7 @@ function start(DATA, isAsakusa) {
   // 選んだものはブラウザに覚える（?size=full|half|mikoshi で、覚えずにその大きさで開く。確かめ用）
   const SIZES = ['full', 'half', 'mikoshi'], SIZE_KEY = 'mikoshi_size';
   // 何も選んでいないときの大きさ。ここ1か所で決める
-  const SIZE_DEFAULT = 'half';
+  const SIZE_DEFAULT = 'full';
   // 神輿のときの、足元のいちばん長い辺（m）
   const MIKOSHI_SIDE = 3.0;
   let sizeMode = (() => { const q = new URLSearchParams(location.search).get('size'); if (SIZES.includes(q)) return q; try { const v = localStorage.getItem(SIZE_KEY); if (SIZES.includes(v)) return v; } catch (e) { /* 覚えられない環境 */ } return SIZE_DEFAULT; })();
@@ -418,6 +418,57 @@ function start(DATA, isAsakusa) {
   const raimonMeta = DATA.meta.landmarks && DATA.meta.landmarks.raimon;
   const raimonB = raimonMeta ? blds.find(b => b.id === raimonMeta.id) : null;
   if (raimonB) blds.splice(blds.indexOf(raimonB), 1);
+  // 雷門の下を通れるようにする。通り抜け（幅5.4m）を道にして、前後の道までつなぐ。左右の塊は通れない。
+  // 通り抜けの高さは、大提灯をたたんだときの下の端（天井6.3m − 提灯3.9m×0.22 ≒ 5.4m）。神輿の大きさなら通れて、実物大はつかえる。
+  const GATE_GAP = 5.4, GATE_BW = 3.9, GATE_BD = 8.1, GATE_CLEAR = 5.4;
+  if (raimonB) (function openGate() {
+    const { cx, cy, a } = raimonB.d, ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
+    const R = 24, r0 = Math.floor((cy - R - minY) / CELL), r1 = Math.ceil((cy + R - minY) / CELL), c0 = Math.floor((cx - R - minX) / CELL), c1 = Math.ceil((cx + R - minX) / CELL);
+    const at = (u, v) => idx(cx + ux * u + vx * v, cy + uy * u + vy * v);
+    /* 前と後ろへ、通り抜けの幅がまるごと道になっている所（2m続く）に当たるまで延ばす（最大24m） */
+    const rowOK = v => { for (let u = -GATE_GAP / 2; u <= GATE_GAP / 2 + 1e-6; u += CELL) { const i = at(u, v); if (i < 0 || !road[i]) return false; } return true; };
+    const reach = sg => { for (let v = GATE_BD / 2 + 0.5; v <= 24; v += CELL) { let ok = true; for (let w = 0; w <= 2; w += CELL) if (!rowOK((v + w) * sg)) { ok = false; break; } if (ok) return v + 0.5; } return GATE_BD / 2; };
+    const vFront = reach(1), vBack = reach(-1);
+    for (let r = Math.max(0, r0); r <= Math.min(GH - 1, r1); r++) for (let c = Math.max(0, c0); c <= Math.min(GW - 1, c1); c++) {
+      const x = minX + (c + 0.5) * CELL - cx, y = minY + (r + 0.5) * CELL - cy, u = x * ux + y * uy, v = x * vx + y * vy, i = r * GW + c;
+      if (Math.abs(u) <= GATE_GAP / 2 && v <= vFront && v >= -vBack) {
+        road[i] = 1;
+        if (Math.abs(v) <= GATE_BD / 2 + 0.3) clear.set(i, GATE_CLEAR);
+      } else if (Math.abs(u) <= GATE_GAP / 2 + GATE_BW && Math.abs(v) <= GATE_BD / 2) road[i] = 0;
+    }
+  })();
+  // 仲見世：雷門の裏から境内まで、店の列の間を通れるようにする（道路の面に入っていない。三社祭の神輿はここを通って境内に入る）。
+  // 門の中心から北へ、0.5mごとに、まん中から左右へ店の足元に当たるまで（片側5mまで）を道にする。宝蔵門などの建物に当たったら終わり。
+  if (raimonB) (function openNakamise() {
+    const { cx, cy, a } = raimonB.d;
+    let vx = -Math.sin(a), vy = Math.cos(a);
+    if (vy < 0) { vx = -vx; vy = -vy; }
+    const ux = vy, uy = -vx, LEN = 300, HALF = 5;
+    const shop = new Uint8Array(GW * GH);
+    const ex = [cx, cx + vx * LEN], ey = [cy, cy + vy * LEN];
+    const bx0 = Math.min(...ex) - 20, bx1 = Math.max(...ex) + 20, by0 = Math.min(...ey) - 20, by1 = Math.max(...ey) + 20;
+    for (const b of blds) {
+      if (b.h < 2) continue;
+      const [[x, y]] = b.polys[0][0]; if (x < bx0 || x > bx1 || y < by0 || y > by1) continue;
+      for (const poly of b.polys) fillPoly(poly, i => { shop[i] = 1; });
+    }
+    /* 通りは少し曲がっているので、まん中（u＝c）を一歩ごとに、空いている幅のまん中へ寄せていく */
+    const free = (t, u) => { const i = idx(cx + vx * t + ux * u, cy + vy * t + uy * u); return i >= 0 && !shop[i]; };
+    let c = 0;
+    for (let t = GATE_BD / 2 + 0.5; t <= LEN; t += CELL) {
+      if (!free(t, c)) {
+        let found = null;
+        for (let k = CELL; k <= 3 && found === null; k += CELL) { if (free(t, c + k)) found = c + k; else if (free(t, c - k)) found = c - k; }
+        if (found === null) { if (t > 60) break; continue; }
+        c = found;
+      }
+      let lo = c, hi = c;
+      while (hi - c < HALF && free(t, hi + CELL)) hi += CELL;
+      while (c - lo < HALF && free(t, lo - CELL)) lo -= CELL;
+      for (let u = lo; u <= hi + 1e-6; u += CELL / 2) for (const dt of [0, CELL / 2]) { const i = idx(cx + vx * (t + dt) + ux * u, cy + vy * (t + dt) + uy * u); if (i >= 0 && !shop[i]) road[i] = 1; }   /* 斜めの格子でマスを取りこぼさないよう、半分の刻みで塗る */
+      if (hi - lo < HALF * 2) c += Math.max(-CELL, Math.min(CELL, (lo + hi) / 2 - c));
+    }
+  })();
 
   // ---------- 浅草寺の境内：神輿が通れる広場（道路の面と同じく、通れる所にする） ----------
   // 三社祭でも町内神輿は境内に入る。境内には道路の面が無いので、多角形を足す（x=東・y=北、m）。
@@ -2087,7 +2138,7 @@ function start(DATA, isAsakusa) {
       html = res.need > 0.05 ? `幅でつかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`
                              : `角が当たった<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m（向きを変えると抜けられるかも）</small>`;
     } else if (res.kind === 'height') {
-      html = `高さでつかえた<small>桁下 ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
+      html = `高さでつかえた<small>${gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 15 ? '雷門の提灯の下' : '桁下'} ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
     } else if (res.kind === 'block') {
       html = `建物に当たった<small>境内の建物は通れない。「バック」で下がって、向きを変える</small>`;
     } else {
@@ -2310,7 +2361,8 @@ function start(DATA, isAsakusa) {
     let best = null;
     // 門までの間に建物（交番など）が無い所を選ぶ
     const clearLine = (x, y) => { for (let t = 0; t <= 1; t += 0.05) if (bldAt(x + (d.cx - x) * t, y + (d.cy - y) * t, 0.5, bb => bb === raimonB)) return false; return true; };
-    for (const sg of [1, -1]) for (let k = 24; k >= 10; k -= 1) { const x = d.cx + nx * sg * k, y = d.cy + ny * sg * k; if (onRoad(x, y) && !bldAt(x, y, 0.5) && clearLine(x, y)) { if (!best || k > best.k) best = { x, y, k }; break; } }
+    /* 雷門通り（南）の側を先に探す。仲見世の側は、南に見つからないときだけ */
+    for (const sg of ny < 0 ? [1, -1] : [-1, 1]) { for (let k = 24; k >= 10; k -= 1) { const x = d.cx + nx * sg * k, y = d.cy + ny * sg * k; if (onRoad(x, y) && !bldAt(x, y, 0.5) && clearLine(x, y)) { best = { x, y, k }; break; } } if (best) break; }
     gate.front = best || { x: d.cx + nx * 15, y: d.cy + ny * 15 };
     scene.add(g); lmMeshes.raimon.push(g); lmPolys.raimon.push(raimonB.polys[0]);
   })();

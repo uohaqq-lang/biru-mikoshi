@@ -1,0 +1,2 @@
+// 町の建物の写真付きの形の目次（tools/town_tex.py で作成）。近い順
+window.MIKOSHI_TOWN_TEX_INDEX = {"parts":[{"js":"a0.js","jpg":"a0.jpg","n":976,"w":4096,"h":4096,"tris":35127,"jpg_bytes":2873226,"js_bytes":1473057},{"js":"a1.js","jpg":"a1.jpg","n":1046,"w":4096,"h":4096,"tris":34201,"jpg_bytes":2869579,"js_bytes":1440612},{"js":"a2.js","jpg":"a2.jpg","n":619,"w":4096,"h":4096,"tris":22333,"jpg_bytes":2119369,"js_bytes":936861}],"px_per_m":4.0};

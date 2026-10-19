@@ -297,12 +297,13 @@ function start(DATA, isAsakusa) {
   // 大きさ（作者の決定 10/19）：前の「家を壊して進む」難しさはやめ、建物を小さくして担げるようにした（小さくして担ぐメモ.md）。
   // 実物大＝そのまま、半分＝縦・横・高さとも1/2、神輿＝本物の神輿くらい（足元のいちばん長い辺を MIKOSHI_SIDE m にする。倍率の上限は1）。
   // 選んだものはブラウザに覚える（?size=full|half|mikoshi で、覚えずにその大きさで開く。確かめ用）
-  const SIZES = ['full', 'half', 'mikoshi'], SIZE_KEY = 'mikoshi_size';
+  const SIZES = ['full', 'half', 'mikoshi'];
   // 何も選んでいないときの大きさ。ここ1か所で決める
   const SIZE_DEFAULT = 'full';
   // 神輿のときの、足元のいちばん長い辺（m）
   const MIKOSHI_SIDE = 3.0;
-  let sizeMode = (() => { const q = new URLSearchParams(location.search).get('size'); if (SIZES.includes(q)) return q; try { const v = localStorage.getItem(SIZE_KEY); if (SIZES.includes(v)) return v; } catch (e) { /* 覚えられない環境 */ } return SIZE_DEFAULT; })();
+  /* 開くたびに実物大から始める（前に選んだ大きさは覚えない）。?size= を付けたときだけ、その大きさで始める */
+  let sizeMode = (() => { const q = new URLSearchParams(location.search).get('size'); return SIZES.includes(q) ? q : SIZE_DEFAULT; })();
   // 建物 b を大きさ m で担ぐときの倍率
   function scaleOf(b, m) {
     if (m === 'half') return 0.5;
@@ -2823,7 +2824,6 @@ function start(DATA, isAsakusa) {
       return false;
     }
     sizeMode = m;
-    try { localStorage.setItem(SIZE_KEY, m); } catch (e) { /* 覚えられない環境では毎回はじめの大きさ */ }
     for (const el of $('diffSel').children) el.classList.toggle('on', el.dataset.d === m);
     renderPickHint();
     if (mode === 'pick' && hover && !hover.isLandmark) { const h = hover; hover = null; setHover(h); }

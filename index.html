@@ -287,9 +287,10 @@
 
 function start(DATA, isAsakusa) {
   const $ = id => document.getElementById(id);
-  $('src').textContent = '出典：' + (DATA.meta.source || DATA.meta.name || '');
+  /* 出典の書き方は国交省のサイトポリシーの例にそろえる（浅草のデータのとき） */
+  $('src').textContent = '出典：' + (isAsakusa ? '3D都市モデル（Project PLATEAU）台東区（2025年度）（国土交通省）を加工して作成' : (DATA.meta.source || DATA.meta.name || ''));
   // 地面の航空写真の出典（スマホでは2行目に分ける）
-  if (isAsakusa) { const g = document.createElement('span'); g.className = 'gsi'; g.innerHTML = '<span class="sl">／</span><span class="sm2">出典：</span>国土地理院（シームレス空中写真）を加工して作成' + (window.MIKOSHI_SHOPS ? '／© OpenStreetMap contributors（ODbL）' : ''); $('src').appendChild(g); }   // 店の情報（data/shops.js）は OpenStreetMap
+  if (isAsakusa) { const g = document.createElement('span'); g.className = 'gsi'; g.innerHTML = '<span class="sl">／</span><span class="sm2">出典：</span>地理院タイル（全国最新写真（シームレス））を加工して作成' + (window.MIKOSHI_SHOPS ? '／© OpenStreetMap contributors（ODbL）' : ''); $('src').appendChild(g); }   // 店の情報（data/shops.js）は OpenStreetMap
   // スマホ（幅600px未満か縦長）の印
   const isSm = () => innerWidth < 600 || innerHeight > innerWidth;
   const markSm = () => document.body.classList.toggle('sm', isSm());

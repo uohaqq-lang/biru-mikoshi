@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>ビル神輿</title>
+<link rel="icon" href="data:,"><!-- 空のアイコン：ブラウザが favicon.ico を取りに行って404を出さないように（直す係 第2回・2-2） -->
 <style>
   :root { --ink:#2b2420; --paper:#f4efe6; --red:#c8322a; --gold:#d9a521; --dim:#8a8079; }
   html,body { margin:0; height:100%; background:#d9d3c7; color:var(--ink); font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
@@ -25,6 +26,22 @@
   button { font:inherit; border:none; border-radius:10px; background:var(--paper); color:var(--ink); padding:10px 14px; font-size:15px; box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer; }
   button:active { transform:translateY(1px); }
   #zoom { position:fixed; right:12px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:8px; }
+  /* 高さの低い画面（スマホの横向き 844×390 など）では、「向き」（下から160px）が右のまん中の＋−と同じ高さになり、「−」を覆った。＋−の左へよける（直す係 第1回・不具合14） */
+  /* 縦に積んで細くし、下の「押している間 進む」と上の右上の札の間に収める（名所の説明の札にもかかりにくくする） */
+  @media (max-height:500px) { body:not(.sm) #rot { right:66px; bottom:150px; flex-direction:column; } body:not(.sm) #tour:not(.slim) { width:min(560px, 86vw, calc(100vw - 333px)); } }
+  /* 縦に積んだ「向き」は、担ぎ始めに開いている右上の担ぎ手の札（下端 約150px）の「担ぎ手 ○人」の行にかかった。
+     ボタンを48→42px、間を8→6pxに詰め、下から148pxに置いて、札の下と「押している間 進む」（上端は下から144px）の間に収める（直す係 第2回・2-11） */
+  @media (max-height:500px) { body:not(.sm) #rot { bottom:148px; gap:6px; } body:not(.sm) #rot button { height:42px; } }
+  /* 高さの低い画面（横向き）では、出典（下から約28px、2行）が左下のお祓いの数の帯と右下の大きさの3つに隠れた。帯と大きさを出典の上へ上げる（直す係 第2回・2-13） */
+  @media (max-height:500px) { body:not(.sm) #best, body:not(.sm) #diffSel { bottom:32px; } }
+  /* 高さの低い画面（横向き）の選ぶ画面：「建物を選んで！」の帯と「この建物を担ぐ」の札は、上の端（左の題と右上のボタンの間）に出す。
+     上から96〜104pxでは、地図のまん中の浅草寺とゴールの札をふさいだ（直す係 第3回・3-8） */
+  @media (max-height:500px) {
+    body:not(.sm) #pickHint { top:8px; font-size:16px; padding:5px 18px; border-radius:18px; }
+    body:not(.sm) #pickHint small { font-size:10px; }
+    body:not(.sm) #sel { top:8px; max-width:calc(100vw - 340px); white-space:normal; padding:6px 10px; }
+    body:not(.sm) #sel #carry { white-space:nowrap; flex:0 0 auto; }
+  }
   #zoom button { width:42px; height:42px; padding:0; font-size:20px; font-weight:700; }
   #recenter { display:none; color:var(--red); }
   body.unfollow[data-mode=carry] #recenter { display:block; }
@@ -32,6 +49,8 @@
   #sel b { font-size:15px; }
   @media (max-width:600px) { #sel { top:auto; bottom:150px; left:12px; right:12px; transform:none; white-space:normal; font-size:12px; gap:8px; } #carry { flex:0 0 auto; padding:10px; font-size:14px; } }
   #sel .no { color:var(--dim); }
+  /* 言葉や数字の組（「担ぎ手 1,338人」「お祓いを受けました」など）の途中で折り返さない。スマホで「担ぎ／手」「お／祓い」と折れた（直す係 第2回・2-6） */
+  .nw { white-space:nowrap; }
   /* 建物に入っている店（data/shops.js。OpenStreetMap） */
   #sel .shops { display:block; white-space:normal; max-width:460px; font-size:12px; line-height:1.5; margin-top:3px; }
   #sel .shops .more, #info .shops .more { color:var(--dim); white-space:nowrap; }
@@ -100,7 +119,8 @@
   #sel .diff { color:var(--ink); }
   #sel .diff .st { color:var(--gold); letter-spacing:.06em; font-size:14px; }
   #sel .diff.d4 .st, #sel .diff.d5 .st { color:var(--red); }
-  @media (max-width:600px) { #done { top:auto; bottom:170px; font-size:12px; } #done .big { font-size:24px; } }
+  /* スマホのお祓い・魂振りの札は、左上の地図の下に出す。前は下から170pxで、神輿（画面の下から約330〜380px）と揺れる担ぎ手を覆った（直す係 第1回・不具合13） */
+  @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; } #done .big { font-size:24px; } }
   #mute, #photoBtn { font-size:12px; padding:5px 10px; }
   #photoBtn.off { color:var(--dim); }
   #photoBtn { display:none !important; }   /* 本人「写真ありいらない」：写真はいつも出すので、切り替えは見せない */
@@ -115,6 +135,10 @@
   #sel .lm { white-space:normal; max-width:520px; font-size:12px; line-height:1.6; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(43,36,32,.2); }
   #tour { position:fixed; left:50%; top:96px; transform:translate(-50%, 8px); width:min(560px, 86vw); background:rgba(244,239,230,.96); border-left:5px solid var(--red); border-radius:8px; padding:9px 14px; font-size:14px; line-height:1.7; box-shadow:0 2px 10px rgba(0,0,0,.25); opacity:0; transition:opacity .8s, transform .8s; pointer-events:none; }
   #tour.on { opacity:1; transform:translate(-50%, 0); }
+  /* 横の中寄せは translate で（transform の動きに入れない）。前は細い札から幅を戻した直後、transform の動きの途中で中寄せが細い幅のまま残り、
+     札が右へずれて「押している間 進む」の下にもぐった（直す係 第2回・2-5） */
+  #tour { translate:-50% 0; transform:translateY(8px); }
+  #tour.on { transform:none; }
   #tour b { font-size:15px; }
   #tour .tarr { display:inline-block; color:var(--red); font-size:17px; line-height:1; margin-right:6px; }
   /* 動いている間は名前と矢印だけ。止まったら（.read）文がふわっと出て、動き出したら静かに消える */
@@ -130,6 +154,12 @@
   #back.on { background:#d8cfc0; }
   #tour { top:auto !important; bottom:110px; }
   @media (max-width:600px) { #tour { bottom:250px; } }
+  /* 雷門の提灯の小窓（左下、右端は452px）が出ている間（body.gateOn）は、名所の説明の札を小窓の右へよける。
+     1280px幅で札の左端が小窓に重なり、提灯の絵が隠れた（直す係 第1回・不具合3）。右の「向き」ボタン（右から196px）にもかからない幅にする */
+  @media (min-width:1000px) {
+    body.gateOn:not(.sm) #tour { left:max(50%, calc(452px + min(280px, 50vw - 330px))); }
+    body.gateOn:not(.sm) #tour:not(.slim) { width:min(560px, calc(100vw - 660px)); box-sizing:border-box; }
+  }
   #again { position:fixed; left:12px; bottom:14px; display:none; font-size:13px; padding:8px 12px; }
   /* 幅や高さでつかえたときは、選び直すボタンを大きく、つかえた札のすぐ下に出す */
   #again.big { left:50%; bottom:auto; top:178px; transform:translateX(-50%); font-size:18px; font-weight:700; padding:12px 24px; background:var(--red); color:#fff; box-shadow:0 2px 10px rgba(0,0,0,.35); }
@@ -185,6 +215,10 @@
   /* スマホ：出典（OpenStreetMap を足して2行）が夜の町やお祓いの数の帯に隠れないよう、薄い下地を付け、帯をその上に上げる */
   body.sm #src { background:rgba(244,239,230,.72); padding:1px 0 2px; bottom:0; }
   body.sm #best { bottom:30px; }
+  /* 390px幅では出典が3行（高さ約36px）に折れるので、その上に出すもの（帯・大きさ・向き・バック・進む・選び直す）を出典の上まで上げる。
+     前は2行のつもりで、1行目の上半分が帯とボタンに隠れた（直す係 第1回・不具合10・12） */
+  body.sm #best, body.sm #diffSel { bottom:40px; }
+  @media (max-width:600px) { #sel { bottom:160px; } }
   body.sm #right { max-width:62vw; }
   body.sm #mute, body.sm #photoBtn { font-size:11px; padding:4px 8px; }
   body.sm #ttLoad { font-size:10px; }
@@ -194,14 +228,23 @@
   body.sm #gateBox { top:150px; bottom:auto; left:10px; width:96px; height:76px; }
   body.sm #msg { top:192px; font-size:15px; width:84vw; white-space:normal; }
   body.sm #again.big { top:262px; bottom:auto; font-size:16px; padding:11px 22px; }   /* body.sm #again の小さい字に負けないように、ここでも大きさを書く */
-  body.sm #tour { bottom:232px !important; font-size:11px; line-height:1.55; width:calc(100vw - 24px); padding:7px 10px; }
+  /* 名所の説明の札は、神輿（画面の下から約330〜380px）より下、「建物を選び直す」のすぐ上に出す。
+     前は下から232pxで、神輿の下半分と担ぎ手を覆った（直す係 第1回・不具合11） */
+  body.sm #tour { bottom:154px !important; font-size:11px; line-height:1.55; width:calc(100vw - 24px); padding:7px 10px; }
   body.sm #tour.slim { width:fit-content; }
-  body.sm #hold { right:14px; bottom:22px; width:100px; height:100px; padding:4px; font-size:13px; line-height:1.4; }
-  body.sm #back { right:124px; bottom:28px; width:62px; height:62px; font-size:14px; }
+  /* 名所の説明の札：いつもの場所（下）で神輿と担ぎ手を覆うときは、上の場所（.up）へ移す（tourPlace。直す係 第2回・2-5・2-14）。
+     スマホ縦は左上の地図・雷門の小窓・「浅草神社まで」の札の下。横向きは「浅草神社まで」の札の下で、左の題と右上の担ぎ手の札の間 */
+  body.sm #tour.up { top:232px !important; bottom:auto !important; }
+  @media (max-height:500px) { body:not(.sm) #tour.up { top:54px !important; bottom:auto !important; left:calc(50% - 52px); font-size:12px; line-height:1.6; } }
+  /* 上へ移した札は、つかえたときの札とボタン（上のまん中）に重なるので、その間は隠す */
+  body.stuck #tour.up { visibility:hidden; }
+  /* 進む・バック・向き・選び直すは、3行の出典（高さ約36px）の上に出す（直す係 第1回・不具合12。前は下から22〜28pxで出典の1行目を覆った） */
+  body.sm #hold { right:14px; bottom:40px; width:100px; height:100px; padding:4px; font-size:13px; line-height:1.4; }
+  body.sm #back { right:124px; bottom:46px; width:62px; height:62px; font-size:14px; }
   /* 向きの二つは左の親指、進む・バックは右の親指（同時に押して、進みながら曲がれる） */
-  body.sm #rot { left:12px; right:auto; bottom:22px; gap:10px; }
+  body.sm #rot { left:12px; right:auto; bottom:40px; gap:10px; }
   body.sm #rot button { width:74px; height:62px; font-size:15px; font-weight:700; }
-  body.sm #again { font-size:12px; padding:7px 10px; bottom:98px; }
+  body.sm #again { font-size:12px; padding:7px 10px; bottom:116px; }
   body.sm #skip { bottom:140px; }   /* 左下のお祓いの記録の札と重ならない高さ */
   body.sm #zoom button { width:38px; height:38px; font-size:18px; }
   /* スマホ：小さいボタンは、見た目はそのままで、指で押せる範囲（::after）だけを広げて高さ44px前後にする。
@@ -976,13 +1019,19 @@ function start(DATA, isAsakusa) {
   const lmMeshes = { azuma: [], raimon: [] }, lmPolys = { azuma: [], raimon: [] };
   // 橋・高架。判定に使うガード下は、桁下から上を濃く。川の橋などは見た目だけ（lo〜hi）。
   const brMat = new THREE.MeshLambertMaterial({ color: 0x6d655c, transparent: true, opacity: 0.85 });
+  /* 橋・高架の板（足元の形・下と上の高さ）。神輿が高架の下に隠れるとき、手前の板を薄くするのに使う（updateGhosts） */
+  const brSlabs = [];
   function slab(poly, lo, hi, mat) {
     const pos = [], nor = [];
     prism(poly, Math.max(0.3, hi - lo), pos, nor);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-    const m = new THREE.Mesh(geo, mat); m.position.y = lo; scene.add(m); return m;
+    const m = new THREE.Mesh(geo, mat); m.position.y = lo; scene.add(m);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [x, y] of poly[0]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    brSlabs.push({ m, poly, lo, hi: lo + Math.max(0.3, hi - lo), bb: [x0, y0, x1, y1], mat, ghost: null });
+    return m;
   }
   for (const br of bridgeInfo) {
     const c = br.c === null ? 0 : br.c;
@@ -1079,9 +1128,10 @@ function start(DATA, isAsakusa) {
     }
     return false;
   }
-  function startFromSite(b) {
-    const { cx, cy } = b.d;
-    if (b.kCells) { const st = placeNear(b); if (st) return st; }
+  /* o（{cx, cy}）を渡したとき（担いでいる途中で縮めた後。moveIfTrapped）：o のまわりで、今の大きさで出られる所だけを探す。見つからなければ null（直す係 第2回・2-8） */
+  function startFromSite(b, o) {
+    const { cx, cy } = o || b.d;
+    if (b.kCells && !o) { const st = placeNear(b); if (st) return st; }
     let best = null;
     for (const R of [15, 40, 100, 250]) {
       const st = R <= 40 ? 0.5 : 1;
@@ -1092,7 +1142,7 @@ function start(DATA, isAsakusa) {
       }
       if (best) break;
     }
-    if (!best) return findStartFor();
+    if (!best) return o ? null : findStartFor();
     // 道の向き：前後にいちばん長く続く向き
     const axis = (x, y) => { let h = 0, m = -1; for (let a = 0; a < 180; a += 5) { const hh = a * Math.PI / 180, rr = run(x, y, hh, 60) + run(x, y, hh + Math.PI, 60); if (rr > m) { m = rr; h = hh; } } return h; };
     const center = (x, y, h) => { const a = h + Math.PI / 2, l = run(x, y, a, 60), r = run(x, y, a + Math.PI, 60); return { x: x + Math.cos(a) * (l - r) / 2, y: y + Math.sin(a) * (l - r) / 2 }; };
@@ -1128,6 +1178,7 @@ function start(DATA, isAsakusa) {
       const until = performance.now() + 150;
       for (const q of pts) { if (performance.now() > until) break; const st = around(q, true, until); if (!st.fail) return st; }
     }
+    if (o) return null;
     const st = around(best, false);
     S.head = st.h;
     /* fail のときは置けない：ここでつかえる */
@@ -1137,6 +1188,61 @@ function start(DATA, isAsakusa) {
   // 選ぶ画面：町を引きで見る。ドラッグで動かす、ホイール・＋−・二本指で寄る。
   let mode = 'pick';
   const mapCam = { x: 0, y: 0, dist: 420 };
+  /* 選ぶ画面で見ている点（画面のまん中）を動かせる範囲：町の建物がある所（25mのマス。まわり1マスの余白つき）。
+     外へ引っぱると重くなり（最大60m）、指を離すと範囲の端までゆっくり戻る。
+     前は止める仕組みがなく、町の外の何も無い所まで行けて、戻れなくなった（直す係 第2回・2-10） */
+  const TOWN = (() => {
+    const C = 25, x0 = minX, y0 = minY, W = Math.ceil((maxX - minX) / C) + 1, H = Math.ceil((maxY - minY) / C) + 1, on = new Uint8Array(W * H);
+    for (const b of blds) {
+      const c = Math.floor((b.d.cx - x0) / C), r = Math.floor((b.d.cy - y0) / C);
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { const cc = c + dc, rr = r + dr; if (cc >= 0 && rr >= 0 && cc < W && rr < H) on[rr * W + cc] = 1; }
+    }
+    const rects = [];
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (on[r * W + c]) rects.push([x0 + c * C, y0 + r * C, x0 + (c + 1) * C, y0 + (r + 1) * C]);
+    return rects;
+  })();
+  const RUB = 60;
+  /* いちばん近い町の範囲の点 */
+  function townNear(x, y) {
+    let bx = x, by = y, bd = Infinity;
+    for (const [a0, b0, a1, b1] of TOWN) {
+      const px = Math.max(a0, Math.min(a1, x)), py = Math.max(b0, Math.min(b1, y)), d = (px - x) * (px - x) + (py - y) * (py - y);
+      if (d < bd) { bd = d; bx = px; by = py; if (d === 0) break; }
+    }
+    return { x: bx, y: by, d: Math.sqrt(bd) };
+  }
+  /* 範囲の外は、引っぱった量（x, y）より手前に重く止まる */
+  function rubber(x, y) {
+    const q = townNear(x, y);
+    if (!(q.d > 0)) return { x, y };
+    const s = RUB * (1 - Math.exp(-q.d / RUB)) / q.d;
+    return { x: q.x + (x - q.x) * s, y: q.y + (y - q.y) * s };
+  }
+  /* 選ぶ画面のカメラが建物の中に入らないように（直す係 第3回・3-4）。寄りの下限は距離30m（高さ約18m）の固定で、
+     高いビルの所まで寄ると、カメラがビルの中に入り、壁しか見えなくなった。
+     カメラの真下のまわり（4m）でいちばん高い建物より5m上に来るまで、見ている点からの距離を延ばす（寄る向きと角度は同じ） */
+  function roofNear(x, y) {
+    let h = 0;
+    for (let i = Math.floor((x - 4) / BG); i <= Math.floor((x + 4) / BG); i++) for (let j = Math.floor((y - 4) / BG); j <= Math.floor((y + 4) / BG); j++) {
+      const a = bgrid.get(i * 100003 + j); if (!a) continue;
+      for (const b of a) {
+        if (b.h <= h || flatState.get(b) === 1) continue;
+        const [x0, y0, x1, y1] = b.bb;
+        if (x >= x0 - 4 && x <= x1 + 4 && y >= y0 - 4 && y <= y1 + 4) h = b.h;
+      }
+    }
+    return h;
+  }
+  function pickDistMin() {
+    let d = mapCam.dist;
+    const sp = Math.sin(mapCam.pitch), cp = Math.cos(mapCam.pitch), yw = mapCam.yaw || 0;
+    for (let i = 0; i < 6; i++) {
+      const need = (roofNear(mapCam.x + Math.sin(yw) * d * cp, mapCam.y - Math.cos(yw) * d * cp) + 5) / sp;
+      if (d >= need - 0.01) break;
+      d = need;
+    }
+    return d;
+  }
   const hoverMat = new THREE.MeshLambertMaterial({ color: 0xe0b02a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   let hover = null, hoverMesh = null;
   function bldGeo(b, h) {
@@ -1269,6 +1375,8 @@ function start(DATA, isAsakusa) {
     return `<span class="shops one">${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}</span>`;
   }
   function setHover(b) {
+    /* 札と黄色い光は町の画面だけ。乗せ替えの待ち（mouseHover の0.25秒）が担いだ後に来ても出さない（直す係 第1回で見つけた） */
+    if (b && mode !== 'pick') b = null;
     if (b === hover) return;
     hover = b;
     if (hoverMesh) { scene.remove(hoverMesh); hoverMesh.geometry.dispose(); hoverMesh = null; }
@@ -1284,7 +1392,7 @@ function start(DATA, isAsakusa) {
     /* 担ぎ手は、選んでいる大きさで担いだときの人数 */
     const w = weightOf(b, scaleOf(b, sizeMode)), L = lmOfBld.get(b);
     // 札は「用途（名所なら名前）・担ぎ手・店1行」だけ。寸法と重さは担いでいる間の右上、名所の説明は担いだ後の車夫の案内で出す（研究を受けた直しメモ.md）
-    $('selInfo').innerHTML = (L ? `<b>${L.name}</b>（${b.usage}）` : `<b>${b.usage}</b>`) + `　担ぎ手 <b>${fmt(w.people)}人</b>${shopsLine(b)}${diffText(b)}`;
+    $('selInfo').innerHTML = (L ? `<b>${L.name}</b>（${b.usage}）` : `<b>${b.usage}</b>`) + `　<span class="nw">担ぎ手 <b>${fmt(w.people)}人</b></span>${shopsLine(b)}${diffText(b)}`;
     $('sel').style.display = 'flex';
   }
   const raycaster = new THREE.Raycaster();
@@ -1324,6 +1432,8 @@ function start(DATA, isAsakusa) {
   });
   view.addEventListener('pointermove', e => {
     const prev = ptrs.get(e.pointerId);
+    /* 札へ向かって動いているか（mouseHover の待ちの長さに使う） */
+    if (mode === 'pick' && !prev && e.pointerType === 'mouse') aimAt(e.clientX, e.clientY);
     if (mode === 'pick' && !prev && e.pointerType === 'mouse') { hoverReq = { x: e.clientX, y: e.clientY }; return; }
     if (!prev) return;
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
@@ -1345,7 +1455,10 @@ function start(DATA, isAsakusa) {
     }
     if (mode === 'pick' && downAt && downAt.moved > 6) {
       const k = panScale();
-      mapCam.x -= dx * k; mapCam.y += dy * k / Math.sin(mapCam.pitch);
+      /* 引っぱった量（rx, ry）は範囲の外でもそのまま数え、見ている点は範囲の外で重くする（TOWN・rubber） */
+      if (downAt.rx === undefined) { downAt.rx = mapCam.x; downAt.ry = mapCam.y; }
+      downAt.rx -= dx * k; downAt.ry += dy * k / Math.sin(mapCam.pitch);
+      const rb = rubber(downAt.rx, downAt.ry); mapCam.x = rb.x; mapCam.y = rb.y;
       view.classList.remove('over');
     }
   });
@@ -1369,14 +1482,33 @@ function start(DATA, isAsakusa) {
   // マウスのホバー：札へ移る途中で別の建物を横切っても札が替わらないように、
   // 何も乗せていないときはすぐ、別の建物に替えるのは0.25秒とどまったとき、外れたときは0.5秒後に消す。
   let switchTimer = 0, cand = null;
+  /* 札（#sel）へ向かってマウスを動かしている間（最後に動いてから1秒以内）は、札を替えない・消さない。止まってから替える・消す。
+     札は画面の上のまん中にあり、建物から札へ動かす途中で別の建物や選べない町を横切って、札が替わったり消えたりした（直す係 第1回・不具合6）。
+     向かっているかは、0.12秒以上前のマウスの位置より、札までの距離が3px以上縮んだかで見る */
+  let aiming = false, aimPrev = null, lastMoveT = 0;
+  const AIM_HOLD = 1000;
+  function aimAt(x, y) {
+    const el = $('sel'), now = performance.now();
+    lastMoveT = now;
+    if (!aimPrev) { aimPrev = { x, y, t: now }; return; }
+    if (now - aimPrev.t < 120) return;
+    if (hover && el.style.display === 'flex') {
+      const r = el.getBoundingClientRect(), dist = (px, py) => Math.hypot(Math.max(r.left - px, 0, px - r.right), Math.max(r.top - py, 0, py - r.bottom));
+      aiming = dist(x, y) < dist(aimPrev.x, aimPrev.y) - 3;
+    } else aiming = false;
+    aimPrev = { x, y, t: now };
+  }
   function mouseHover(b) {
     if (overSel) return;
     cand = b;
     clearTimeout(clearTimer); clearTimeout(switchTimer);
     if (b === hover) return;
-    if (!b) { clearTimer = setTimeout(() => { if (!overSel && cand === null) setHover(null); }, 500); return; }
+    /* 札へ向かって動き続けている間は、待ちを延ばす */
+    const stillAiming = () => aiming && performance.now() - lastMoveT < AIM_HOLD;
+    if (!b) { const tick = () => { if (overSel || cand !== null) return; if (stillAiming()) { clearTimer = setTimeout(tick, 200); return; } setHover(null); }; clearTimer = setTimeout(tick, 500); return; }
     if (!hover) { setHover(b); return; }
-    switchTimer = setTimeout(() => { if (!overSel && cand === b) setHover(b); }, 250);
+    const tick = () => { if (overSel || cand !== b) return; if (stillAiming()) { switchTimer = setTimeout(tick, 200); return; } setHover(b); };
+    switchTimer = setTimeout(tick, 250);
   }
   $('carry').onclick = () => { if (hover && !hover.isLandmark) choose(hover, 'site'); };
 
@@ -1458,13 +1590,133 @@ function start(DATA, isAsakusa) {
   const goldMat = new THREE.MeshLambertMaterial({ color: 0xd9a521, emissive: 0x3a2800 });
   const woodMat = new THREE.MeshLambertMaterial({ color: 0x9a6a3a });
   const purpleMat = new THREE.MeshLambertMaterial({ color: 0x6b3a8c });
+  // 神輿らしくする飾り（本人の決定 10/20：「台座と柵」と「飾り」を組み合わせる。屋根は付けない。見比べた画像は mikoshi_look/見た目の例_一覧.jpg）
+  // 台輪（黒塗り・金の縁）・玉垣（朱の低い柵）・四方の鳥居と、瓔珞（金の垂れ飾り）・四隅の紫の房・紫の飾り綱。どれも建物の寸法の割合で決め、実物大でも神輿の大きさでも同じ形になる
+  const lacquerMat = new THREE.MeshLambertMaterial({ color: 0x1e1815, side: THREE.DoubleSide });
+  const shuMat = new THREE.MeshLambertMaterial({ color: 0xc8401f });
+  const ropeMat = new THREE.MeshLambertMaterial({ color: 0x5a2a86 });
+  const unitBox = new THREE.BoxGeometry(1, 1, 1);
+  /* 箱をまとめて一つの部品にする（部品の数を増やさない）。e：[中心x, 中心y, 中心z, 幅x, 高さy, 奥行z, 回転y] */
+  function boxes(list, mat) {
+    const m = new THREE.InstancedMesh(unitBox, mat, Math.max(1, list.length)), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), Sc = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+    list.forEach((e, i) => { P.set(e[0], e[1], e[2]); Q.setFromAxisAngle(Y, e[6] || 0); Sc.set(e[3], e[4], e[5]); M.compose(P, Q, Sc); m.setMatrixAt(i, M); });
+    m.count = list.length; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false;
+    return m;
+  }
+  /* 台輪の大きさ（建物の寸法の割合。縮める前の形の中の m）。mB：建物から台輪の縁までの幅、tb：台輪の厚み、hf：玉垣の高さ */
+  function baseSize(b) {
+    const mn = Math.min(b.d.L, b.d.W);
+    const mB = 0.15 * mn, tb = Math.min(0.055 * mn, 0.06 * b.h);
+    return { mB, tb, hf: Math.min(0.55 * mB, 0.1 * b.h) };
+  }
+  /* 台輪・玉垣・四方の鳥居。足元の外接長方形に合わせる。y＝0 が台輪の底で、建物は tb だけ上に乗る */
+  function makeBase(grp, L2, W2, B) {
+    const { mB, tb, hf } = B, BL = L2 + mB, BW = W2 + mB, gb = tb * 0.16;
+    grp.add(boxes([[0, tb / 2, 0, BL * 2, tb, BW * 2]], lacquerMat));
+    /* 金の縁：上と下の縁を、少し大きい薄い板で（上の板は台輪の上面より少し下に置き、上から見ると縁だけ金に見える） */
+    grp.add(boxes([[0, tb * 0.97 - gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb], [0, gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb]], goldMat));
+    /* 四隅の角金物 */
+    const cg = tb * 1.05, corner = [];
+    for (const su of [1, -1]) for (const sv of [1, -1]) corner.push([su * (BL - cg * 0.3), tb / 2, sv * (BW - cg * 0.3), cg * 0.75, tb * 1.04, cg * 0.75]);
+    grp.add(boxes(corner, goldMat));
+    /* 玉垣：台輪の上、建物と台輪の縁の間。柱は等間隔、横木は上と下の2本。四方の真ん中は鳥居のために空ける */
+    const FL = L2 + mB * 0.55, FW = W2 + mB * 0.55, y1 = tb, sp = Math.max(hf * 0.45, Math.max(FL, FW) / 40), pw = hf * 0.12;
+    const ht = hf * 2.1, wt = Math.min(ht * 0.95, Math.min(FL, FW) * 0.7), gap = wt * 0.6;
+    const posts = [], rails = [], tori = [], kasa = [];
+    /* len：その辺の半分の長さ。put(t)：辺に沿う位置 t に柱を置く */
+    const side = (len, put) => {
+      for (let t = -len; t <= len + 1e-6; t += (2 * len) / Math.max(2, Math.round(2 * len / sp))) if (Math.abs(t) > gap) put(t);
+    };
+    for (const s of [1, -1]) {
+      side(FL, t => posts.push([t, y1 + hf / 2, s * FW, pw, hf, pw]));
+      side(FW, t => posts.push([s * FL, y1 + hf / 2, t, pw, hf, pw]));
+      for (const [ry, rh] of [[y1 + hf * 0.92, hf * 0.12], [y1 + hf * 0.35, hf * 0.08]]) {
+        for (const d of [1, -1]) {
+          rails.push([d * (FL + gap) / 2, ry, s * FW, FL - gap, rh, pw * 0.9]);
+          rails.push([s * FL, ry, d * (FW + gap) / 2, pw * 0.9, rh, FW - gap]);
+        }
+      }
+      /* 鳥居：柱2本・貫（朱）、笠木（黒、両端が張り出す） */
+      for (const ax of [0, 1]) {
+        const cx = ax ? s * FL : 0, cz = ax ? 0 : s * FW, rot = ax ? Math.PI / 2 : 0, pr = wt * 0.07;
+        const at = (t, y, w, h, d) => { const x = ax ? cx : cx + t, z = ax ? cz + t : cz; return [x, y, z, w, h, d, rot]; };
+        tori.push(at(-wt * 0.36, y1 + ht / 2, pr * 2, ht, pr * 2), at(wt * 0.36, y1 + ht / 2, pr * 2, ht, pr * 2), at(0, y1 + ht * 0.74, wt * 0.86, ht * 0.07, pr * 1.3));
+        kasa.push(at(0, y1 + ht + ht * 0.05, wt * 1.18, ht * 0.1, pr * 2.6));
+      }
+    }
+    grp.add(boxes(posts, shuMat)); grp.add(boxes(rails, shuMat)); grp.add(boxes(tori, shuMat)); grp.add(boxes(kasa, lacquerMat));
+  }
+  /* 外壁の上端：足元の形の縁に0.5mおきに点を取り、それぞれの点の真上にかかる面（三角形）のいちばん高い所を調べて、その真ん中の値。
+     geo は神輿の座標の三角形（yo だけ下げてある）、local は足元の形（u, v）。縁から引っ込んだ塔屋は縁の点にかからないので数に入らず、
+     飾りが塔屋の高さから下がって外壁から浮くことがない（頂点の数で数えると、頂点の多い中段の線に引っぱられたので、縁の長さで数える） */
+  function wallTopOf(geo, local, h, yo = 0) {
+    const pa = geo.attributes.position.array, r = local[0], pts = [], tol = 0.4;
+    for (let i = 0; i < r.length - 1; i++) {
+      const [ax, ay] = r[i], [bx, by] = r[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.5));
+      for (let j = 0; j < n; j++) pts.push([ax + (bx - ax) * j / n, -(ay + (by - ay) * j / n)]);
+    }
+    const top = new Array(pts.length).fill(-Infinity);
+    for (let i = 0; i + 8 < pa.length; i += 9) {
+      const x0 = Math.min(pa[i], pa[i + 3], pa[i + 6]) - tol, x1 = Math.max(pa[i], pa[i + 3], pa[i + 6]) + tol;
+      const z0 = Math.min(pa[i + 2], pa[i + 5], pa[i + 8]) - tol, z1 = Math.max(pa[i + 2], pa[i + 5], pa[i + 8]) + tol;
+      const y = Math.max(pa[i + 1], pa[i + 4], pa[i + 7]) + yo;
+      for (let k = 0; k < pts.length; k++) { const p = pts[k]; if (y > top[k] && p[0] >= x0 && p[0] <= x1 && p[1] >= z0 && p[1] <= z1) top[k] = y; }
+    }
+    const ys = top.filter(y => y > 0.3 * h).sort((a, b) => a - b);
+    return ys.length ? Math.min(h, ys[Math.floor(ys.length / 2)]) : h;
+  }
+  /* 飾り：屋上の縁（足元の形を少し外へ）から金の瓔珞、建物に紫の飾り綱（各辺でたるませ、四隅で結び目）、結び目から紫の房。h は外壁の上端。
+     房と綱のたるみは、見える大きさ（倍率 k を掛けた m）で上限を決める（実物大の大きい建物で、房が写真の前を大きくふさがないように） */
+  function makeDeco(grp, local, L2, W2, h, k) {
+    const mn = Math.min(L2, W2) * 2, Ly = 0.12 * Math.min(h, mn), sw = Ly * 0.045;
+    const r = local[0]; let ar = 0; for (let i = 0; i < r.length - 1; i++) ar += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1];
+    const sg = ar > 0 ? 1 : -1, off = sw * 2, segs = [];
+    for (let i = 0; i < r.length - 1; i++) {
+      const [ax, ay] = r[i], [bx, by] = r[i + 1], l = Math.hypot(bx - ax, by - ay); if (l < 0.3) continue;
+      const nx = sg * (by - ay) / l, ny = -sg * (bx - ax) / l;
+      segs.push([[ax + nx * off, -(ay + ny * off)], [bx + nx * off, -(by + ny * off)]]);
+    }
+    const strands = [], beads = [], bars = [], spc = Math.max(Ly * 0.32, (L2 + W2) / 45);
+    for (const [[ax, az], [bx, bz]] of segs) {
+      const l = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(l / spc)), rot = -Math.atan2(bz - az, bx - ax);
+      bars.push([(ax + bx) / 2, h - sw, (az + bz) / 2, l, sw * 2, sw * 1.5, rot]);
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, len = Ly * (i % 2 ? 0.62 : 1);
+        strands.push([x, h - len / 2, z, sw, len, sw, rot]);
+        beads.push([x, h - len - sw * 2.2, z, sw * 4.5, sw * 4.5, sw * 1.2, rot]);
+      }
+    }
+    grp.add(boxes(strands, goldMat)); grp.add(boxes(bars, goldMat)); grp.add(boxes(beads, goldMat));
+    /* 飾り綱：外接長方形を少し外へ出した四隅を、各辺でたるませて回す。高さは瓔珞の少し下 */
+    const top = h - Ly * 1.25, og = Math.max(sw * 4, 0.035 * mn), A = L2 + og, Bw = W2 + og;
+    const cr = Math.max(0.035, 0.014 * Math.min(h * 1.5, mn)), sag = Math.min(0.12 * h, 0.18 * mn, 1.2 / k);
+    const cs = [[A, Bw], [-A, Bw], [-A, -Bw], [A, -Bw]];
+    for (let i = 0; i < 4; i++) {
+      const [x0, z0] = cs[i], [x1, z1] = cs[(i + 1) % 4], pts = [];
+      for (let j = 0; j <= 16; j++) { const t = j / 16; pts.push(new THREE.Vector3(x0 + (x1 - x0) * t, top - sag * 4 * t * (1 - t), z0 + (z1 - z0) * t)); }
+      grp.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, cr, 7), ropeMat));
+    }
+    /* 四隅：綱の結び目（輪を二つ）と、そこから下がる房 */
+    const tas = Math.max(0.35, Math.min(0.2 * h, 0.3 * mn, 1.5 / k)), loopG = new THREE.TorusGeometry(cr * 3.2, cr * 0.9, 8, 20);
+    for (const [x, z] of cs) {
+      const ang = Math.atan2(z, x);
+      for (const s of [1, -1]) { const lp = new THREE.Mesh(loopG, ropeMat); lp.position.set(x + Math.cos(ang + s * 1.2) * cr * 2.4, top + cr * 1.5, z + Math.sin(ang + s * 1.2) * cr * 2.4); lp.rotation.set(0, -ang + s * 0.9, 0); grp.add(lp); }
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(cr * 2.2, 12, 10), goldMat); knot.position.set(x, top - cr, z); grp.add(knot);
+      const cordL = tas * 0.35, cord = new THREE.Mesh(new THREE.CylinderGeometry(cr * 0.8, cr * 0.8, cordL, 8), ropeMat); cord.position.set(x, top - cr * 2 - cordL / 2, z); grp.add(cord);
+      const fy = top - cr * 2 - cordL;
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(tas * 0.1, tas * 0.16, tas * 0.18, 14), goldMat); cap.position.set(x, fy - tas * 0.09, z); grp.add(cap);
+      const fusa = new THREE.Mesh(new THREE.CylinderGeometry(tas * 0.15, tas * 0.34, tas, 16), purpleMat); fusa.position.set(x, fy - tas * 0.18 - tas / 2, z); grp.add(fusa);
+      const hem = new THREE.Mesh(new THREE.SphereGeometry(tas * 0.34, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), purpleMat); hem.position.set(x, fy - tas * 1.18, z); grp.add(hem);
+    }
+  }
   // 担ぎ棒（井桁）：長い辺に沿う2本と、前後で横に渡す2本。棒の高さは、建物の底から少し下（神輿の絵の中で −0.2m）。
   // D：担いでいる大きさ（S.dim）。棒と担ぎ手は人の大きさのまま、縮めた足元に合わせて並べる
-  function poleLayout(D) {
+  // ext：見た目だけ、長い棒を前後に伸ばす長さ（台輪から棒の先が出るように。担ぎ手の並びには使わない）
+  function poleLayout(D, ext = 0) {
     const L2 = D.L / 2, W2 = D.W / 2;
     const vv = Math.max(0.5, W2 * 0.6), uu = L2 + 0.9;
     return {
-      along: [-vv, vv].map(v => ({ v, u0: -L2 - 2, u1: L2 + 2 })),
+      along: [-vv, vv].map(v => ({ v, u0: -L2 - 2 - ext, u1: L2 + 2 + ext })),
       cross: [-uu, uu].map(u => ({ u, v0: -vv - 1.4, v1: vv + 1.4 })),
     };
   }
@@ -1512,10 +1764,13 @@ function start(DATA, isAsakusa) {
     g.add(crewBody); g.add(crewHead);
     const want = Math.min(S.weight.people, MAX_CREW), P = poleLayout(S.dim);
     let n = 0;
+    /* 担ぎ手の足元（神輿の中の座標）を覚えておく。まわりの建物の中に立つ人を隠すのに使う（fitCrew） */
+    const uv = [];
     const put = (u, v, face) => {
       if (n >= want) return;
       tmpP.set(u, 0, -v); tmpQ.setFromAxisAngle(upY, face); tmpS.set(1, 1, 1);
       tmpM.compose(tmpP, tmpQ, tmpS); crewBody.setMatrixAt(n, tmpM); crewHead.setMatrixAt(n, tmpM); n++;
+      uv.push(u, v);
     };
     for (const p of P.along) for (let u = p.u0 + 0.4; u <= p.u1 - 0.4; u += 0.6) {
       if (P.cross.some(c => Math.abs(c.u - u) < 0.45)) continue;
@@ -1538,7 +1793,59 @@ function start(DATA, isAsakusa) {
     crewBody.count = crewHead.count = n;
     crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
     S.crewShown = n;
+    S.crewUV = Float32Array.from(uv); S.crewMask = null; S.fitKey = '';
     return g;
+  }
+  /* 担ぎ手・担ぎ棒が、まわりの建物の中に入って見えないように（直す係 第1回・不具合1・4）。
+     つかえる判定（check）は足元だけのまま変えない。見た目だけ：建物の中に立つ担ぎ手は出さず、担ぎ棒は建物の手前で止める。
+     px, py, ori：神輿の位置と向き、sp：担ぎ手が集まる途中の広がり（ふだんは1） */
+  /* 境内の小さな建物（20㎡未満など）は通れる所になっているが、その中にも人は立たせない */
+  const notMe = bb => bb === S.b;
+  /* 道のマス（0.5m）の上でも、建物の足元の線にかかる人（体の幅0.2mまで）は出さない。壁ぎわの列が壁に半分埋まって見えた（直す係 第3回・3-11）。
+     雷門や高架の下（桁下の決まりがある所）は、くぐる所なので今までどおり */
+  const nearWall = (x, y) => clearAt(x, y) === Infinity && (!!bldAt(x, y, 0.5, notMe) || !!bldAt(x + 0.2, y, 0.5, notMe) || !!bldAt(x - 0.2, y, 0.5, notMe) || !!bldAt(x, y + 0.2, 0.5, notMe) || !!bldAt(x, y - 0.2, 0.5, notMe));
+  const crewBlocked = (x, y) => ((!onRoad(x, y) || inKeidai(x, y)) && !!bldAt(x, y, 0.5, notMe)) || (onRoad(x, y) && nearWall(x, y));
+  function fitCrew(px, py, ori, sp) {
+    const key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2);
+    if (S.fitKey === key) return;
+    S.fitKey = key;
+    const c = Math.cos(ori), s = Math.sin(ori), uv = S.crewUV;
+    if (uv) {
+      const n = uv.length / 2, mask = new Uint8Array(n);
+      let changed = !S.crewMask || S.crewMask.length !== n;
+      for (let i = 0; i < n; i++) {
+        const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
+        mask[i] = crewBlocked(px + u * c - v * s, py + u * s + v * c) ? 0 : 1;
+        if (!changed && mask[i] !== S.crewMask[i]) changed = true;
+      }
+      if (changed) {
+        S.crewMask = mask;
+        let m = 0;
+        for (let i = 0; i < n; i++) if (mask[i]) { tmpM.makeTranslation(uv[2 * i], 0, -uv[2 * i + 1]); crewBody.setMatrixAt(m, tmpM); crewHead.setMatrixAt(m, tmpM); m++; }
+        crewBody.count = crewHead.count = m;
+        crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
+      }
+    }
+    /* 担ぎ棒：神輿の縁（横棒はまん中）から外へ0.25mずつ見て、建物に当たる手前で止める。ふだんは元の長さのまま */
+    const ud = S.mesh && S.mesh.userData, poles = ud && ud.poles;
+    if (!poles) return;
+    const ends = new Map();
+    for (const pm of poles.children) {
+      const P = pm.userData.pole; if (!P) continue;
+      const free = t => { const u = P.ax === 'u' ? t : P.at, v = P.ax === 'u' ? P.at : t; return !crewBlocked(px + u * c - v * s, py + u * s + v * c); };
+      let e0 = P.s0, e1 = P.s1;
+      if (P.s0 === P.s1 && !free(P.s0)) { pm.visible = false; continue; }
+      for (let t = P.s1 + 0.25; t <= P.a1 + 1e-6; t += 0.25) { if (!free(t)) break; e1 = t; }
+      for (let t = P.s0 - 0.25; t >= P.a0 - 1e-6; t -= 0.25) { if (!free(t)) break; e0 = t; }
+      if (P.a1 - e1 < 0.25) e1 = P.a1;
+      if (e0 - P.a0 < 0.25) e0 = P.a0;
+      pm.visible = e1 - e0 > 0.05;
+      const k = Math.max(0.01, (e1 - e0) / (P.a1 - P.a0));
+      if (P.ax === 'u') { pm.scale.x = k; pm.position.x = (e0 + e1) / 2; ends.set(P.at, [e0, e1]); }
+      else { pm.scale.z = k; pm.position.z = -(e0 + e1) / 2; }
+    }
+    /* 夜の提灯（担ぎ棒の先）も、棒の先に合わせて動かす */
+    if (ud.lans) for (const L of ud.lans) { const e = ends.get(L.v); if (e) L.o.position.x = L.end < 0 ? e[0] + 0.2 : e[1] - 0.2; }
   }
 
   // ---- 担ぐ大きさ（実物大・半分・神輿）：倍率 k で縮めた足元の形と、判定に使う点 ----
@@ -1577,9 +1884,9 @@ function start(DATA, isAsakusa) {
     S.shadow = shadow; scene.add(shadow);
   }
 
-  // 担いだ建物の見た目：建物は町にあったときの色のまま。屋上に鳳凰、足元に井桁の担ぎ棒、角から紫の紐と房。
+  // 担いだ建物の見た目：建物は町にあったときの色のまま。屋上に鳳凰、足元に台輪・玉垣・鳥居と井桁の担ぎ棒、外壁の上端から瓔珞・飾り綱・四隅の房。
   // 写真ありで写真付きの形がある建物（名所・町の建物）は、本体と縁取りを写真付きの形にする（足元と同じ回し方：建物の真ん中を原点に、長い辺を u に）。
-  // 建物・縁取り・鳳凰・房は一つの組（body）にまとめ、組ごと倍率で縮める（写真付きの形でも箱でも同じ縮み方）。担ぎ棒と提灯は人の大きさのまま、縮めた足元に合わせて並べる。
+  // 建物・縁取り・鳳凰・台輪・飾りは一つの組（body）にまとめ（建物・縁取り・鳳凰・飾りは、台輪の厚みだけ持ち上げた組 up の中）、組ごと倍率で縮める（写真付きの形でも箱でも同じ縮み方）。担ぎ棒と提灯は人の大きさのまま、縮めた足元に合わせて並べる。
   // 写真の有り無しを替えたとき・大きさを替えたときは作り直す（rebuildCarry）
   function carryLook(b) {
     const k = S.k, D = S.dim, { cx, cy, a } = b.d, c = Math.cos(-a), s = Math.sin(-a), local = localOf(b, 1), L2 = b.d.L / 2, W2 = b.d.W / 2;
@@ -1591,10 +1898,13 @@ function start(DATA, isAsakusa) {
     const xfLocal = (x, y, z, v) => { const dx = x - cx, dy = y - cy; v.set(dx * c - dy * s, z, -(dx * s + dy * c)); };
     /* 写真付きの形の屋根の頂（縁取りと鳳凰の高さに使う） */
     const topH = hasTex ? photo.top : b.h;
-    if (hasTex) body.add(photoGroup(photo, xfLocal));
+    /* 台輪：足元に台輪・玉垣・鳥居を敷き、建物（up の中身）は台輪の厚みだけ持ち上げる */
+    const up = new THREE.Group(), BS = baseSize(b); body.add(up);
+    up.position.y = BS.tb; makeBase(body, L2, W2, BS);
+    if (hasTex) up.add(photoGroup(photo, xfLocal));
     else {
       const bodyMat = new THREE.MeshLambertMaterial({ color: b.col, emissive: new THREE.Color(b.col).multiplyScalar(0.12) });
-      body.add(new THREE.Mesh(extrude(local, b.h), bodyMat));
+      up.add(new THREE.Mesh(extrude(local, b.h), bodyMat));
     }
     let hullGeo;
     // 縁取りも写真付きの形で（箱のままだと、屋根の脇に箱の裏が見える）
@@ -1604,26 +1914,23 @@ function start(DATA, isAsakusa) {
     const phY = hasTex ? roofAtCenter(hullGeo, b.h) : b.h;
     hullGeo.translate(0, -topH / 2, 0);
     const hull = new THREE.Mesh(hullGeo, new THREE.MeshBasicMaterial({ color: 0x3a2418, side: THREE.BackSide }));
-    hull.position.y = topH / 2; body.add(hull);
+    hull.position.y = topH / 2; up.add(hull);
     g.userData.hull = { m: hull, L: b.d.L, W: b.d.W, H: topH };
     hullScale(g.userData.hull, S.visK || k);
+    // 飾り（瓔珞・飾り綱・房）は外壁の上端から下げる（前は建物の一番高い所から下げていて、塔屋のあるビルでは房が外壁から浮いていた）
+    const yw = hasTex ? wallTopOf(hullGeo, local, b.h, topH / 2) : b.h;
+    g.userData.wallTop = yw;
+    makeDeco(up, local, L2, W2, yw, k);
+    /* 長い担ぎ棒を、台輪の縁の外まで伸ばす長さ（見える大きさ） */
+    g.userData.poleExt = BS.mB * k + 0.4;
     // 担ぎ棒（見た目だけ。判定には入れない）
-    const P = poleLayout(D), pr = Math.min(0.22, 0.1 + D.W * 0.01);
-    for (const p of P.along) { const m = new THREE.Mesh(new THREE.BoxGeometry(p.u1 - p.u0, pr * 2, pr * 2), woodMat); m.position.set(0, -0.2, -p.v); poles.add(m); }
-    for (const q of P.cross) { const m = new THREE.Mesh(new THREE.BoxGeometry(pr * 2, pr * 2, q.v1 - q.v0), woodMat); m.position.set(q.u, -0.2 + pr * 2, 0); poles.add(m); }
+    const P = poleLayout(D, g.userData.poleExt), pr = Math.min(0.22, 0.1 + D.W * 0.01);
+    for (const p of P.along) { const m = new THREE.Mesh(new THREE.BoxGeometry(p.u1 - p.u0, pr * 2, pr * 2), woodMat); m.position.set(0, -0.2, -p.v); poles.add(m); m.userData.pole = { ax: 'u', at: p.v, a0: p.u0, a1: p.u1, s0: -D.L / 2, s1: D.L / 2 }; }
+    for (const q of P.cross) { const m = new THREE.Mesh(new THREE.BoxGeometry(pr * 2, pr * 2, q.v1 - q.v0), woodMat); m.position.set(q.u, -0.2 + pr * 2, 0); poles.add(m); m.userData.pole = { ax: 'v', at: q.u, a0: q.v0, a1: q.v1, s0: 0, s1: 0 }; }
+    /* m.userData.pole：棒の向き（ax）、位置（at）、両端（a0〜a1。長い棒は台輪の外まで伸ばした長さ poleExt を含む）、建物に当たっても縮めない内側（s0〜s1）。fitCrew で使う */
     // 鳳凰：屋上のまん中。大きさは建物ごとに、足元の短い辺と高さの小さい方の35%（見える大きさで0.8〜9m。縮めたときは0.45mから）。低い建物で鳳凰だけ大きく見えないように
     const ps = Math.max(k < 1 ? 0.45 : 0.8, Math.min(9, Math.min(b.d.W, b.d.L, b.h) * k * 0.35)) / k;
-    const ph = makePhoenix(ps); ph.position.set(0, phY, 0); body.add(ph);
-    // 角から紫の飾り紐と房（足元の外接長方形の四つ角）。紐は太く短く、房は下に向かってふくらむ形（矢印に見えないように）
-    const cordL = Math.max(1.0, Math.min(8, b.h * 0.22)), tas = Math.max(0.7, Math.min(3, b.h * 0.09)), cr = Math.max(0.09, Math.min(0.35, b.h * 0.012));
-    for (const [u, v] of [[L2, W2], [L2, -W2], [-L2, W2], [-L2, -W2]]) {
-      const ox = u + Math.sign(u) * 0.15, oz = -(v + Math.sign(v) * 0.15);
-      const cord = new THREE.Mesh(new THREE.CylinderGeometry(cr, cr, cordL, 8), purpleMat); cord.position.set(ox, b.h - cordL / 2, oz); body.add(cord);
-      const knot = new THREE.Mesh(new THREE.SphereGeometry(tas * 0.2, 12, 10), goldMat); knot.position.set(ox, b.h - cordL, oz); body.add(knot);
-      const fusa = new THREE.Mesh(new THREE.CylinderGeometry(tas * 0.12, tas * 0.36, tas, 14), purpleMat); fusa.position.set(ox, b.h - cordL - tas * 0.15 - tas / 2, oz); body.add(fusa);
-      /* 房の先の丸み */
-      const hem = new THREE.Mesh(new THREE.SphereGeometry(tas * 0.36, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), purpleMat); hem.position.set(ox, b.h - cordL - tas * 0.15 - tas, oz); body.add(hem);
-    }
+    const ph = makePhoenix(ps); ph.position.set(0, phY, 0); up.add(ph);
     body.scale.setScalar(S.visK || k);
     g.userData.body = body; g.userData.poles = poles;
     // 夜の版：神輿を明るくし、担ぎ棒の先に提灯を立てる
@@ -1641,6 +1948,8 @@ function start(DATA, isAsakusa) {
     const old = S.mesh, g = carryLook(S.b);
     g.position.copy(old.position); g.rotation.copy(old.rotation); g.visible = old.visible;
     scene.remove(old); scene.add(g); S.mesh = g;
+    /* 作り直した担ぎ棒も、建物の手前で止め直す */
+    S.fitKey = '';
   }
   // 担いでいる途中で大きさを替える（つかえたときに出る3つのボタン）。小さくするときは、その場で縮んでそのまま続ける。
   // 大きくするときは、今の場所でまわりにめり込むなら替えない（false を返す）
@@ -1653,10 +1962,26 @@ function start(DATA, isAsakusa) {
     useShape(shapeFor(b, k1));
     if (k1 > old.k && check(S.x, S.y, S.head + S.rot)) { useShape(old); return false; }
     S.scaleAnim = { from: S.visK, to: k1, t0: performance.now(), dur: RESIZE_MS };
+    if (k1 < old.k) moveIfTrapped();
     carryBody(b); rebuildCarry();
     S.stuck = null; S.noGo = 0; S.noGoPose = null; hold.locked = false; hideMsg();
     S.infoSig = null; showInfo(); refreshCrowd(true);
     return true;
+  }
+  /* 縮めても今の場所から出られないときは、今の大きさで出られる近くの道へ、縮むのと同時に運び直す（直す係 第2回・2-8）。
+     実物大で幅2.5mの細道に置かれた建物は、神輿（幅2.63m）にしても前後に動けず、向きも変えられず、選び直すしかなかった。
+     前か後ろへ3m動けるとき、出られる（canLeave）ときは、そのまま */
+  function moveIfTrapped() {
+    const x = S.x, y = S.y, h = S.head, ori = S.head + S.rot;
+    const mv = sg => [1, 2, 3].every(d => !check(x + Math.cos(h) * d * sg, y + Math.sin(h) * d * sg, ori));
+    if (mv(1) || mv(-1)) return;
+    if (canLeave(x, y, h, S.rot, performance.now() + 150)) return;
+    /* 担ぎ始めの近く（建物の元の場所から60m以内）なら、はじめからこの大きさで選んだときと同じ探し方で。だめなら今の場所のまわりで */
+    const { cx, cy } = S.b.d;
+    const st = (Math.hypot(x - cx, y - cy) < 60 && startFromSite(S.b, { cx, cy })) || startFromSite(S.b, { cx: x, cy: y });
+    if (!st) { S.head = h; return; }
+    S.slide = { fx: x, fy: y, fo: ori, t0: performance.now(), dur: RESIZE_MS };
+    S.x = st.x; S.y = st.y; S.head = st.h; S.rot = 0;
   }
   // 今の場所で倍率 k にしても、まわりにめり込まないか（今より小さいなら、いつも true）
   function fitsScale(k) {
@@ -1685,7 +2010,7 @@ function start(DATA, isAsakusa) {
     // 決めた大きさ（実物大・半分・神輿）に縮めて担ぐ。判定・重さ・担ぎ手は、はじめから縮めた大きさ。見た目だけ、運び出しの最初に縮んでいく
     const { cx, cy, a } = b.d;
     useShape(shapeFor(b, scaleOf(b, sizeMode)));
-    S.visK = 1; S.scaleAnim = null;
+    S.visK = 1; S.scaleAnim = null; S.slide = null;
     carryBody(b);
     const g = carryLook(b);
     scene.add(g); S.mesh = g;
@@ -1798,7 +2123,20 @@ function start(DATA, isAsakusa) {
     let v0 = Infinity, v1 = -Infinity;
     for (const [u, v] of S.samples) { const w = u * c + v * s; v0 = Math.min(v0, w); v1 = Math.max(v1, w); }
     const wide = v1 - v0;
-    return { kind: 'width', avail, wide, need: wide - avail };
+    /* x, y, ori：当たった置き方（角が何に当たったかを札で分けるのに使う） */
+    return { kind: 'width', avail, wide, need: wide - avail, x, y, ori };
+  }
+  /* 幅は足りているのに角が当たったとき、はみ出した足元の点に建物が立っているか（直す係 第1回・不具合2） */
+  function cornerHitsBld(res) {
+    if (res.x === undefined) return false;
+    const c = Math.cos(res.ori), s = Math.sin(res.ori);
+    for (const [u, v] of S.samples) {
+      const px = res.x + u * c - v * s, py = res.y + u * s + v * c;
+      if (onRoad(px, py)) continue;
+      /* 道の格子は0.5mのマスなので、建物の縁の0.3mほど手前で止まる。点のまわり0.5mまで見る */
+      for (const [ox, oy] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]) if (bldAt(px + ox, py + oy, 0.5, bb => bb === S.b)) return true;
+    }
+    return false;
   }
 
   // ---------- 進む ----------
@@ -1898,7 +2236,9 @@ function start(DATA, isAsakusa) {
       else if (!reading && !el.classList.contains('slim') && now - tour.unread > 650) el.classList.add('slim');   // 文が消えきったら、名前の幅まで細くする
       return;
     }
-    if (now < tour.wait) return;
+    /* 「ゴールの浅草神社に向かおう！」が出ている間（goWait）は、ほかの名所の説明も出さない。
+       スマホ縦で、帯が宝蔵門の説明の見出しと1行目に重なった（直す係 第3回・3-7。担いだ名所そのものの説明は、前から帯が消えてから） */
+    if (now < tour.wait || document.body.classList.contains('goWait')) return;
     const L = tourPick(); if (!L) return;
     tour.L = L; tour.shownAt = 0;
     el.innerHTML = `<span id="tourArrow" class="tarr">➤</span><b>${L.name}</b><span class="tt">${L.text}</span>`;
@@ -1933,7 +2273,31 @@ function start(DATA, isAsakusa) {
     const i = tags.indexOf(tourHL.g.userData.tag); if (i >= 0) tags.splice(i, 1);
     tourHL = null;
   }
+  /* 名所の説明の札が、神輿と担ぎ手を覆わないように（スマホの縦と横）：神輿と担ぎ手の画面の上での縦の範囲を測り、
+     いつもの場所（下）で重なり、上の場所（.up）の方が重なりが少ないときだけ上へ移す（行ったり来たりしないよう12pxの差をつける）。
+     前はスマホ縦で実物大の建物の下半分と担ぎ手が、横向きで神輿がまるごと札に隠れた（直す係 第2回・2-5・2-14） */
+  function tourPlace() {
+    const el = $('tour'), land = !isSm() && innerHeight <= 500;
+    if (!tour.L || !S.b || !S.dim || !(isSm() || land)) { if (el.classList.contains('up')) el.classList.remove('up'); return; }
+    camera.updateMatrixWorld();
+    const D = S.dim, o = S.head + S.rot, c = Math.cos(o), s = Math.sin(o), U = D.L / 2 + 2.3, W = D.W / 2 + 1.7;
+    let y0 = Infinity, y1 = -Infinity;
+    for (const [u, v] of [[U, W], [U, -W], [-U, W], [-U, -W]]) for (const z of [0, LIFT + D.h]) {
+      const p = V(S.x + u * c - v * s, S.y + u * s + v * c, z).project(camera);
+      if (p.z > 1) continue;
+      const sy = (1 - p.y) / 2 * innerHeight; y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+    }
+    if (!isFinite(y0)) return;
+    /* 札の高さは、文が出たときの高さで見る（細い間に決めても、文が出て伸びたときに覆わないように） */
+    const hgt = Math.max(el.offsetHeight, land ? 100 : 96);
+    const down = innerHeight - (land ? 110 : 154), top = land ? 54 : 232;
+    const lap = (a, b) => Math.max(0, Math.min(b, y1) - Math.max(a, y0));
+    const lapDown = lap(down - hgt, down), lapUp = lap(top, top + hgt), up = el.classList.contains('up');
+    if (!up && lapDown > 0 && lapUp < lapDown - 12) el.classList.add('up');
+    else if (up && lapDown < lapUp - 12) el.classList.remove('up');
+  }
   function updateTourArrow() {
+    tourPlace();
     const a = document.getElementById('tourArrow');
     if (!a || !tourHL || !tourHL.p || !S.b) return;
     camera.updateMatrixWorld();
@@ -1945,7 +2309,7 @@ function start(DATA, isAsakusa) {
 
   // 向きを変える：建物と一緒に、進む向きも回す（回した方向へ進む）。曲がるのはこれだけ。
   function rotate(deg, quiet) {
-    if (!S.b || S.intro || S.done) return false;
+    if (!S.b || S.intro || S.done || mode !== 'carry') return false;
     const nh = S.head + deg * Math.PI / 180;
     // 向きを変えて当たったら止まる
     const res = check(S.x, S.y, nh + S.rot);
@@ -2136,15 +2500,21 @@ function start(DATA, isAsakusa) {
     // 実物大だけ、前の「難しい」と同じく、つかえたわけ（道幅と神輿の幅など）を札で出す
     if (sizeMode !== 'full') { $('msg').style.display = 'none'; return; }
     let html = '';
-    if (res.kind === 'width') {
-      html = res.need > 0.05 ? `幅でつかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`
-                             : `角が当たった<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m（向きを変えると抜けられるかも）</small>`;
+    /* バックでも向きでも動けない所では、「バック」の案内は出さない（押しても何も起きなかった。直す係 第3回・3-2）。
+       そのときは大きさの3つと選び直すを、押してすぐ出す（stuckWatch） */
+    const bk = boxedIn() ? '' : '「バック」で下がって、向きを変える';
+    if (res.kind === 'width' && res.need > 0.05) {
+      html = `幅でつかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`;
+    } else if (res.kind === 'width') {
+      /* 幅は足りているのに角が当たった：道幅の数字は理由にならない（「道幅28m／神輿の幅16m」で進めず、意味が通らなかった）。
+         角が当たった物で、ほかのつかえ方と同じ札にする。その場で回せないことが多いので、先に下がる */
+      html = (cornerHitsBld(res) ? '建物に当たった' : '道の外に出る') + (bk ? `<small>${bk}</small>` : '');
     } else if (res.kind === 'height') {
       html = `高さでつかえた<small>${gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 15 ? '雷門の提灯の下' : '桁下'} ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
     } else if (res.kind === 'block') {
-      html = `建物に当たった<small>境内の建物は通れない。「バック」で下がって、向きを変える</small>`;
+      html = `建物に当たった<small>境内の建物は通れない。${bk}</small>`;
     } else {
-      html = `道の外に出る<small>「バック」で下がって、向きを変える</small>`;
+      html = '道の外に出る' + (bk ? `<small>${bk}</small>` : '');
     }
     const m = $('msg'); m.innerHTML = html; m.style.display = 'block';
   }
@@ -2160,6 +2530,31 @@ function start(DATA, isAsakusa) {
   }
   // 幅が足りない・桁下が低い：はっきりつかえている
   const hardStuck = r => (r.kind === 'width' && r.need > 0.05) || r.kind === 'height';
+  /* 今の場所から、バック（0.25m）でも向き（左右に1°）でも動けないか（直す係 第3回・3-2）。
+     バックは step と同じ決まり（角がかするときの横ずらし・はみ出しが増えない動きは許す）で見る。同じ置き方の間は覚えておく */
+  function canStep(ds) {
+    const h = S.head, nx = S.x + Math.cos(h) * ds, ny = S.y + Math.sin(h) * ds, res = check(nx, ny, h + S.rot);
+    if (!res) return true;
+    if ((res.kind === 'width' && res.need <= 0.05) || res.kind === 'block') {
+      const a = h + Math.PI / 2;
+      for (const dh of [0, 3, -3, 6, -6, 10, -10]) for (const sh of [0, 0.3, -0.3, 0.6, -0.6, 1, -1, 1.5, -1.5]) {
+        if (!dh && !sh) continue;
+        if (!check(nx + Math.cos(a) * sh, ny + Math.sin(a) * sh, h + dh * Math.PI / 180 + S.rot)) return true;
+      }
+    }
+    const o0 = outCount(S.x, S.y, h + S.rot);
+    return o0 > 0 && outCount(nx, ny, h + S.rot) <= o0;
+  }
+  function boxedIn() {
+    if (!S.b || !S.samples) return false;
+    const key = S.x.toFixed(2) + ',' + S.y.toFixed(2) + ',' + S.head.toFixed(4) + ',' + S.rot + ',' + S.k;
+    if (S.boxKey !== key) {
+      S.boxKey = key;
+      const turn = d => !check(S.x, S.y, S.head + d * Math.PI / 180 + S.rot);
+      S.boxed = !turn(1) && !turn(-1) && !canStep(-0.25);
+    }
+    return S.boxed;
+  }
   function stuckWatch(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.noGo = 0; S.noGoPose = null; return; }
     const p = { x: S.x, y: S.y, h: S.head }, lp = S.noGoPose; S.noGoPose = p;
@@ -2171,7 +2566,8 @@ function start(DATA, isAsakusa) {
     /* 担ぎ始めてすぐは出さない */
     if (performance.now() - (S.introEnd || 0) < 1500) return;
     S.noGo += dt;
-    if (S.noGo >= (hardStuck(S.stuck) ? 1.0 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
+    /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2） */
+    if (S.noGo >= (boxedIn() ? 0 : hardStuck(S.stuck) ? 1.0 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
   }
   function showInfo() {
     if (!S.b) { $('info').innerHTML = ''; return; }
@@ -2202,7 +2598,8 @@ function start(DATA, isAsakusa) {
   $('recenter').onclick = () => { camFollow = true; };   // 現在地（神輿）に戻る
   window.addEventListener('keydown', e => {
     if (e.key === '-' || e.key === '+' || e.key === ';' || e.key === '=') { zoomBy(e.key === '-' ? 1.25 : 0.8); return; }
-    if (!S.b) return;
+    /* 町の画面（選び直した後も S.b は残る）では向きを変えない（直す係 第1回・不具合15） */
+    if (!S.b || mode !== 'carry') return;
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
     if ((e.key === 'q' || e.key === 'Q' || e.key === 'ArrowLeft') && !e.repeat) startRot(1);
     if ((e.key === 'e' || e.key === 'E' || e.key === 'ArrowRight') && !e.repeat) startRot(-1);
@@ -2276,6 +2673,17 @@ function start(DATA, isAsakusa) {
     $('info').innerHTML = ''; goGoalReset(); document.body.classList.remove('intro', 'calm1', 'calm2'); S.intro = null; $('skip').style.display = 'none';
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none';
     hideMsg(); enterPick();
+    /* 担いでいた建物は、担ぎ手ごと片付けて元の場所へ戻す（お祓いの後の finishDone と同じ片付け方）。
+       前は次の建物を選ぶまで、道の上に担ぎ手ごと残り、元の場所は空いた跡のままだった（直す係 第2回・2-4） */
+    if (S.b) {
+      if (S.mesh) { scene.remove(S.mesh); S.mesh = null; }
+      if (S.crew) { scene.remove(S.crew); S.crew = null; }
+      if (S.shadow) { scene.remove(S.shadow); S.shadow = null; }
+      liftOut(S.b, false);
+      trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
+      crowdBody.count = crowdHead.count = 0;
+      S.b = null; S.rec = null; S.stuck = null; S.slide = null; S.scaleAnim = null;
+    }
   };
 
   // ---------- 見物人：道の両端に並ぶ（神輿のまわり70mだけ） ----------
@@ -2460,7 +2868,7 @@ function start(DATA, isAsakusa) {
   const ghostMats = new Map();
   const ghostMat = col => { let m = ghostMats.get(col); if (!m) ghostMats.set(col, m = new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: 0.22, depthWrite: false })); return m; };
   const ghosts = new Map(); // 建物 → 半透明の絵
-  function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); }
+  function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); for (const sb of brSlabs) sb.m.material = sb.mat; }
   function updateGhosts() {
     if (!S.b) return;
     const want = new Set(), o = camera.position, d = new THREE.Vector3();
@@ -2471,13 +2879,23 @@ function start(DATA, isAsakusa) {
     // 担ぎ棒の端と担ぎ手も隠さない
     for (const [u, v] of [[L2 + 2, W2], [L2 + 2, -W2], [-L2 - 2, W2], [-L2 - 2, -W2]]) tgs.push(V(S.x + u * c - v * sn, S.y + u * sn + v * c, 1.2));
     if (gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 85) { const gl = camLook.clone(); gl.y = 1; tgs.push(gl); } // 雷門の近くでは、見ている所の足元も隠さない
+    /* 高架・橋の板も、神輿との間にあれば薄くする（東武線の高架の下で神輿が見えなくなった。直す係 第1回・不具合7） */
+    const wantBr = new Set();
     for (const tg of tgs) {
       d.subVectors(tg, o); const len = d.length(); d.normalize();
       // 一本の線の上に何棟あっても拾う
       for (let t = 0; t < len - 1.5; t += 1.0) {
         const b = bldAt(o.x + d.x * t, -(o.z + d.z * t), o.y + d.y * t, bb => bb === S.b);
         if (b) want.add(b);
+        const X = o.x + d.x * t, Y = -(o.z + d.z * t), Z = o.y + d.y * t;
+        for (const sb of brSlabs) if (Z >= sb.lo - 0.3 && Z <= sb.hi + 0.3 && X >= sb.bb[0] && X <= sb.bb[2] && Y >= sb.bb[1] && Y <= sb.bb[3] && inPoly(sb.poly, X, Y)) wantBr.add(sb);
       }
+    }
+    for (const sb of brSlabs) {
+      const on = wantBr.has(sb);
+      if (on && !sb.ghost) { sb.ghost = sb.mat.clone(); sb.ghost.transparent = true; sb.ghost.opacity = 0.22; sb.ghost.depthWrite = false; }
+      const mt = on ? sb.ghost : sb.mat;
+      if (sb.m.material !== mt) sb.m.material = mt;
     }
     for (const [b, m] of ghosts) if (!want.has(b)) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); ghosts.delete(b); }
     for (const b of want) if (!ghosts.has(b)) { const m = new THREE.Mesh(bldGeo(b, b.h), ghostMat(b.col)); m.renderOrder = 2; scene.add(m); ghosts.set(b, m); setFlat(b, 2); }
@@ -2550,7 +2968,8 @@ function start(DATA, isAsakusa) {
     cx.font = F; cx.fillStyle = '#2b2420'; cx.textBaseline = 'middle'; cx.fillText(txt, 20, 34);
     const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false }));
-    sp.renderOrder = 6; sp.center.set(0.5, 0); sp.userData.aspect = w / 64; return sp;
+    /* 字の札は、お祓いを済ませた建物の旗（6）より後に描く。手前の旗が「ゴール：浅草神社でお祓い」の字にかぶった（直す係 第3回・3-6） */
+    sp.renderOrder = 7; sp.center.set(0.5, 0); sp.userData.aspect = w / 64; return sp;
   }
   const tags = [];
   function addTag(txt, x, y, z, color) { const sp = nameTag(txt, color); sp.position.copy(V(x, y, z)); scene.add(sp); tags.push(sp); return sp; }
@@ -2637,6 +3056,22 @@ function start(DATA, isAsakusa) {
   function sizeTags() {
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1);
     for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = mode === 'pick' || !!sp.userData.always; }
+    /* つかえたときの札とボタン（上のまん中）に重なる札（「ゴール：浅草神社でお祓い」など）は、その間だけ隠す。
+       前はボタンの間に札が半分隠れて挟まり、ごちゃついて見えた（直す係 第2回・2-3） */
+    if (mode !== 'carry' || !document.body.classList.contains('stuck')) return;
+    let b = null;
+    for (const id of ['msg', 'again', 'diffSel']) {
+      const r = $(id).getBoundingClientRect(); if (!r.width) continue;
+      b = b ? { l: Math.min(b.l, r.left), r: Math.max(b.r, r.right), t: Math.min(b.t, r.top), b: Math.max(b.b, r.bottom) } : { l: r.left, r: r.right, t: r.top, b: r.bottom };
+    }
+    if (!b) return;
+    for (const sp of tags) {
+      if (!sp.visible) continue;
+      const p = sp.position.clone().project(camera); if (p.z > 1) continue;
+      /* 札の画面の上の大きさ（大きさを変えない札なので、画面の高さに比例する。下のまん中が位置） */
+      const sx = (p.x + 1) / 2 * innerWidth, sy = (1 - p.y) / 2 * innerHeight, h = sp.scale.y * innerHeight * 1.2, w = sp.scale.x * innerHeight * 1.2;
+      if (sx + w / 2 > b.l - 6 && sx - w / 2 < b.r + 6 && sy > b.t - 6 && sy - h < b.b + 6) sp.visible = false;
+    }
   }
 
   // ---------- お祓い：ゴールの旗と札、着いたら お祓い→魂振り→来た道を戻る→元の場所に収まる ----------
@@ -2683,7 +3118,7 @@ function start(DATA, isAsakusa) {
     const el = $('best');
     // いつも出す：このブラウザでお祓いを受けた建物の数 ／ 担げる建物の数（0棟でも出す。ゴールが難しいことが暗に分かるように）
     $('bestCnt').innerHTML = `お祓いを受けた建物　<b>${fmt(Object.keys(d).length)}</b>棟 ／ ${townName}の建物 ${fmt(nSelectable)}棟`;
-    if (best) { $('bestBig').innerHTML = `これまでにお祓いを受けたいちばん大きい建物<br><b>${best.usage}</b>　足元 ${fmtSm(best.area)}㎡・高さ ${f1(best.h)}m・担ぎ手 ${fmt(best.people)}人`; el.classList.add('has'); }
+    if (best) { $('bestBig').innerHTML = `これまでにお祓いを受けたいちばん大きい建物<br><b>${best.usage}</b>　<span class="nw">足元 ${fmtSm(best.area)}㎡</span>・<span class="nw">高さ ${f1(best.h)}m</span>・<span class="nw">担ぎ手 ${fmt(best.people)}人</span>`; el.classList.add('has'); }
   }
   refreshDoneMarks();
   // 担いできた動き（位置と向き）を記録する。止まっていた時間は0.4秒までに縮める。
@@ -2705,11 +3140,13 @@ function start(DATA, isAsakusa) {
     const d = loadDone();
     // 記録は担いだ大きさで（同じ建物は、大きく担いだ方、同じ大きさなら道のりの短い方を残す）。数は、どの大きさで着いても1棟と数える
     const o = d[b.id], ton = Math.round(w.ton * 100) / 100;
-    if (!o || ton > o.ton || (ton === o.ton && o.dist > S.dist)) d[b.id] = { usage: lmName(b), area: Math.round(S.dim.foot * 10) / 10, h: Math.round(S.dim.h * 10) / 10, people: w.people, ton, k: Math.round(S.k * 1000) / 1000, dist: Math.round(S.dist), goal: gl.name };
+    /* 足元の面積は、記録と札で同じ丸め方（0.1㎡に丸めてから表示）。前は札が元の値（53.48→53㎡）、記録が0.1㎡に丸めた値（53.5→54㎡）で、1㎡ずれた（直す係 第2回・2-12） */
+    const area1 = Math.round(S.dim.foot * 10) / 10;
+    if (!o || ton > o.ton || (ton === o.ton && o.dist > S.dist)) d[b.id] = { usage: lmName(b), area: area1, h: Math.round(S.dim.h * 10) / 10, people: w.people, ton, k: Math.round(S.k * 1000) / 1000, dist: Math.round(S.dist), goal: gl.name };
     saveDone(d);
     if (NIGHT) reachArrive();   // 夜の版：明かりの届く範囲を、次に夜になるとき広げる
     $('doneTitle').textContent = 'お祓い';
-    $('doneInfo').innerHTML = `<b>${lmName(b)}</b>が${gl.name}でお祓いを受けました<br>足元の面積 ${fmtSm(S.dim.foot)}㎡ ／ 高さ ${f1(S.dim.h)}m<br>担ぎ手 ${fmt(w.people)}人 ／ 道のり ${fmt(S.dist)}m`;
+    $('doneInfo').innerHTML = `<b>${lmName(b)}</b>が${gl.name}で<span class="nw">お祓いを受けました</span><br><span class="nw">足元の面積 ${fmtSm(area1)}㎡</span> ／ <span class="nw">高さ ${f1(S.dim.h)}m</span><br><span class="nw">担ぎ手 ${fmt(w.people)}人</span> ／ <span class="nw">道のり ${fmt(S.dist)}m</span>`;
     const el = $('done'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
     $('doneInfo').style.display = '';   // 数字は お祓い・魂振り の間だけ。帰り道からは題だけ
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; hideMsg();
@@ -2905,16 +3342,19 @@ function start(DATA, isAsakusa) {
     });
     hull.material = hull.material.clone();
     const c0 = hull.material.color.clone(), c1 = new THREE.Color(0xffa040);
-    const P = poleLayout(S.dim), ls = Math.max(0.55, Math.min(2.2, Math.max(S.dim.L, S.dim.W, S.dim.h) * 0.045));
+    const P = poleLayout(S.dim, g.userData.poleExt || 0), ls = Math.max(0.55, Math.min(2.2, Math.max(S.dim.L, S.dim.W, S.dim.h) * 0.045));
     const lanMat = new THREE.MeshBasicMaterial({ color: 0xff8a3a, transparent: true });
     const lanGeo = new THREE.CylinderGeometry(ls * 0.36, ls * 0.36, ls * 0.62, 12);
     const stickGeo = new THREE.CylinderGeometry(0.04 * ls, 0.04 * ls, ls * 1.2, 5);
     const halos = [];
+    /* 担ぎ棒が建物の手前で短くなったとき、提灯も一緒に動かす（fitCrew） */
+    g.userData.lans = [];
     for (const p of P.along) for (const u of [p.u0 + 0.2, p.u1 - 0.2]) {
       const st = new THREE.Mesh(stickGeo, woodMat); st.position.set(u, -0.2 + ls * 0.6, -p.v); g.add(st);
       const ln = new THREE.Mesh(lanGeo, lanMat); ln.position.set(u, -0.2 + ls * 1.45, -p.v); g.add(ln);
       const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: NT.glowTex, color: 0xffa050, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
       h.scale.set(ls * 4, ls * 4, 1); h.position.copy(ln.position); g.add(h); halos.push(h.material);
+      for (const o of [st, ln, h]) g.userData.lans.push({ o, v: p.v, end: u < 0 ? -1 : 1 });
     }
     g.userData.night = { list, hull: hull.material, c0, c1, lanMat, halos };
   }
@@ -3251,6 +3691,13 @@ function start(DATA, isAsakusa) {
       const jx = (Math.random() - 0.5) * sh * 0.8, jy = (Math.random() - 0.5) * sh * 0.8;
       let ori = S.head + S.rot, px = S.x, py = S.y, lift = 1, gather = 1;
       if (DS) { px = DS.px; py = DS.py; ori = DS.ori; lift = DS.lift; if (DS.gather !== undefined) gather = DS.gather; }
+      /* 縮めて近くの道へ運び直す途中（moveIfTrapped）：前の場所から滑らかに動かす */
+      if (S.slide && !DS && !S.intro) {
+        const A = S.slide, q = Math.min(1, (performance.now() - A.t0) / A.dur), e = q * q * (3 - 2 * q);
+        let da = ori - A.fo; da = Math.atan2(Math.sin(da), Math.cos(da));
+        px = A.fx + (px - A.fx) * e; py = A.fy + (py - A.fy) * e; ori = A.fo + da * e;
+        if (q >= 1) S.slide = null;
+      }
       // いま見えている倍率：ふだんは担ぐ倍率。担ぎ始めの縮む途中・途中で大きさを替えた途中・帰り道で元に戻る途中だけ動かす
       let vk = S.k;
       if (S.scaleAnim) {
@@ -3295,6 +3742,8 @@ function start(DATA, isAsakusa) {
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, 0, 'YXZ');
       if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
+      /* 建物の中に入る担ぎ手は出さず、担ぎ棒は建物の手前で止める（見た目だけ。直す係 第1回・不具合1・4） */
+      if (S.crew && S.crew.visible) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
     }
     if (peek) { camera.position.copy(peek.pos); camera.lookAt(peek.look); }
     else if (mode === 'pick') {
@@ -3305,6 +3754,17 @@ function start(DATA, isAsakusa) {
         camera.lookAt(opening.fromLook.clone().lerp(V(mapCam.x, mapCam.y, 0), e));
         if (q >= 1) endOpening();
       } else {
+        /* 町の範囲の外へ引っぱって離したら、範囲の端までゆっくり戻る（TOWN） */
+        if (!ptrs.size) {
+          const q = townNear(mapCam.x, mapCam.y), bx = q.x, by = q.y;
+          if (q.d > 0) {
+            const kb = 1 - Math.pow(0.003, dt);
+            mapCam.x += (bx - mapCam.x) * kb; mapCam.y += (by - mapCam.y) * kb;
+            if (Math.abs(bx - mapCam.x) + Math.abs(by - mapCam.y) < 0.05) { mapCam.x = bx; mapCam.y = by; }
+          }
+        }
+        /* カメラは建物の屋根より上に（pickDistMin） */
+        mapCam.dist = Math.min(1500, pickDistMin());
         camera.position.copy(mapPos());
         camera.lookAt(V(mapCam.x, mapCam.y, 0));
       }
@@ -3358,13 +3818,16 @@ function start(DATA, isAsakusa) {
       renderer.render(scene, gateCam);
       renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, innerHeight);
     } else if (box.style.display !== 'none') box.style.display = 'none';
+    /* 提灯の小窓が出ている間は、名所の説明の札を小窓の右へよける（CSS の body.gateOn） */
+    const gateOn = box.style.display === 'block';
+    if (document.body.classList.contains('gateOn') !== gateOn) document.body.classList.toggle('gateOn', gateOn);
     requestAnimationFrame(frame);
   }
   enterPick();
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, zoomBy, peek: (x, y, a, D) => { peek = x === undefined ? null : { look: V(x, y, 3), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, D * 0.5) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, zoomBy, peek: (x, y, a, D) => { peek = x === undefined ? null : { look: V(x, y, 3), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, D * 0.5) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

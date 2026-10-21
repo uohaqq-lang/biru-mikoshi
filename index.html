@@ -1646,68 +1646,248 @@ function start(DATA, isAsakusa) {
     }
     grp.add(boxes(posts, shuMat)); grp.add(boxes(rails, shuMat)); grp.add(boxes(tori, shuMat)); grp.add(boxes(kasa, lacquerMat));
   }
-  /* 外壁の上端：足元の形の縁に0.5mおきに点を取り、それぞれの点の真上にかかる面（三角形）のいちばん高い所を調べて、その真ん中の値。
-     geo は神輿の座標の三角形（yo だけ下げてある）、local は足元の形（u, v）。縁から引っ込んだ塔屋は縁の点にかからないので数に入らず、
-     飾りが塔屋の高さから下がって外壁から浮くことがない（頂点の数で数えると、頂点の多い中段の線に引っぱられたので、縁の長さで数える） */
-  function wallTopOf(geo, local, h, yo = 0) {
-    const pa = geo.attributes.position.array, r = local[0], pts = [], tol = 0.4;
-    for (let i = 0; i < r.length - 1; i++) {
-      const [ax, ay] = r[i], [bx, by] = r[i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.5));
-      for (let j = 0; j < n; j++) pts.push([ax + (bx - ax) * j / n, -(ay + (by - ay) * j / n)]);
+  /* ---- 飾りを足元の形に沿わせる道具（本人 10/21「ビルっていびつだから、はじの方とか金のふちが宙ぶらりんになっちゃう」） ----
+     u, v は足元の座標（縮める前の m）。絵の中では x＝u、z＝−v。sg は輪の回る向き（左回りなら 1） */
+  const ringArea = r => { let a = 0; for (let i = 0; i < r.length - 1; i++) a += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1]; return a; };
+  /* 辺 a→b の外向きの向き */
+  const edgeNrm = (a, b, sg) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-9; return [sg * (b[1] - a[1]) / l, -sg * (b[0] - a[0]) / l]; };
+  /* 閉じた輪 r（最後の点＝最初の点）の細かい凸凹を省く。外へ出っ張る点は outTol より出ていれば残し（綱が壁にめり込まない）、
+     内へ引っ込む点は inTol より深いときだけ残す（浅いへこみは綱がまたぐ）。ほとんどまっすぐな角も省く。返すのは閉じない点の列 */
+  function simplifyRing(r, inTol, outTol, sg) {
+    const n0 = r.length - 1, P = r.slice(0, n0);
+    if (n0 < 4) return P;
+    let i1 = 0, bd = -1;
+    for (let i = 0; i < n0; i++) { const d = Math.hypot(P[i][0] - P[0][0], P[i][1] - P[0][1]); if (d > bd) { bd = d; i1 = i; } }
+    let i0 = 0; bd = -1;
+    for (let i = 0; i < n0; i++) { const d = Math.hypot(P[i][0] - P[i1][0], P[i][1] - P[i1][1]); if (d > bd) { bd = d; i0 = i; } }
+    const keep = new Uint8Array(n0); keep[i0] = keep[i1] = 1;
+    const dp = (a, b) => {
+      const ax = P[a][0], ay = P[a][1], bx = P[b][0], by = P[b][1], l = Math.hypot(bx - ax, by - ay) || 1e-9;
+      let best = -1, bs = 1;
+      for (let i = (a + 1) % n0; i !== b; i = (i + 1) % n0) {
+        /* 弦からの距離（外向きが正） */
+        const d = -sg * ((bx - ax) * (P[i][1] - ay) - (by - ay) * (P[i][0] - ax)) / l;
+        const sc = d > 0 ? d / outTol : -d / inTol;
+        if (sc > bs) { bs = sc; best = i; }
+      }
+      if (best < 0) return;
+      keep[best] = 1; dp(a, best); dp(best, b);
+    };
+    dp(i0, i1); dp(i1, i0);
+    let Q = P.filter((p, i) => keep[i]);
+    /* ほとんどまっすぐな角（8度まで）を省く */
+    for (let pass = 0; pass < 3 && Q.length > 3; pass++) {
+      const R = [];
+      for (let i = 0; i < Q.length; i++) {
+        const p = Q[(i + Q.length - 1) % Q.length], c = Q[i], q = Q[(i + 1) % Q.length];
+        const ax = c[0] - p[0], ay = c[1] - p[1], bx = q[0] - c[0], by = q[1] - c[1];
+        if (Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by)) > 0.14) R.push(c);
+      }
+      if (R.length === Q.length || R.length < 3) break;
+      Q = R;
     }
-    const top = new Array(pts.length).fill(-Infinity);
-    for (let i = 0; i + 8 < pa.length; i += 9) {
-      const x0 = Math.min(pa[i], pa[i + 3], pa[i + 6]) - tol, x1 = Math.max(pa[i], pa[i + 3], pa[i + 6]) + tol;
-      const z0 = Math.min(pa[i + 2], pa[i + 5], pa[i + 8]) - tol, z1 = Math.max(pa[i + 2], pa[i + 5], pa[i + 8]) + tol;
-      const y = Math.max(pa[i + 1], pa[i + 4], pa[i + 7]) + yo;
-      for (let k = 0; k < pts.length; k++) { const p = pts[k]; if (y > top[k] && p[0] >= x0 && p[0] <= x1 && p[1] >= z0 && p[1] <= z1) top[k] = y; }
-    }
-    const ys = top.filter(y => y > 0.3 * h).sort((a, b) => a - b);
-    return ys.length ? Math.min(h, ys[Math.floor(ys.length / 2)]) : h;
+    return Q;
   }
-  /* 飾り：屋上の縁（足元の形を少し外へ）から金の瓔珞、建物に紫の飾り綱（各辺でたるませ、四隅で結び目）、結び目から紫の房。h は外壁の上端。
-     房と綱のたるみは、見える大きさ（倍率 k を掛けた m）で上限を決める（実物大の大きい建物で、房が写真の前を大きくふさがないように） */
-  function makeDeco(grp, local, L2, W2, h, k) {
-    const mn = Math.min(L2, W2) * 2, Ly = 0.12 * Math.min(h, mn), sw = Ly * 0.045;
-    const r = local[0]; let ar = 0; for (let i = 0; i < r.length - 1; i++) ar += r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1];
-    const sg = ar > 0 ? 1 : -1, off = sw * 2, segs = [];
-    for (let i = 0; i < r.length - 1; i++) {
-      const [ax, ay] = r[i], [bx, by] = r[i + 1], l = Math.hypot(bx - ax, by - ay); if (l < 0.3) continue;
-      const nx = sg * (by - ay) / l, ny = -sg * (bx - ax) / l;
-      segs.push([[ax + nx * off, -(ay + ny * off)], [bx + nx * off, -(by + ny * off)]]);
+  /* 閉じない点の列 P を外へ d だけ広げる（角は二つの辺の外向きの真ん中へ）。turn：角の曲がり（出っ張る角が正） */
+  function offsetRing(P, d, sg) {
+    const n = P.length, out = [];
+    for (let i = 0; i < n; i++) {
+      const p = P[(i + n - 1) % n], c = P[i], q = P[(i + 1) % n], n1 = edgeNrm(p, c, sg), n2 = edgeNrm(c, q, sg);
+      let mx = n1[0] + n2[0], my = n1[1] + n2[1]; const ml = Math.hypot(mx, my) || 1; mx /= ml; my /= ml;
+      const dot = Math.max(0.5, mx * n1[0] + my * n1[1]);
+      const ax = c[0] - p[0], ay = c[1] - p[1], bx = q[0] - c[0], by = q[1] - c[1];
+      out.push({ u: c[0] + mx * d / dot, v: c[1] + my * d / dot, mx, my, turn: sg * Math.atan2(ax * by - ay * bx, ax * bx + ay * by) });
     }
-    const strands = [], beads = [], bars = [], spc = Math.max(Ly * 0.32, (L2 + W2) / 45);
-    for (const [[ax, az], [bx, bz]] of segs) {
-      const l = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(l / spc)), rot = -Math.atan2(bz - az, bx - ax);
-      bars.push([(ax + bx) / 2, h - sw, (az + bz) / 2, l, sw * 2, sw * 1.5, rot]);
-      for (let i = 0; i < n; i++) {
-        const t = (i + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, len = Ly * (i % 2 ? 0.62 : 1);
-        strands.push([x, h - len / 2, z, sw, len, sw, rot]);
-        beads.push([x, h - len - sw * 2.2, z, sw * 4.5, sw * 4.5, sw * 1.2, rot]);
+    return out;
+  }
+  /* 足元の点（u, v）の真上の、建物のいちばん上の高さ。geo は神輿の座標の三角形（yo だけ下げてある）。
+     壁（立った三角形）はその位置での上の端、屋根（寝た三角形）はその位置での面の高さ。どの面にもかからない点は −Infinity */
+  function topsAt(geo, yo, pts, tol) {
+    const top = new Array(pts.length).fill(-Infinity);
+    if (!geo) return top;
+    const pa = geo.attributes.position.array;
+    for (let i = 0; i + 8 < pa.length; i += 9) {
+      const X = [pa[i], pa[i + 3], pa[i + 6]], Y = [pa[i + 1] + yo, pa[i + 4] + yo, pa[i + 7] + yo], Z = [-pa[i + 2], -pa[i + 5], -pa[i + 8]];
+      const x0 = Math.min(X[0], X[1], X[2]) - tol, x1 = Math.max(X[0], X[1], X[2]) + tol, z0 = Math.min(Z[0], Z[1], Z[2]) - tol, z1 = Math.max(Z[0], Z[1], Z[2]) + tol;
+      const den = (Z[1] - Z[2]) * (X[0] - X[2]) + (X[2] - X[1]) * (Z[0] - Z[2]);
+      let ex = 0, ez = 0, el = 0;
+      for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) { const l = Math.hypot(X[b] - X[a], Z[b] - Z[a]); if (l > el) { el = l; ex = (X[b] - X[a]) / l; ez = (Z[b] - Z[a]) / l; } }
+      const flat = Math.abs(den) > 0.02 * el * el;
+      for (let k = 0; k < pts.length; k++) {
+        const pu = pts[k][0], pv = pts[k][1];
+        if (pu < x0 || pu > x1 || pv < z0 || pv > z1) continue;
+        let y = -Infinity;
+        if (flat) {
+          const l1 = ((Z[1] - Z[2]) * (pu - X[2]) + (X[2] - X[1]) * (pv - Z[2])) / den, l2 = ((Z[2] - Z[0]) * (pu - X[2]) + (X[0] - X[2]) * (pv - Z[2])) / den, l3 = 1 - l1 - l2;
+          if (l1 >= -0.02 && l2 >= -0.02 && l3 >= -0.02) y = l1 * Y[0] + l2 * Y[1] + l3 * Y[2];
+        } else if (el > 1e-6) {
+          /* 立った三角形：点を一番長い横の辺の線に落とし、線から tol 以内なら、そこでの上の端 */
+          const off = Math.abs((pu - X[0]) * ez - (pv - Z[0]) * ex);
+          if (off <= tol) {
+            const t = (pu - X[0]) * ex + (pv - Z[0]) * ez, T = X.map((x, j) => (x - X[0]) * ex + (Z[j] - Z[0]) * ez);
+            const tc = Math.max(Math.min(T[0], T[1], T[2]), Math.min(Math.max(T[0], T[1], T[2]), t));
+            for (let a = 0; a < 3; a++) {
+              const b = (a + 1) % 3, lo = Math.min(T[a], T[b]), hi = Math.max(T[a], T[b]);
+              if (tc < lo - 1e-6 || tc > hi + 1e-6) continue;
+              y = Math.max(y, hi - lo < 1e-6 ? Math.max(Y[a], Y[b]) : Y[a] + (Y[b] - Y[a]) * (tc - T[a]) / (T[b] - T[a]));
+            }
+          }
+        }
+        if (y > top[k]) top[k] = y;
       }
     }
+    return top;
+  }
+  /* 決まった形を、位置・向き（y軸まわり）・大きさを変えて並べる（部品の数を増やさない） */
+  function instOf(geo, mat, list) {
+    const m = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), Sc = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0);
+    list.forEach((e, i) => { P.set(e[0], e[1], e[2]); Q.setFromAxisAngle(Y, e[3] || 0); Sc.set(e[4] || 1, e[5] || e[4] || 1, e[6] || e[4] || 1); M.compose(P, Q, Sc); m.setMatrixAt(i, M); });
+    m.count = list.length; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false;
+    return m;
+  }
+  /* 飾り：足元の形（屋上の輪郭）に沿って付ける。
+     ・金の縁と瓔珞（金の垂れ飾り）：細かい凸凹だけ省いた輪郭の各辺に沿わせ、高さはその辺の外壁の上端（辺の途中で高さが変わる所は分ける。段の所は金の縦の縁でつなぐ）。
+     ・紫の飾り綱：もう少し省いた輪郭を少し外へ出し、各辺でたるませて回す。角の高さは、両側の辺の外壁の上端の低い方から下げる（綱が屋上より上に出ない）。
+     ・結び目：綱の角ごと。房：出っ張った角のうち大きいもの4つまで。
+     geo は写真付きの形の三角形（無ければ null。そのときは全周 hDef の高さの箱）。返すのは外壁の上端（全周の真ん中の値） */
+  function makeDeco(grp, local, L2, W2, geo, yo, hDef, k) {
+    const mn = Math.min(L2, W2) * 2, r = local[0], sg = ringArea(r) > 0 ? 1 : -1;
+    /* 金の縁・瓔珞の輪郭（0.12m より細かい凸凹を省く） */
+    const A = simplifyRing(r, 0.12, 0.12, sg), nA = A.length;
+    const smp = [], sE = [];
+    for (let e = 0; e < nA; e++) {
+      const a = A[e], b = A[(e + 1) % nA], l = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(l / 0.5));
+      for (let j = 0; j < n; j++) { const t = (j + 0.5) / n; smp.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+      sE.push(n);
+    }
+    const tops = geo ? topsAt(geo, yo, smp, 0.3) : smp.map(() => hDef);
+    /* どの面にもかからない点は、輪の上でいちばん近い点の値で埋める */
+    const okI = tops.map((t, i) => t > 0.5 ? i : -1).filter(i => i >= 0);
+    if (!okI.length) tops.fill(hDef);
+    else for (let i = 0; i < tops.length; i++) if (!(tops[i] > 0.5)) {
+      let bi = okI[0], bd = 1e9;
+      for (const j of okI) { const d = Math.min(Math.abs(j - i), tops.length - Math.abs(j - i)); if (d < bd) { bd = d; bi = j; } }
+      tops[i] = tops[bi];
+    }
+    const srt = tops.slice().sort((a, b) => a - b), hTop = srt[Math.floor(srt.length / 2)];
+    const LyOf = hh => 0.12 * Math.min(hh, mn), Ly0 = LyOf(hTop), sw = Ly0 * 0.045, off = sw * 2, thr = Math.max(0.4, 0.05 * hTop);
+    /* 辺ごとに、高さのそろった区間（run）に分ける */
+    const runs = [];
+    let s0 = 0;
+    for (let e = 0; e < nA; e++) {
+      const n = sE[e], er = [];
+      let j0 = 0;
+      for (let j = 1; j <= n; j++) if (j === n || Math.abs(tops[s0 + j] - tops[s0 + j - 1]) > thr) { er.push({ j0, j1: j }); j0 = j; }
+      /* 短すぎる区間（1m 未満）は、高さの近い隣に混ぜる */
+      const a = A[e], b = A[(e + 1) % nA], l = Math.hypot(b[0] - a[0], b[1] - a[1]), step = l / n;
+      for (let guard = 0; guard < 50 && er.length > 1; guard++) {
+        const hOf = q => { const v = tops.slice(s0 + q.j0, s0 + q.j1).sort((x, y) => x - y); return v[Math.floor((v.length - 1) * 0.2)]; };
+        const si = er.findIndex(q => (q.j1 - q.j0) * step < 1.0);
+        if (si < 0) break;
+        const q = er[si], L = er[si - 1], R = er[si + 1];
+        const to = !L ? R : !R ? L : (Math.abs(hOf(L) - hOf(q)) <= Math.abs(hOf(R) - hOf(q)) ? L : R);
+        to.j0 = Math.min(to.j0, q.j0); to.j1 = Math.max(to.j1, q.j1); er.splice(si, 1);
+      }
+      for (const q of er) {
+        const v = tops.slice(s0 + q.j0, s0 + q.j1).sort((x, y) => x - y);
+        runs.push({ e, t0: q.j0 / n, t1: q.j1 / n, h: v[Math.floor((v.length - 1) * 0.2)] });
+      }
+      s0 += n;
+    }
+    const strands = [], beads = [], bars = [], spc = Math.max(Ly0 * 0.32, (L2 + W2) / 45);
+    let prevEnd = null;
+    const firstStart = [];
+    for (const q of runs) {
+      const a = A[q.e], b = A[(q.e + 1) % nA], [nx, nv] = edgeNrm(a, b, sg);
+      const P0 = [a[0] + (b[0] - a[0]) * q.t0 + nx * off, a[1] + (b[1] - a[1]) * q.t0 + nv * off], P1 = [a[0] + (b[0] - a[0]) * q.t1 + nx * off, a[1] + (b[1] - a[1]) * q.t1 + nv * off];
+      const ax = P0[0], az = -P0[1], bx = P1[0], bz = -P1[1], l = Math.hypot(bx - ax, bz - az); if (l < 0.05) continue;
+      const rot = -Math.atan2(bz - az, bx - ax), Ly = Math.min(Ly0, LyOf(q.h)), n = Math.max(1, Math.round(l / spc));
+      /* 角で縁が切れないよう、両端を少し伸ばす */
+      bars.push([(ax + bx) / 2, q.h - sw, (az + bz) / 2, l + sw * 3, sw * 2, sw * 1.5, rot]);
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, len = Ly * (i % 2 ? 0.62 : 1);
+        strands.push([x, q.h - len / 2, z, sw, len, sw, rot]);
+        beads.push([x, q.h - len - sw * 2.2, z, sw * 4.5, sw * 4.5, sw * 1.2, rot]);
+      }
+      /* 高さの段：前の区間の終わりとこの区間の始まりを、金の縦の縁でつなぐ */
+      const cur = { x: ax, z: az, h: q.h };
+      if (prevEnd) { const lo = Math.min(prevEnd.h, q.h), hi = Math.max(prevEnd.h, q.h); if (hi - lo > sw * 3) bars.push([(prevEnd.x + ax) / 2, (lo + hi) / 2 - sw, (prevEnd.z + az) / 2, sw * 2, hi - lo, sw * 2, 0]); }
+      else firstStart.push(cur);
+      prevEnd = { x: bx, z: bz, h: q.h };
+    }
+    if (prevEnd && firstStart[0]) { const f = firstStart[0], lo = Math.min(prevEnd.h, f.h), hi = Math.max(prevEnd.h, f.h); if (hi - lo > sw * 3) bars.push([(prevEnd.x + f.x) / 2, (lo + hi) / 2 - sw, (prevEnd.z + f.z) / 2, sw * 2, hi - lo, sw * 2, 0]); }
     grp.add(boxes(strands, goldMat)); grp.add(boxes(bars, goldMat)); grp.add(boxes(beads, goldMat));
-    /* 飾り綱：外接長方形を少し外へ出した四隅を、各辺でたるませて回す。高さは瓔珞の少し下 */
-    const top = h - Ly * 1.25, og = Math.max(sw * 4, 0.035 * mn), A = L2 + og, Bw = W2 + og;
-    const cr = Math.max(0.035, 0.014 * Math.min(h * 1.5, mn)), sag = Math.min(0.12 * h, 0.18 * mn, 1.2 / k);
-    const cs = [[A, Bw], [-A, Bw], [-A, -Bw], [A, -Bw]];
-    for (let i = 0; i < 4; i++) {
-      const [x0, z0] = cs[i], [x1, z1] = cs[(i + 1) % 4], pts = [];
-      for (let j = 0; j <= 16; j++) { const t = j / 16; pts.push(new THREE.Vector3(x0 + (x1 - x0) * t, top - sag * 4 * t * (1 - t), z0 + (z1 - z0) * t)); }
-      grp.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, cr, 7), ropeMat));
+    /* 飾り綱：輪郭をもう少し省き（浅いへこみはまたぐ。出っ張りは残して、綱が壁にめり込まない）、少し外へ出して回す */
+    const cr = Math.max(0.035, 0.014 * Math.min(hTop * 1.5, mn)), og = Math.max(sw * 4, cr * 1.8);
+    const B = simplifyRing([...A, A[0]], Math.max(0.3, Math.min(1.5, 0.05 * mn)), Math.max(0.05, og - cr * 1.2), sg), nB = B.length;
+    /* 綱の辺ごとの外壁の上端（いちばん低い所）。辺がへこみをまたぐ所は、どの面にもかからないので数えない */
+    const eMin = [];
+    for (let e = 0; e < nB; e++) {
+      const a = B[e], b = B[(e + 1) % nB], l = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(2, Math.ceil(l / 0.5)), pts = [];
+      for (let j = 0; j <= n; j++) { const t = j / n; pts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+      const tt = (geo ? topsAt(geo, yo, pts, 0.3) : pts.map(() => hDef)).filter(t => t > 0.5);
+      eMin.push(tt.length ? Math.min(...tt) : null);
     }
-    /* 四隅：綱の結び目（輪を二つ）と、そこから下がる房 */
-    const tas = Math.max(0.35, Math.min(0.2 * h, 0.3 * mn, 1.5 / k)), loopG = new THREE.TorusGeometry(cr * 3.2, cr * 0.9, 8, 20);
-    for (const [x, z] of cs) {
-      const ang = Math.atan2(z, x);
-      for (const s of [1, -1]) { const lp = new THREE.Mesh(loopG, ropeMat); lp.position.set(x + Math.cos(ang + s * 1.2) * cr * 2.4, top + cr * 1.5, z + Math.sin(ang + s * 1.2) * cr * 2.4); lp.rotation.set(0, -ang + s * 0.9, 0); grp.add(lp); }
-      const knot = new THREE.Mesh(new THREE.SphereGeometry(cr * 2.2, 12, 10), goldMat); knot.position.set(x, top - cr, z); grp.add(knot);
-      const cordL = tas * 0.35, cord = new THREE.Mesh(new THREE.CylinderGeometry(cr * 0.8, cr * 0.8, cordL, 8), ropeMat); cord.position.set(x, top - cr * 2 - cordL / 2, z); grp.add(cord);
-      const fy = top - cr * 2 - cordL;
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(tas * 0.1, tas * 0.16, tas * 0.18, 14), goldMat); cap.position.set(x, fy - tas * 0.09, z); grp.add(cap);
-      const fusa = new THREE.Mesh(new THREE.CylinderGeometry(tas * 0.15, tas * 0.34, tas, 16), purpleMat); fusa.position.set(x, fy - tas * 0.18 - tas / 2, z); grp.add(fusa);
-      const hem = new THREE.Mesh(new THREE.SphereGeometry(tas * 0.34, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), purpleMat); hem.position.set(x, fy - tas * 1.18, z); grp.add(hem);
+    for (let e = 0; e < nB; e++) if (eMin[e] === null) eMin[e] = hTop;
+    const O = offsetRing(B, og, sg);
+    /* 点（u, v）が足元の形の中か、線から need より近ければ、いちばん近い線の外へ need だけ出す（細い切れ込みのある建物で、広げた綱が向かいの壁に入った） */
+    const pushOut = (u, v, need) => {
+      let bd = 1e9, bu = u, bv = v, bn = null;
+      for (let i = 0; i < r.length - 1; i++) {
+        const a = r[i], c = r[i + 1], dx = c[0] - a[0], dy = c[1] - a[1], l2 = dx * dx + dy * dy;
+        const t = l2 ? Math.max(0, Math.min(1, ((u - a[0]) * dx + (v - a[1]) * dy) / l2)) : 0, qu = a[0] + dx * t, qv = a[1] + dy * t, d = Math.hypot(u - qu, v - qv);
+        if (d < bd) { bd = d; bu = qu; bv = qv; bn = edgeNrm(a, c, sg); }
+      }
+      if (!inRing(r, u, v) && bd >= need) return [u, v];
+      return [bu + bn[0] * need, bv + bn[1] * need];
+    };
+    const yc = O.map((o, i) => { const h0 = Math.min(eMin[(i + nB - 1) % nB], eMin[i]); return h0 - Ly0 * 1.25 * Math.min(1, LyOf(h0) / Ly0); });
+    const sagMax = Math.min(0.12 * hTop, 0.18 * mn, 1.2 / k), rp = [];
+    for (let i = 0; i < nB; i++) {
+      const o0 = O[i], o1 = O[(i + 1) % nB], l = Math.hypot(o1.u - o0.u, o1.v - o0.v), m = Math.max(8, Math.ceil(l / 0.4)), sag = Math.min(sagMax, 0.15 * l);
+      for (let j = 0; j < m; j++) { const t = j / m, [pu, pv] = pushOut(o0.u + (o1.u - o0.u) * t, o0.v + (o1.v - o0.v) * t, cr * 1.15); rp.push(new THREE.Vector3(pu, yc[i] + (yc[(i + 1) % nB] - yc[i]) * t - sag * 4 * t * (1 - t), -pv)); }
     }
+    grp.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp, true, 'centripetal'), Math.min(1200, rp.length * 3), cr, 7), ropeMat));
+    /* 房：出っ張った角のうち、両側の辺が長いものから、互いに離れた4つまで */
+    const cand = [];
+    for (let i = 0; i < nB; i++) {
+      if (O[i].turn < 0.5) continue;
+      const p = B[(i + nB - 1) % nB], c = B[i], q = B[(i + 1) % nB];
+      cand.push({ i, sc: Math.min(Math.hypot(c[0] - p[0], c[1] - p[1]), Math.hypot(q[0] - c[0], q[1] - c[1])) });
+    }
+    cand.sort((a, b) => b.sc - a.sc);
+    const pick = [];
+    for (const sep of [0.45, 0.25, 0]) {
+      for (const c of cand) {
+        if (pick.length >= 4) break;
+        if (pick.includes(c.i)) continue;
+        if (pick.every(j => Math.hypot(O[j].u - O[c.i].u, O[j].v - O[c.i].v) >= sep * Math.max(L2, W2) * 2)) pick.push(c.i);
+      }
+    }
+    /* 結び目：房の角と、両側の辺が長い出っ張った角だけ（バルコニーなどの小さな角に並ぶと、輪が団子になった） */
+    const loops = [], knots = [], minE = Math.max(cr * 14, 0.08 * (L2 + W2));
+    for (const c of cand) {
+      if (!pick.includes(c.i) && c.sc < minE) continue;
+      const o = O[c.i], x = o.u, z = -o.v, ang = Math.atan2(-o.my, o.mx), top = yc[c.i];
+      for (const s of [1, -1]) loops.push([x + Math.cos(ang + s * 1.2) * cr * 2.4, top + cr * 1.5, z + Math.sin(ang + s * 1.2) * cr * 2.4, -ang + s * 0.9]);
+      knots.push([x, top - cr, z]);
+    }
+    grp.add(instOf(new THREE.TorusGeometry(cr * 3.2, cr * 0.9, 8, 20), ropeMat, loops));
+    grp.add(instOf(new THREE.SphereGeometry(cr * 2.2, 12, 10), goldMat, knots));
+    const tas0 = Math.max(0.35, Math.min(0.2 * hTop, 0.3 * mn, 1.5 / k)), cords = [], caps = [], fusas = [], hems = [];
+    for (const i of pick) {
+      const o = O[i], top = yc[i], tas = Math.min(tas0, Math.max(0.2, top * 0.45)), push = Math.max(0, tas * 0.36 - og);
+      const [pu, pv] = pushOut(o.u + o.mx * push, o.v + o.my * push, tas * 0.36), x = pu, z = -pv, cordL = tas * 0.35, fy = top - cr * 2 - cordL;
+      cords.push([x, top - cr * 2 - cordL / 2, z, 0, 1, cordL, 1]);
+      caps.push([x, fy - tas * 0.09, z, 0, tas]);
+      fusas.push([x, fy - tas * 0.18 - tas / 2, z, 0, tas]);
+      hems.push([x, fy - tas * 1.18, z, 0, tas]);
+    }
+    grp.add(instOf(new THREE.CylinderGeometry(cr * 0.8, cr * 0.8, 1, 8), ropeMat, cords));
+    grp.add(instOf(new THREE.CylinderGeometry(0.1, 0.16, 0.18, 14), goldMat, caps));
+    grp.add(instOf(new THREE.CylinderGeometry(0.15, 0.34, 1, 16), purpleMat, fusas));
+    grp.add(instOf(new THREE.SphereGeometry(0.34, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), purpleMat, hems));
+    return hTop;
   }
   // 担ぎ棒（井桁）：長い辺に沿う2本と、前後で横に渡す2本。棒の高さは、建物の底から少し下（神輿の絵の中で −0.2m）。
   // D：担いでいる大きさ（S.dim）。棒と担ぎ手は人の大きさのまま、縮めた足元に合わせて並べる
@@ -1740,13 +1920,71 @@ function start(DATA, isAsakusa) {
   }
 
   // 人の形（担ぎ手・見物人・車夫で使う）：胴は円柱、頭は球
-  const mkBody = () => { const g = new THREE.CylinderGeometry(0.2, 0.24, 1.3, 8); g.translate(0, 0.65, 0); return g; };
+  /* 胴の上下のふたは、半纏の柄（下の hantenTex）の脇の無地の所を貼る（ふたに柄全体が渦のように写らないように） */
+  const mkBody = () => {
+    const g = new THREE.CylinderGeometry(0.2, 0.24, 1.3, 8); g.translate(0, 0.65, 0);
+    const nr = g.attributes.normal, uv = g.attributes.uv;
+    for (let i = 0; i < nr.count; i++) if (Math.abs(nr.getY(i)) > 0.9) uv.setXY(i, 0.5, 0.85);
+    return g;
+  };
   const mkHead = () => { const g = new THREE.SphereGeometry(0.15, 10, 8); g.translate(0, 1.5, 0); return g; };
   const bodyGeo = mkBody(), headGeo = mkHead();
-  const hapMat = new THREE.MeshLambertMaterial({ color: 0x2f4f86 });
+  /* 担ぎ手の半纏（本人決定 10/21：形は今のかわいい形のまま、色と柄を三社祭の半纏に合わせ、ねじり鉢巻きを足す）。
+     三社祭の本社神輿は、氏子の町会が順に引き継いで担ぎ、担ぐ間は町会ごとの半纏を着る決まりで、色は町会ごとに青・赤・緑など（調べた出典は 直した記録_飾りと人力車.md）。
+     そこで一度に担ぐのは一つの町会として、担ぐ建物ごとに町会の色を一つ選ぶ。
+     柄：背中の大紋（「三社」の字を白い丸に抜く。背中に「三社」と入れる町会の例から）、前の黒い襟、腰の白い帯。下は紺の股引と黒の地下足袋（この二つの色は推測）。
+     筒への巻き方：前（+x）が横の 0.25、背中が 0.75。上が肩、下が足 */
+  const HANTEN = ['#1f3563', '#2a5fae', '#2f7a4c', '#a8312b'];
+  const hantenTexs = new Map();
+  function hantenTex(col, crest) {
+    const key = col + crest; let t = hantenTexs.get(key); if (t) return t;
+    const W = 128, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), wh = '#f1ece0', yH = H * 0.6, b0 = H * 0.46, b1 = H * 0.56;
+    g.fillStyle = col; g.fillRect(0, 0, W, yH);
+    /* 腰の帯：白地に半纏の色の菱つなぎ */
+    g.fillStyle = wh; g.fillRect(0, b0, W, b1 - b0);
+    g.fillStyle = col;
+    for (let x = 0; x < W; x += 8) { g.beginPath(); g.moveTo(x + 4, b0 + 1.5); g.lineTo(x + 7.5, (b0 + b1) / 2); g.lineTo(x + 4, b1 - 1.5); g.lineTo(x + 0.5, (b0 + b1) / 2); g.closePath(); g.fill(); }
+    /* 襟：首まわりと、前の合わせに沿って帯まで。白い点は襟の字のかわり */
+    g.fillStyle = '#16120f'; g.fillRect(0, 0, W, H * 0.05);
+    for (const u of [0.215, 0.285]) g.fillRect(W * u - 3, 0, 6, b0);
+    g.fillStyle = wh; for (const u of [0.215, 0.285]) for (let y = 10; y < b0 - 4; y += 9) g.fillRect(W * u - 1, y, 2, 4);
+    /* 背中の大紋 */
+    const cx = W * 0.75, cy = H * 0.25, r = H * 0.15;
+    g.fillStyle = wh; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = col; g.font = 'bold ' + Math.round(r * 0.9) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(crest[0], cx, cy - r * 0.43); g.fillText(crest[1], cx, cy + r * 0.47);
+    /* 股引と地下足袋 */
+    g.fillStyle = '#1b2233'; g.fillRect(0, yH, W, H * 0.34);
+    g.fillStyle = '#121212'; g.fillRect(0, H * 0.94, W, H * 0.06);
+    t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 2;
+    hantenTexs.set(key, t); return t;
+  }
+  /* ねじり鉢巻き：頭の球に描く（形を足すと7,000人ぶん重くなるので、描くだけ）。白い手ぬぐいを、紺の斜めの線でねじって見せる。結び目は右の前 */
+  function bandTex() {
+    const W = 64, H = 64, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), y0 = H * 0.33, y1 = H * 0.45;
+    g.fillStyle = '#e9c9a3'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#f4f1ea'; g.fillRect(0, y0, W, y1 - y0);
+    g.strokeStyle = '#3a4a78'; g.lineWidth = 1.2;
+    for (let x = -8; x < W + 8; x += 4) { g.beginPath(); g.moveTo(x, y1); g.lineTo(x + 5, y0); g.stroke(); }
+    /* 結び目（前＝横の 0.5 の少し右） */
+    g.fillStyle = '#f4f1ea'; g.beginPath(); g.ellipse(W * 0.58, (y0 + y1) / 2, 4, 5, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#3a4a78'; g.beginPath(); g.moveTo(W * 0.58 - 3, y0 + 2); g.lineTo(W * 0.58 + 3, y1 - 2); g.stroke();
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t;
+  }
+  const hapMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: hantenTex(HANTEN[0], '三社') });
+  hapMat.emissiveMap = hapMat.map;   /* 夜の版で半纏を光らせるときも、柄のまま光る */
   const skinMat = new THREE.MeshLambertMaterial({ color: 0xe9c9a3 });
+  const bandMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: bandTex() });
+  /* 担ぐ建物ごとに町会の色を一つ選ぶ（建物の id から決めるので、同じ建物はいつも同じ色） */
+  function setTeam(b) {
+    let h = 0; for (const ch of (b.id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    S.team = h % HANTEN.length;
+    hapMat.map = hapMat.emissiveMap = hantenTex(HANTEN[S.team], '三社');
+  }
   const MAX_CREW = 7000;
-  const crewBody = new THREE.InstancedMesh(bodyGeo, hapMat, MAX_CREW), crewHead = new THREE.InstancedMesh(headGeo, skinMat, MAX_CREW);
+  const crewBody = new THREE.InstancedMesh(bodyGeo, hapMat, MAX_CREW), crewHead = new THREE.InstancedMesh(headGeo, bandMat, MAX_CREW);
   crewBody.frustumCulled = crewHead.frustumCulled = false;
   const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3(1, 1, 1), tmpP = new THREE.Vector3(), upY = new THREE.Vector3(0, 1, 0);
   function inRing(ring, x, y) {
@@ -1806,13 +2044,15 @@ function start(DATA, isAsakusa) {
   const nearWall = (x, y) => clearAt(x, y) === Infinity && (!!bldAt(x, y, 0.5, notMe) || !!bldAt(x + 0.2, y, 0.5, notMe) || !!bldAt(x - 0.2, y, 0.5, notMe) || !!bldAt(x, y + 0.2, 0.5, notMe) || !!bldAt(x, y - 0.2, 0.5, notMe));
   const crewBlocked = (x, y) => ((!onRoad(x, y) || inKeidai(x, y)) && !!bldAt(x, y, 0.5, notMe)) || (onRoad(x, y) && nearWall(x, y));
   function fitCrew(px, py, ori, sp) {
-    const key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2);
+    const rot = S.rot || 0, key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2) + ',' + rot.toFixed(3);
     if (S.fitKey === key) return;
     S.fitKey = key;
     const c = Math.cos(ori), s = Math.sin(ori), uv = S.crewUV;
     if (uv) {
       const n = uv.length / 2, mask = new Uint8Array(n);
-      let changed = !S.crewMask || S.crewMask.length !== n;
+      /* 担ぎ手は進む向き（神輿の向きから S.rot を戻した向き）を向く。半纏の背中の大紋が後ろから見えるように */
+      let changed = !S.crewMask || S.crewMask.length !== n || S.crewRot !== rot;
+      S.crewRot = rot; tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1, 1, 1);
       for (let i = 0; i < n; i++) {
         const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
         mask[i] = crewBlocked(px + u * c - v * s, py + u * s + v * c) ? 0 : 1;
@@ -1821,7 +2061,7 @@ function start(DATA, isAsakusa) {
       if (changed) {
         S.crewMask = mask;
         let m = 0;
-        for (let i = 0; i < n; i++) if (mask[i]) { tmpM.makeTranslation(uv[2 * i], 0, -uv[2 * i + 1]); crewBody.setMatrixAt(m, tmpM); crewHead.setMatrixAt(m, tmpM); m++; }
+        for (let i = 0; i < n; i++) if (mask[i]) { tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpM.compose(tmpP, tmpQ, tmpS); crewBody.setMatrixAt(m, tmpM); crewHead.setMatrixAt(m, tmpM); m++; }
         crewBody.count = crewHead.count = m;
         crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
       }
@@ -1869,6 +2109,7 @@ function start(DATA, isAsakusa) {
   function useShape(sh) { S.shape = sh; S.k = sh.k; S.local = sh.local; S.samples = sh.samples; S.inner = sh.inner; S.innerIn = sh.innerIn; S.dim = sh.dim; }
   // 担いでいる大きさに合わせて、重さ・進む速さ・担ぎ手・足元の影を作り直す
   function carryBody(b) {
+    setTeam(b);
     S.weight = weightOf(b, S.k);
     // 重さの手ざわり：重い建物ほど少しゆっくり進む（300トンまでは同じ。3,000トンで0.72倍。それより遅くはしない）
     S.speedK = Math.max(0.72, Math.min(1, 1 - 0.28 * Math.log10(Math.max(1, S.weight.ton / 300))));
@@ -1918,9 +2159,8 @@ function start(DATA, isAsakusa) {
     g.userData.hull = { m: hull, L: b.d.L, W: b.d.W, H: topH };
     hullScale(g.userData.hull, S.visK || k);
     // 飾り（瓔珞・飾り綱・房）は外壁の上端から下げる（前は建物の一番高い所から下げていて、塔屋のあるビルでは房が外壁から浮いていた）
-    const yw = hasTex ? wallTopOf(hullGeo, local, b.h, topH / 2) : b.h;
-    g.userData.wallTop = yw;
-    makeDeco(up, local, L2, W2, yw, k);
+    /* 写真付きの形なら、その三角形から辺ごとの外壁の上端を調べる（箱なら全周 b.h） */
+    g.userData.wallTop = makeDeco(up, local, L2, W2, hasTex ? hullGeo : null, topH / 2, b.h, k);
     /* 長い担ぎ棒を、台輪の縁の外まで伸ばす長さ（見える大きさ） */
     g.userData.poleExt = BS.mB * k + 0.4;
     // 担ぎ棒（見た目だけ。判定には入れない）
@@ -2784,84 +3024,189 @@ function start(DATA, isAsakusa) {
     gate.lantern.scale.y = gate.fold;
   }
 
-  // ---------- 人力車：横道に止めて、車夫が神輿の方を見ている ----------
-  // mode を 'running' にして path（道の上の点の列）を渡せば走らせられるように、動きは updateRickshaw にまとめてある。
-  const rickshaws = [];
-  function makeRickshaw() {
-    const g = new THREE.Group();
-    const black = new THREE.MeshLambertMaterial({ color: 0x1f1b19 }), red = new THREE.MeshLambertMaterial({ color: 0x9c2a22 }), wood = new THREE.MeshLambertMaterial({ color: 0x5a3d26 });
-    for (const z of [-0.65, 0.65]) { const w = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.06, 6, 20), black); w.position.set(0, 0.78, z); g.add(w); }
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 1.2), red); seat.position.set(-0.1, 1.05, 0); g.add(seat);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.8, 1.2), red); back.position.set(-0.55, 1.5, 0); g.add(back);
-    const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.25, 12, 1, true, 0, Math.PI / 2), black); hood.rotation.x = Math.PI / 2; hood.position.set(-0.55, 1.5, 0); g.add(hood);
-    for (const z of [-0.5, 0.5]) { const sh = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.07, 0.07), wood); sh.position.set(1.15, 0.85, z); sh.rotation.z = -0.18; g.add(sh); }
-    // 車夫（笠をかぶる。手の向きで、どちらを見ているかがわかる）
-    const driver = new THREE.Group();
-    // 形は新しく作る（InstancedMesh の形を使い回すと、こちらが描かれなかった）
-    driver.add(new THREE.Mesh(mkBody(), new THREE.MeshLambertMaterial({ color: 0x23324f })));
-    driver.add(new THREE.Mesh(mkHead(), skinMat));
-    const kasa = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.2, 14), new THREE.MeshLambertMaterial({ color: 0xcdb27a })); kasa.position.y = 1.72; driver.add(kasa);
-    for (const z of [-0.2, 0.2]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.09), new THREE.MeshLambertMaterial({ color: 0x23324f })); arm.position.set(0.2, 1.05, z); driver.add(arm); }
-    g.add(driver);
-    return { group: g, driver, mode: 'parked', x: 0, y: 0, h: 0, path: null, speed: 3 };
+  // ---------- 人力車（本人 10/21「人力車もうちょいリアルに」「もうちょいいろんなところにいてもいいかなぁ」） ----------
+  /* 寸法は実物から：車輪の直径は約1.04m（製造元の記事で41インチ。明治の実物は108cm）、今の2人乗りで全長約2.3〜2.4m・幅約1.3m（出典は 直した記録_飾りと人力車.md）。
+     黒塗りの車体、赤い座席と膝掛け、スポークの大きな車輪と泥よけ、たたんだ幌、長い梶棒と先の横木、足を乗せる床と乗り降りの踏み台。
+     全部の車を材質ごとに一つの InstancedMesh にまとめる（何台置いても、描く回数は車の6つと車夫の5つだけ）。
+     車の座標：x＝前（梶棒の向き）、y＝上、z＝右。車軸は (0, RK_R, 0)。
+     pose：'wait'＝客待ち（梶棒を地面に下ろして前に傾け、車夫は車の右に立って神輿の方を見る）、'ready'＝梶棒を持ち上げ、車夫が梶棒の間に立つ。
+     mode を 'running' にして path（道の上の点の列）を渡せば走らせられる（いまは使っていない） */
+  const RK_R = 0.52, RK_TILT = 0.36, RK_MAX = 24;
+  /* 形をつなげて一つにする（位置と向きだけ。どれも頂点の番号なしの形にしてから渡す） */
+  function mergeGeos(list) {
+    let n = 0; for (const g of list) n += g.attributes.position.count;
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+    for (const g of list) { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; }
+    const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    return out;
   }
-  function updateRickshaw(r, dt) {
-    if (r.mode === 'running' && r.path && r.path.length > 1) {
-      // 走らせるとき：path に沿って進める（いまは使っていない）
-      r.t = ((r.t || 0) + r.speed * dt);
-      let left = r.t, i = 0;
-      while (i < r.path.length - 1) { const [ax, ay] = r.path[i], [bx, by] = r.path[i + 1], L = Math.hypot(bx - ax, by - ay); if (left <= L) { r.x = ax + (bx - ax) * left / L; r.y = ay + (by - ay) * left / L; r.h = Math.atan2(by - ay, bx - ax); break; } left -= L; i++; }
-      if (i >= r.path.length - 1) r.t = 0;
-      r.group.position.copy(V(r.x, r.y, 0)); r.group.rotation.y = r.h;
-      r.driver.position.set(1.9, 0, 0); r.driver.rotation.y = 0;
-      return;
+  const RKP = (function () {
+    const P = { lac: [], red: [], blanket: [], spoke: [], tire: [], metal: [] };
+    const M = new THREE.Matrix4(), E = new THREE.Euler(), Q = new THREE.Quaternion(), T = new THREE.Vector3(), Sc = new THREE.Vector3(1, 1, 1);
+    const put = (key, geo, x, y, z, rx = 0, ry = 0, rz = 0) => { E.set(rx, ry, rz); Q.setFromEuler(E); M.compose(T.set(x, y, z), Q, Sc); const g = geo.index ? geo.toNonIndexed() : geo; g.applyMatrix4(M); P[key].push(g); };
+    const box = (key, x, y, z, w, h, d, rx, ry, rz) => put(key, new THREE.BoxGeometry(w, h, d), x, y, z, rx, ry, rz);
+    /* 車輪（左右）：黒いリム、ゴムの輪、16本のスポーク、こしき（真鍮）、上の泥よけ */
+    for (const z of [-0.6, 0.6]) {
+      put('lac', new THREE.TorusGeometry(0.49, 0.03, 5, 32), 0, RK_R, z);
+      put('tire', new THREE.TorusGeometry(0.515, 0.021, 5, 32), 0, RK_R, z);
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI * 2 / 16; box('spoke', Math.sin(a) * 0.265, RK_R + Math.cos(a) * 0.265, z, 0.018, 0.44, 0.022, 0, 0, -a); }
+      put('metal', new THREE.CylinderGeometry(0.06, 0.06, 0.17, 10), 0, RK_R, z, Math.PI / 2);
+      put('lac', new THREE.CylinderGeometry(0.575, 0.575, 0.11, 14, 1, true, 0.55 * Math.PI, 0.85 * Math.PI), 0, RK_R, z * 1.01, Math.PI / 2);
     }
-    // 止まっているとき：車夫は車の横（道の中の側）に立って、神輿の方を向く
-    if (!S.b) return;
-    const rh = r.h - Math.PI / 2; // 車の右＝道の中の側
-    const wx = r.x + Math.cos(r.h) * 1.2 + Math.cos(rh) * 1.3, wy = r.y + Math.sin(r.h) * 1.2 + Math.sin(rh) * 1.3;
-    const look = Math.atan2(S.y - wy, S.x - wx) - r.h;
-    r.driver.position.set(1.2, 0, 1.3); r.driver.rotation.y = look;
+    put('lac', new THREE.CylinderGeometry(0.025, 0.025, 1.24, 6), 0, RK_R, 0, Math.PI / 2);
+    /* 車体：下の枠、座席の箱、赤い座布団と背もたれ、黒い背板、左右のひじ掛け */
+    for (const z of [-0.44, 0.44]) box('lac', 0.1, 0.64, z, 1.3, 0.05, 0.05);
+    box('lac', -0.12, 0.84, 0, 0.62, 0.26, 1.0);
+    box('red', -0.12, 1.015, 0, 0.56, 0.09, 0.92);
+    box('red', -0.42, 1.33, 0, 0.09, 0.6, 0.92, 0, 0, 0.2);
+    box('lac', -0.49, 1.33, 0, 0.05, 0.72, 1.0, 0, 0, 0.2);
+    for (const z of [-0.5, 0.5]) { box('lac', -0.15, 1.12, z, 0.6, 0.32, 0.04); box('lac', -0.15, 1.29, z, 0.62, 0.04, 0.08); box('metal', 0.16, 1.29, z, 0.04, 0.05, 0.09); }
+    /* 前：座席の前板、足を乗せる床、赤い膝掛け、乗り降りの踏み台 */
+    box('lac', 0.19, 0.78, 0, 0.04, 0.36, 0.96, 0, 0, -0.25);
+    box('lac', 0.42, 0.62, 0, 0.42, 0.04, 0.9); box('lac', 0.63, 0.66, 0, 0.03, 0.1, 0.9);
+    box('blanket', 0.27, 0.86, 0, 0.62, 0.025, 0.86, 0, 0, -0.62);
+    box('lac', 0.62, 0.36, 0, 0.24, 0.03, 0.46);
+    for (const z of [-0.2, 0.2]) box('metal', 0.62, 0.49, z, 0.02, 0.26, 0.02);
+    /* 梶棒：座席の下から前へ約1.8m、先で少しすぼまり、横木でつながる */
+    for (const s of [-1, 1]) {
+      const ax = 0.25, ay = 0.66, az = 0.44 * s, bx = 2.05, by = 0.8, bz = 0.36 * s, dx = bx - ax, dy = by - ay, dz = bz - az, L = Math.hypot(dx, dy, dz);
+      box('lac', (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, L, 0.055, 0.055, 0, -Math.asin(dz / L), Math.atan2(dy, dx));
+      box('metal', bx, by, bz, 0.07, 0.07, 0.07);
+    }
+    box('lac', 2.05, 0.8, 0, 0.05, 0.05, 0.8);
+    /* 幌：たたんで背もたれの後ろに寄せた形。黒い布の丸い背と、両端の扇（横から見て、たたんだ蛇腹のかたまりに見えるように） */
+    put('lac', new THREE.CylinderGeometry(0.42, 0.42, 1.0, 14, 1, true, Math.PI, 0.5 * Math.PI), -0.5, 1.25, 0, Math.PI / 2);
+    for (const z of [-0.5, 0.5]) put('lac', new THREE.CircleGeometry(0.42, 8, Math.PI / 2, Math.PI / 2), -0.5, 1.25, z);    const out = {}; for (const k in P) out[k] = mergeGeos(P[k]);
+    return out;
+  })();
+  const RKMAT = {
+    lac: new THREE.MeshLambertMaterial({ color: 0x17130f, side: THREE.DoubleSide }), red: new THREE.MeshLambertMaterial({ color: 0xb02a2a }),
+    blanket: new THREE.MeshLambertMaterial({ color: 0x8e1b22 }), spoke: new THREE.MeshLambertMaterial({ color: 0x6b2418 }),
+    tire: new THREE.MeshLambertMaterial({ color: 0x262422 }), metal: new THREE.MeshLambertMaterial({ color: 0xb48a3c }),
+  };
+  const RKM = {};
+  for (const k in RKP) { const m = new THREE.InstancedMesh(RKP[k], RKMAT[k], RK_MAX); m.count = 0; m.frustumCulled = false; RKM[k] = m; scene.add(m); }
+  /* 車夫：担ぎ手と同じかわいい形（本人決定 10/21）。法被は紺に「浅草」の大紋（車夫の法被の色は調べて分からなかったので推測）。笠の人と、ねじり鉢巻きの人 */
+  const drvMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: hantenTex('#22305a', '浅草') });
+  const kasaGeo = new THREE.ConeGeometry(0.42, 0.2, 14); kasaGeo.translate(0, 1.72, 0);
+  const armGeo = mergeGeos([-0.2, 0.2].map(z => { const g = new THREE.BoxGeometry(0.4, 0.09, 0.09).toNonIndexed(); g.translate(0.2, 1.0, z); return g; }));
+  const DRV = {
+    body: new THREE.InstancedMesh(bodyGeo, drvMat, RK_MAX), band: new THREE.InstancedMesh(headGeo, bandMat, RK_MAX), plain: new THREE.InstancedMesh(headGeo, skinMat, RK_MAX),
+    kasa: new THREE.InstancedMesh(kasaGeo, new THREE.MeshLambertMaterial({ color: 0xcdb27a }), RK_MAX), arm: new THREE.InstancedMesh(armGeo, new THREE.MeshLambertMaterial({ color: 0x22305a }), RK_MAX),
+  };
+  for (const k in DRV) { DRV[k].count = 0; DRV[k].frustumCulled = false; scene.add(DRV[k]); }
+  const rickshaws = [];
+  const rkM = new THREE.Matrix4(), rkA = new THREE.Matrix4(), rkB = new THREE.Matrix4();
+  /* 車の行列：道の上の位置と向き。客待ちは車軸のまわりに前へ傾ける */
+  function rkCarMatrix(r, out) {
+    const p = V(r.x, r.y, 0);
+    out.makeRotationY(r.h).setPosition(p);
+    if (r.pose === 'wait') { rkA.makeTranslation(0, RK_R, 0); rkB.makeRotationZ(-RK_TILT); out.multiply(rkA).multiply(rkB); rkA.makeTranslation(0, -RK_R, 0); out.multiply(rkA); }
+    return out;
+  }
+  function updateRickshaws(dt) {
+    let carDirty = false, hb = 0, hp = 0, hk = 0;
+    for (let i = 0; i < rickshaws.length; i++) {
+      const r = rickshaws[i];
+      if (r.mode === 'running' && r.path && r.path.length > 1) {
+        r.t = (r.t || 0) + r.speed * dt;
+        let left = r.t, j = 0;
+        while (j < r.path.length - 1) { const [ax, ay] = r.path[j], [bx, by] = r.path[j + 1], L = Math.hypot(bx - ax, by - ay); if (left <= L) { r.x = ax + (bx - ax) * left / L; r.y = ay + (by - ay) * left / L; r.h = Math.atan2(by - ay, bx - ax); break; } left -= L; j++; }
+        if (j >= r.path.length - 1) r.t = 0;
+        r.pose = 'ready'; r.dirty = true;
+      }
+      if (r.dirty || !r.placed) { rkCarMatrix(r, rkM); for (const k in RKM) RKM[k].setMatrixAt(i, rkM); r.dirty = false; r.placed = true; carDirty = true; }
+      /* 車夫：梶棒を持つときは梶棒の間で前を向く。客待ちは車の右（道の中の側）に立ち、神輿を担いでいれば神輿の方を見る */
+      const ready = r.pose === 'ready', lu = ready ? 1.72 : 1.15, lv = ready ? 0 : 1.05;
+      const c = Math.cos(r.h), s = Math.sin(r.h), wx = r.x + c * lu + s * lv, wy = r.y + s * lu - c * lv;
+      let face = r.h;
+      if (!ready && S.b) face = Math.atan2(S.y - wy, S.x - wx);
+      else if (!ready) face = r.h - 0.9;
+      rkM.makeRotationY(face).setPosition(V(wx, wy, 0));
+      DRV.body.setMatrixAt(i, rkM); DRV.arm.setMatrixAt(i, rkM);
+      if (r.kasa) { DRV.plain.setMatrixAt(hp++, rkM); DRV.kasa.setMatrixAt(hk++, rkM); } else DRV.band.setMatrixAt(hb++, rkM);
+    }
+    const n = rickshaws.length;
+    for (const k in RKM) { RKM[k].count = n; if (carDirty) RKM[k].instanceMatrix.needsUpdate = true; }
+    DRV.body.count = DRV.arm.count = n; DRV.band.count = hb; DRV.plain.count = hp; DRV.kasa.count = hk;
+    for (const k in DRV) DRV[k].instanceMatrix.needsUpdate = true;
   }
   (function placeRickshaws() {
-    // 横道（幅3.5〜7mで、20m以上まっすぐ続く所）の端に寄せて止める。出発点の近くに4台、雷門の近くに2台。
-    const spots = [];
-    const find = (cx, cy, R, want) => {
-      const got = [];
-      for (let x = cx - R; x <= cx + R; x += 3) for (let y = cy - R; y <= cy + R; y += 3) {
-        if (!onRoad(x, y)) continue;
-        const ex = run(x, y, 0, 40) + run(x, y, Math.PI, 40), ny = run(x, y, Math.PI / 2, 40) + run(x, y, -Math.PI / 2, 40);
-        const width = Math.min(ex, ny), along = Math.max(ex, ny);
-        if (width < 3.5 || width > 7 || along < 20) continue;
-        const h = ex >= ny ? 0 : Math.PI / 2;
-        if ([...spots, ...got].some(p => Math.hypot(p.x - x, p.y - y) < 35)) continue;
-        got.push({ x, y, h, d: Math.hypot(x - cx, y - cy) });
-      }
-      got.sort((p, q) => p.d - q.d);
-      spots.push(...got.slice(0, want));
-    };
-    if (anchor) find(anchor.x, anchor.y, 120, 4);
-    if (raimonB) find(raimonB.d.cx, raimonB.d.cy, 90, 2);
-    // 車と車夫の足元（車の向きで、後ろ−0.9〜前2.3m、左−0.9〜右1.8m）が、建物にかからず道の上にあるか
-    const clearOf = (x, y, h) => {
-      const c = Math.cos(h), s = Math.sin(h);
-      for (let u = -0.9; u <= 2.31; u += 0.4) for (let v = -0.9; v <= 1.81; v += 0.45) {
-        const px = x + u * c + v * s, py = y + u * s - v * c; // v は右向きが正
-        if (!onRoad(px, py) || bldAt(px, py, 0.5)) return false;
+    /* 浅草で人力車が客待ち・走っている所（出典は記録）。それぞれの近くの道の端（左の歩道ぎわ）に止める。
+       仲見世の通り（人力車は入れない）、浅草寺の境内、雷門の通り抜けのまわりには置かない。担ぐ判定には入れない（今までどおり見た目だけ） */
+    const gx = raimonB ? raimonB.d.cx : 170, gy = raimonB ? raimonB.d.cy : -206, fy = gate.front ? gate.front.y : gy - 24;
+    const T = [
+      { name: '雷門前（雷門通り・門に向かって右）', x: gx + 32, y: fy, R: 14, n: 3, side: [0, 1] },
+      { name: '雷門前（雷門通り・門に向かって左）', x: gx - 24, y: fy, R: 12, n: 1, side: [0, 1] },
+      { name: '吾妻橋のたもと（水上バス乗り場の前）', x: 318, y: -262, R: 20, n: 3 },
+      { name: '伝法院通り（仲見世の西）', x: 132, y: -22, R: 14, n: 2 },
+      { name: '伝法院通り（仲見世の東）', x: 222, y: -22, R: 14, n: 1 },
+      { name: '二天門の前（浅草寺の東）', x: 296, y: 150, R: 16, n: 2 },
+      { name: '浅草神社の東', x: 300, y: 238, R: 20, n: 2 },
+      { name: '浅草寺の西（西参道の外の道）', x: 55, y: 170, R: 25, n: 2 },
+      { name: '浅草公会堂の近く', x: 95, y: -62, R: 16, n: 1 },
+    ];
+    if (anchor) T.push({ name: '出発点の近く（隅田川寄りの通り）', x: anchor.x, y: anchor.y, R: 80, n: 2 });
+    const dSeg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(px - ax - dx * t, py - ay - dy * t); };
+    /* 仲見世：雷門から宝蔵門の前まで */
+    const okAt = (x, y) => { const i = idx(x, y); return i >= 0 && roadBase[i] === 1 && road[i] === 1 && !inKeidai(x, y) && dSeg(x, y, gx, gy, 192, 62) > 12 && Math.hypot(x - gx, y - gy) > 14; };
+    /* 車と車夫の足元（車の向きで、後ろ−0.95〜前2.25m、左−0.75〜右1.35m）が、建物にかからず道の上にあるか */
+    const clearOf = (x, y, h, pose) => {
+      const c = Math.cos(h), s = Math.sin(h), u1 = pose === 'ready' ? 2.25 : 2.15, v1 = pose === 'ready' ? 0.75 : 1.35;
+      for (let u = -0.95; u <= u1 + 1e-6; u += 0.4) for (let v = -0.75; v <= v1 + 1e-6; v += 0.35) {
+        const px = x + u * c + v * s, py = y + u * s - v * c;
+        if (!okAt(px, py) || bldAt(px, py, 0.5)) return false;
       }
       return true;
     };
-    for (const sp of spots) {
-      // 道の左の端へ寄せる。壁にかかるなら、かからない所まで道の中へ出す。
-      const a = sp.h + Math.PI / 2, l = run(sp.x, sp.y, a, 20), rr = run(sp.x, sp.y, a + Math.PI, 20);
-      let off = null;
-      for (let o = l - 1.3; o >= -rr + 1.0; o -= 0.25) if (clearOf(sp.x + Math.cos(a) * o, sp.y + Math.sin(a) * o, sp.h)) { off = o; break; }
-      if (off === null) continue;
-      const r = makeRickshaw();
-      r.x = sp.x + Math.cos(a) * off; r.y = sp.y + Math.sin(a) * off; r.h = sp.h;
-      r.group.position.copy(V(r.x, r.y, 0)); r.group.rotation.y = r.h;
-      scene.add(r.group); rickshaws.push(r);
+    /* その点の道の向き（12方向で、いちばん長く続く向き）と幅 */
+    const axisAt = (x, y) => {
+      let best = null;
+      for (let k = 0; k < 12; k++) { const a = k * Math.PI / 12, al = run(x, y, a, 40) + run(x, y, a + Math.PI, 40); if (!best || al > best.al) best = { a, al }; }
+      return { h: best.a, along: best.al, width: run(x, y, best.a + Math.PI / 2, 30) + run(x, y, best.a - Math.PI / 2, 30) };
+    };
+    let idxN = 0;
+    const tooNear = (x, y, d) => rickshaws.some(r => Math.hypot(r.x - x, r.y - y) < d);
+    const add = (x, y, h, place) => {
+      const pose = idxN % 3 === 2 ? 'ready' : 'wait';
+      rickshaws.push({ x, y, h, pose, kasa: idxN % 2 === 0, mode: 'parked', path: null, speed: 3, place, dirty: true });
+      idxN++;
+    };
+    /* 歩道ぎわ（進む向きの左）へ寄せた位置。寄せきれなければ null */
+    const atCurb = (x, y, hh, pose) => {
+      const la = hh + Math.PI / 2, l = run(x, y, la, 25);
+      for (let o = l - 0.85; o >= l - 3.5; o -= 0.25) { const px = x + Math.cos(la) * o, py = y + Math.sin(la) * o; if (clearOf(px, py, hh, pose)) return { x: px, y: py }; }
+      return null;
+    };
+    for (const t of T) {
+      if (rickshaws.length >= RK_MAX) break;
+      const cand = [];
+      for (let x = t.x - t.R; x <= t.x + t.R; x += 2) for (let y = t.y - t.R; y <= t.y + t.R; y += 2) {
+        const d = Math.hypot(x - t.x, y - t.y); if (d > t.R || !okAt(x, y)) continue;
+        cand.push({ x, y, d });
+      }
+      cand.sort((p, q) => p.d - q.d);
+      let got = 0;
+      for (const cp of cand) {
+        if (got >= t.n) break;
+        const ax = axisAt(cp.x, cp.y); if (ax.along < 14 || ax.width < 4) continue;
+        for (const hh of [ax.h, ax.h + Math.PI]) {
+          if (got >= t.n) break;
+          /* side：寄せる歩道の向き（雷門前は門の側＝北の歩道。乗り場は門に向かって右手） */
+          if (t.side && Math.cos(hh + Math.PI / 2) * t.side[0] + Math.sin(hh + Math.PI / 2) * t.side[1] < 0.5) continue;
+          const pose = idxN % 3 === 2 ? 'ready' : 'wait', p = atCurb(cp.x, cp.y, hh, pose);
+          if (!p || tooNear(p.x, p.y, 8)) continue;
+          add(p.x, p.y, hh, t.name); got++;
+          /* 同じ歩道ぎわに、前へ3.6mずつ並べる（雷門前の乗り場のように） */
+          for (const k of [1, -1, 2, -2, 3, -3, 4]) {
+            if (got >= t.n) break;
+            const qx = p.x + Math.cos(hh) * 3.6 * k, qy = p.y + Math.sin(hh) * 3.6 * k, pz = idxN % 3 === 2 ? 'ready' : 'wait';
+            if (clearOf(qx, qy, hh, pz) && !tooNear(qx, qy, 3.2)) { add(qx, qy, hh, t.name); got++; }
+          }
+        }
+      }
     }
+    updateRickshaws(0);
   })();
 
   // ---------- 手前の建物を半透明にする ----------
@@ -3682,7 +4027,7 @@ function start(DATA, isAsakusa) {
     updateGate(dt); sizeTags(); updateReach(t); updPickHint(); rotStep(); updateNav(t); if (mode === 'carry') { tourStep(performance.now()); updateTourArrow(); } if (document.body.classList.contains('unfollow') === camFollow) document.body.classList.toggle('unfollow', !camFollow); holdStep(Math.min(0.2, (t - tPrev) / 1000));   // 押している間の進み方は、実際に経った時間で
     /* 押しても進めない時間を数え、本当につかえたときだけ選び直す・大きさを出す */
     stuckWatch(Math.min(0.2, (t - tPrev) / 1000));
-    for (const r of rickshaws) updateRickshaw(r, dt);
+    updateRickshaws(dt);
     if (!TT.started && photoOn && !opening) startTownTex();   // 町の写真は、空から降りてくる画面が終わってから裏で読む（最初の表示を遅くしない）
     const DS = S.done ? doneStep(performance.now()) : null;   // お祓いの後の流れ（片付けまで進める）
     if (S.b && S.mesh && S.mesh.visible !== false) {
@@ -3827,7 +4172,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, zoomBy, peek: (x, y, a, D) => { peek = x === undefined ? null : { look: V(x, y, 3), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, D * 0.5) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

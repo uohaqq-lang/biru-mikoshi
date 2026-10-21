@@ -1933,8 +1933,11 @@ function start(DATA, isAsakusa) {
      三社祭の本社神輿は、氏子の町会が順に引き継いで担ぎ、担ぐ間は町会ごとの半纏を着る決まりで、色は町会ごとに青・赤・緑など（調べた出典は 直した記録_飾りと人力車.md）。
      そこで一度に担ぐのは一つの町会として、担ぐ建物ごとに町会の色を一つ選ぶ。
      柄：背中の大紋（「三社」の字を白い丸に抜く。背中に「三社」と入れる町会の例から）、前の黒い襟、腰の白い帯。下は紺の股引と黒の地下足袋（この二つの色は推測）。
-     筒への巻き方：前（+x）が横の 0.25、背中が 0.75。上が肩、下が足 */
-  const HANTEN = ['#1f3563', '#2a5fae', '#2f7a4c', '#a8312b'];
+     筒への巻き方：前（+x）が横の 0.25、背中が 0.75。上が肩、下が足
+     色の割合（調べ_三社祭の半纏.md）：氏子44町会の半纏の展示では約4分の3が紺〜灰青、ほかに白地・緑・赤・茶が少し。
+     染物屋の談「藍染めの紺色が多く、次に茶色」。同じ色を重ねて入れ、出る割合をそろえる */
+  const HANTEN = ['#26325a', '#26325a', '#26325a', '#26325a', '#26325a', '#26325a',
+    '#6f7f96', '#6f7f96', '#edebe4', '#1f6b4f', '#b3282d', '#6b3a2a'];
   const hantenTexs = new Map();
   function hantenTex(col, crest) {
     const key = col + crest; let t = hantenTexs.get(key); if (t) return t;
@@ -1943,16 +1946,18 @@ function start(DATA, isAsakusa) {
     g.fillStyle = col; g.fillRect(0, 0, W, yH);
     /* 腰の帯：白地に半纏の色の菱つなぎ */
     g.fillStyle = wh; g.fillRect(0, b0, W, b1 - b0);
-    g.fillStyle = col;
+    g.fillStyle = col === '#edebe4' ? '#16120f' : col;
     for (let x = 0; x < W; x += 8) { g.beginPath(); g.moveTo(x + 4, b0 + 1.5); g.lineTo(x + 7.5, (b0 + b1) / 2); g.lineTo(x + 4, b1 - 1.5); g.lineTo(x + 0.5, (b0 + b1) / 2); g.closePath(); g.fill(); }
     /* 襟：首まわりと、前の合わせに沿って帯まで。白い点は襟の字のかわり */
     g.fillStyle = '#16120f'; g.fillRect(0, 0, W, H * 0.05);
     for (const u of [0.215, 0.285]) g.fillRect(W * u - 3, 0, 6, b0);
     g.fillStyle = wh; for (const u of [0.215, 0.285]) for (let y = 10; y < b0 - 4; y += 9) g.fillRect(W * u - 1, y, 2, 4);
     /* 背中の大紋 */
+    /* 白地の半纏（西浅三北の例）は、紋を黒丸に白抜きにする */
+    const light = col === '#edebe4';
     const cx = W * 0.75, cy = H * 0.25, r = H * 0.15;
-    g.fillStyle = wh; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-    g.fillStyle = col; g.font = 'bold ' + Math.round(r * 0.9) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = light ? '#16120f' : wh; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = light ? wh : col; g.font = 'bold ' + Math.round(r * 0.9) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(crest[0], cx, cy - r * 0.43); g.fillText(crest[1], cx, cy + r * 0.47);
     /* 股引と地下足袋 */
     g.fillStyle = '#1b2233'; g.fillRect(0, yH, W, H * 0.34);

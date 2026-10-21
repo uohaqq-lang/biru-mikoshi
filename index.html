@@ -3826,7 +3826,8 @@ function start(DATA, isAsakusa) {
     NT.win = { value: 0 };
     nightWin(bldMat);
     nightBasic.push(ground.material);
-    NT.day = { bg: scene.background.clone(), fog: scene.fog.color.clone() };
+    /* 朝の空と霧の色（10/21 動画の直し）：昼の版と同じ灰色だと白っぽく見えたので、夜の版の朝だけ薄い青に。昼の版（?night=0）はこの値を使わない */
+    NT.day = { bg: new THREE.Color(0xc4d2de), fog: new THREE.Color(0xc4d2de) };
   })();
   // ---- 明かりの届く範囲の用意（夜の版だけ） ----
   if (NIGHT) (function reachSetup() {
@@ -3936,18 +3937,22 @@ function start(DATA, isAsakusa) {
   // 夜→夜明け→朝の色。s：0＝夜、1＝昼（今の昼の見た目と同じ値）
   // zen・hor：空の上と地平線（霧も hor）、hs・hg・hi：半球光、sc・si：平行光、gt：地面の写真に掛ける色、wt：歩ける所の塗り、bt：写真の無い箱に掛ける色、glow：日の出の光
   const NCOLS = ['zen', 'hor', 'hs', 'hg', 'sc', 'gt', 'wt', 'bt'];
-  const NP = { hi: 0, si: 0, glow: 0 }; for (const k of NCOLS) NP[k] = new THREE.Color();
+  /* wo：歩ける所の塗りの濃さ（倍）。夜と夜明けは1のまま */
+  const NP = { hi: 0, si: 0, glow: 0, wo: 1 }; for (const k of NCOLS) NP[k] = new THREE.Color();
+  /* 朝（s＝1）の値（10/21 動画の直し）：前は昼の版と同じ値で、地面の写真と歩ける所の塗りが白く飛んで見えた。
+     地面の写真を少し暖かい灰色に沈め（gt）、歩ける所の塗りを薄く暗く（wt・wo）、空の光を少し弱め、日の光を少し暖かく強くした。
+     夜（s＝0）と夜明けの途中（0.32・0.62）の値は変えていない。昼の版（?night=0）はこの表を使わない */
   const NKEYS = !NIGHT ? [] : [
-    { s: 0,    zen: 0x050a1c, hor: 0x1b2950, hs: 0x7088c8, hg: 0x1c2030, hi: 0.62, sc: 0xa8c0ff, si: 0.42, gt: 0x6a7aa8, wt: 0x7a6248, bt: 0x8a90a6, glow: 0 },
-    { s: 0.32, zen: 0x141c48, hor: 0x6c4a78, hs: 0x8a84c0, hg: 0x2a2432, hi: 0.66, sc: 0xc0a0c8, si: 0.4,  gt: 0x7c7698, wt: 0x8e7058, bt: 0x9a94aa, glow: 0.35 },
-    { s: 0.62, zen: 0x5068a8, hor: 0xf2a080, hs: 0xf0c4ac, hg: 0x5a4a48, hi: 0.74, sc: 0xffb47c, si: 0.5,  gt: 0xc0a8a4, wt: 0xd8c0a8, bt: 0xdcd0cc, glow: 1 },
-    { s: 1,    zen: 0xcfd6d8, hor: 0xcfd6d8, hs: 0xffffff, hg: 0x9a8f80, hi: 0.85, sc: 0xffffff, si: 0.55, gt: 0xffffff, wt: 0xffffff, bt: 0xffffff, glow: 0 },
-  ].map(o => { const r = { s: o.s, hi: o.hi, si: o.si, glow: o.glow }; for (const k of NCOLS) r[k] = new THREE.Color(o[k]); return r; });
+    { s: 0,    zen: 0x050a1c, hor: 0x1b2950, hs: 0x7088c8, hg: 0x1c2030, hi: 0.62, sc: 0xa8c0ff, si: 0.42, gt: 0x6a7aa8, wt: 0x7a6248, bt: 0x8a90a6, glow: 0, wo: 1 },
+    { s: 0.32, zen: 0x141c48, hor: 0x6c4a78, hs: 0x8a84c0, hg: 0x2a2432, hi: 0.66, sc: 0xc0a0c8, si: 0.4,  gt: 0x7c7698, wt: 0x8e7058, bt: 0x9a94aa, glow: 0.35, wo: 1 },
+    { s: 0.62, zen: 0x5068a8, hor: 0xf2a080, hs: 0xf0c4ac, hg: 0x5a4a48, hi: 0.74, sc: 0xffb47c, si: 0.5,  gt: 0xc0a8a4, wt: 0xd8c0a8, bt: 0xdcd0cc, glow: 1, wo: 1 },
+    { s: 1,    zen: 0xb4c6da, hor: 0xc4d2de, hs: 0xfff8f0, hg: 0x9a8f80, hi: 0.78, sc: 0xfff0dc, si: 0.62, gt: 0xbab4aa, wt: 0xad9f8a, bt: 0xffffff, glow: 0, wo: 0.6 },
+  ].map(o => { const r = { s: o.s, hi: o.hi, si: o.si, glow: o.glow, wo: o.wo }; for (const k of NCOLS) r[k] = new THREE.Color(o[k]); return r; });
   function nightPal(s) {
     let j = 0; while (j < NKEYS.length - 2 && s > NKEYS[j + 1].s) j++;
     const A = NKEYS[j], B = NKEYS[j + 1], f = Math.max(0, Math.min(1, (s - A.s) / (B.s - A.s)));
     for (const k of NCOLS) NP[k].copy(A[k]).lerp(B[k], f);
-    for (const k of ['hi', 'si', 'glow']) NP[k] = A[k] + (B[k] - A[k]) * f;
+    for (const k of ['hi', 'si', 'glow', 'wo']) NP[k] = A[k] + (B[k] - A[k]) * f;
     return NP;
   }
   // いまの夜の濃さ：お祓いの後は戻る時間で決まる。それ以外は夜へ戻っていく
@@ -3983,7 +3988,7 @@ function start(DATA, isAsakusa) {
     // 写真の無い箱（町の箱・外側の灰色の箱）は色が明るいので、夜は少し沈める（写真の町より浮いて見えないように）
     if (window.__outer && !NT.outerMat) NT.outerMat = window.__outer.material;
     for (const m of [bldMat, NT.outerMat, ...ghostMats.values()]) if (m) { if (!m.userData.nc0) m.userData.nc0 = m.color.clone(); m.color.copy(m.userData.nc0).multiply(P.bt); }   // 手前を透かす半透明の箱も
-    if (walkMat) walkMat.color.copy(P.wt);
+    if (walkMat) { walkMat.color.copy(P.wt); walkMat.opacity = P.wo; }
     // 提灯と光だまり（夜明けとともに消えていく）
     NT.lan.visible = NT.pool.visible = lanK > 0.002;
     NT.lan.material.opacity = lanK; NT.pool.material.opacity = lanK;

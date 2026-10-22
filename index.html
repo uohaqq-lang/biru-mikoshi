@@ -752,8 +752,11 @@ function start(DATA, isAsakusa) {
     scene.add(mesh);
     window.__bldGeo = geo;
   })();
+  /* 2 のときは地面より少し下（−0.1m）に潰す。前は 0.02m で、夜の地面の光だまり（0.02m）と同じ高さになり、
+     低いカメラで見ると、潰した箱と光だまりがこまごとに入れ替わって、建物の足元がちらついた（10/22）。
+     地面の写真は深さを書かないので、潰した箱は今までどおり地面の上に塗られる */
   bldMat.onBeforeCompile = sh => {
-    sh.vertexShader = 'attribute float aFlat;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  if (aFlat > 0.5) transformed.y = min(transformed.y, aFlat > 1.5 ? 0.02 : 0.3);');
+    sh.vertexShader = 'attribute float aFlat;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  if (aFlat > 0.5) transformed.y = min(transformed.y, aFlat > 1.5 ? -0.1 : 0.3);');
   };
   // ---------- 外側の建物（担げる範囲の外の背景）：data/outer.js（tools/outer_buildings.py）を後から読み、写真なしの薄い色の箱を一つにまとめて建てる ----------
   // blds に入れないので、選ぶ・光る・ぶつかる・手前を透かす処理の対象にならない（raycast も空にする）。高さはデータの値。遠くは霧に溶ける。
@@ -1613,8 +1616,9 @@ function start(DATA, isAsakusa) {
   function makeBase(grp, L2, W2, B) {
     const { mB, tb, hf } = B, BL = L2 + mB, BW = W2 + mB, gb = tb * 0.16;
     grp.add(boxes([[0, tb / 2, 0, BL * 2, tb, BW * 2]], lacquerMat));
-    /* 金の縁：上と下の縁を、少し大きい薄い板で（上の板は台輪の上面より少し下に置き、上から見ると縁だけ金に見える） */
-    grp.add(boxes([[0, tb * 0.97 - gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb], [0, gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb]], goldMat));
+    /* 金の縁：上と下の縁を、少し大きい薄い板で（上の板は台輪の上面より少し下に置き、上から見ると縁だけ金に見える）。
+       下の板も同じく台輪の底より少し上に置く（底が台輪の底と同じ高さだと、下から見たとき黒と金が奪い合って、こまごとに入れ替わった。10/22） */
+    grp.add(boxes([[0, tb * 0.97 - gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb], [0, tb * 0.03 + gb / 2, 0, BL * 2 + gb, gb, BW * 2 + gb]], goldMat));
     /* 四隅の角金物 */
     const cg = tb * 1.05, corner = [];
     for (const su of [1, -1]) for (const sv of [1, -1]) corner.push([su * (BL - cg * 0.3), tb / 2, sv * (BW - cg * 0.3), cg * 0.75, tb * 1.04, cg * 0.75]);
@@ -2048,21 +2052,35 @@ function start(DATA, isAsakusa) {
      雷門や高架の下（桁下の決まりがある所）は、くぐる所なので今までどおり */
   const nearWall = (x, y) => clearAt(x, y) === Infinity && (!!bldAt(x, y, 0.5, notMe) || !!bldAt(x + 0.2, y, 0.5, notMe) || !!bldAt(x - 0.2, y, 0.5, notMe) || !!bldAt(x, y + 0.2, 0.5, notMe) || !!bldAt(x, y - 0.2, 0.5, notMe));
   const crewBlocked = (x, y) => ((!onRoad(x, y) || inKeidai(x, y)) && !!bldAt(x, y, 0.5, notMe)) || (onRoad(x, y) && nearWall(x, y));
+  /* 担ぎ手の出し入れに間を置く（本人の指摘「担ぎ手が消えたり出てきたりする」10/22）。
+     建物の足元の線や、建物どうしの細い隙間・道のマスの境を担ぎ手が横切るたびに、1こまずつ消えたり出たりしていた。
+     出す・隠すの判定が変わっても、変わったままで CREW_HOLD ミリ秒たってから替える（それより短い出入りは無視する） */
+  const CREW_HOLD = 400;
   function fitCrew(px, py, ori, sp) {
     const rot = S.rot || 0, key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2) + ',' + rot.toFixed(3);
-    if (S.fitKey === key) return;
+    /* 替えるのを待っている担ぎ手がいる間は、止まっていても調べ続ける */
+    if (S.fitKey === key && !S.crewWait) return;
     S.fitKey = key;
     const c = Math.cos(ori), s = Math.sin(ori), uv = S.crewUV;
     if (uv) {
-      const n = uv.length / 2, mask = new Uint8Array(n);
+      const n = uv.length / 2, now = performance.now();
+      /* 初めて（担ぎ直し・作り直しの後）は待たずにそのまま */
+      const fresh = !S.crewMask || S.crewMask.length !== n;
+      const mask = fresh ? new Uint8Array(n) : S.crewMask.slice();
+      if (fresh || !S.crewSince || S.crewSince.length !== n) S.crewSince = new Float64Array(n);
       /* 担ぎ手は進む向き（神輿の向きから S.rot を戻した向き）を向く。半纏の背中の大紋が後ろから見えるように */
-      let changed = !S.crewMask || S.crewMask.length !== n || S.crewRot !== rot;
+      let changed = fresh || S.crewRot !== rot, wait = 0;
       S.crewRot = rot; tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1, 1, 1);
       for (let i = 0; i < n; i++) {
         const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
-        mask[i] = crewBlocked(px + u * c - v * s, py + u * s + v * c) ? 0 : 1;
-        if (!changed && mask[i] !== S.crewMask[i]) changed = true;
+        const m1 = crewBlocked(px + u * c - v * s, py + u * s + v * c) ? 0 : 1;
+        if (fresh) { mask[i] = m1; continue; }
+        if (m1 === mask[i]) { S.crewSince[i] = 0; continue; }
+        if (!S.crewSince[i]) S.crewSince[i] = now;
+        if (now - S.crewSince[i] >= CREW_HOLD) { mask[i] = m1; S.crewSince[i] = 0; changed = true; }
+        else wait++;
       }
+      S.crewWait = wait;
       if (changed) {
         S.crewMask = mask;
         let m = 0;
@@ -3218,7 +3236,13 @@ function start(DATA, isAsakusa) {
   const ghostMats = new Map();
   const ghostMat = col => { let m = ghostMats.get(col); if (!m) ghostMats.set(col, m = new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: 0.22, depthWrite: false })); return m; };
   const ghosts = new Map(); // 建物 → 半透明の絵
-  function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); for (const sb of brSlabs) sb.m.material = sb.mat; }
+  /* 半透明の出し入れに間を置く（本人の指摘「周りの建物が消えたり出てきたりする」10/22）。
+     調べる線は1mおきなので、カメラが少し動くだけで細い建物が当たったり外れたりし、0.15秒だけ半透明になって戻るのを繰り返していた。
+     線が2本以上当たったとき（大きく前をふさぐとき）はすぐ、1本だけ（端をかすめただけ）なら2回続けて手前にあったら半透明にし、
+     手前から外れても1.2秒は半透明のままにする（高架の板も同じ。0.7秒では、外れて戻ってすぐまた当たる建物が残った） */
+  const GHOST_HOLD = 1200;
+  const ghostHit = new Map(); // 建物 → { n：続けて手前にあった回数, t：最後に手前にあった時刻 }
+  function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); ghostHit.clear(); for (const sb of brSlabs) { sb.m.material = sb.mat; sb.hit = null; } }
   function updateGhosts() {
     if (!S.b) return;
     const want = new Set(), o = camera.position, d = new THREE.Vector3();
@@ -3231,24 +3255,40 @@ function start(DATA, isAsakusa) {
     if (gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 85) { const gl = camLook.clone(); gl.y = 1; tgs.push(gl); } // 雷門の近くでは、見ている所の足元も隠さない
     /* 高架・橋の板も、神輿との間にあれば薄くする（東武線の高架の下で神輿が見えなくなった。直す係 第1回・不具合7） */
     const wantBr = new Set();
+    /* rays：その建物（板）に当たった線の本数。2本以上なら、端をかすめただけではないので、すぐ半透明にする */
+    const rays = new Map(), one = new Set();
     for (const tg of tgs) {
       d.subVectors(tg, o); const len = d.length(); d.normalize();
+      one.clear();
       // 一本の線の上に何棟あっても拾う
       for (let t = 0; t < len - 1.5; t += 1.0) {
         const b = bldAt(o.x + d.x * t, -(o.z + d.z * t), o.y + d.y * t, bb => bb === S.b);
-        if (b) want.add(b);
+        if (b) { want.add(b); one.add(b); }
         const X = o.x + d.x * t, Y = -(o.z + d.z * t), Z = o.y + d.y * t;
-        for (const sb of brSlabs) if (Z >= sb.lo - 0.3 && Z <= sb.hi + 0.3 && X >= sb.bb[0] && X <= sb.bb[2] && Y >= sb.bb[1] && Y <= sb.bb[3] && inPoly(sb.poly, X, Y)) wantBr.add(sb);
+        for (const sb of brSlabs) if (Z >= sb.lo - 0.3 && Z <= sb.hi + 0.3 && X >= sb.bb[0] && X <= sb.bb[2] && Y >= sb.bb[1] && Y <= sb.bb[3] && inPoly(sb.poly, X, Y)) { wantBr.add(sb); one.add(sb); }
       }
+      for (const x of one) rays.set(x, (rays.get(x) || 0) + 1);
     }
+    const now = performance.now();
+    /* 手前にあった回数と時刻を数える（外れたら回数だけ0に戻す） */
+    const seen = (h, on) => { if (on) { h.n++; h.t = now; } else h.n = 0; };
+    const enter = (x, h) => h.n >= 2 || (rays.get(x) || 0) >= 2;
     for (const sb of brSlabs) {
-      const on = wantBr.has(sb);
+      if (!sb.hit) sb.hit = { n: 0, t: -1e9 };
+      seen(sb.hit, wantBr.has(sb));
+      const cur = sb.m.material !== sb.mat;
+      const on = cur ? now - sb.hit.t <= GHOST_HOLD : enter(sb, sb.hit);
       if (on && !sb.ghost) { sb.ghost = sb.mat.clone(); sb.ghost.transparent = true; sb.ghost.opacity = 0.22; sb.ghost.depthWrite = false; }
       const mt = on ? sb.ghost : sb.mat;
       if (sb.m.material !== mt) sb.m.material = mt;
     }
-    for (const [b, m] of ghosts) if (!want.has(b)) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); ghosts.delete(b); }
-    for (const b of want) if (!ghosts.has(b)) { const m = new THREE.Mesh(bldGeo(b, b.h), ghostMat(b.col)); m.renderOrder = 2; scene.add(m); ghosts.set(b, m); setFlat(b, 2); }
+    for (const b of want) { let h = ghostHit.get(b); if (!h) ghostHit.set(b, h = { n: 0, t: -1e9 }); }
+    for (const [b, h] of ghostHit) {
+      seen(h, want.has(b));
+      if (!want.has(b) && !ghosts.has(b)) ghostHit.delete(b);
+    }
+    for (const [b, m] of ghosts) if (now - ghostHit.get(b).t > GHOST_HOLD) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); ghosts.delete(b); ghostHit.delete(b); }
+    for (const b of want) if (!ghosts.has(b) && enter(b, ghostHit.get(b))) { const m = new THREE.Mesh(bldGeo(b, b.h), ghostMat(b.col)); m.renderOrder = 2; scene.add(m); ghosts.set(b, m); setFlat(b, 2); }
   }
 
   // ---------- 小さな地図：今いる所・元の場所・通った道・ゴール ----------

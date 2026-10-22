@@ -987,9 +987,6 @@ function start(DATA, isAsakusa) {
       const k = i * 100003 + j; let a = bgrid.get(k); if (!a) bgrid.set(k, a = []); a.push(b);
     }
   });
-  /* マスごとの、いちばん高い建物の高さ（帰る担ぎ手が建物の陰に入ったかを調べるとき、低いマスを飛ばすのに使う） */
-  const bgridH = new Map();
-  for (const [k, a] of bgrid) { let m = 0; for (const b of a) m = Math.max(m, b.h); bgridH.set(k, m); }
   function inPoly(poly, x, y) {
     if (!inRing(poly[0], x, y)) return false;
     for (let k = 1; k < poly.length; k++) if (inRing(poly[k], x, y)) return false;
@@ -2038,7 +2035,7 @@ function start(DATA, isAsakusa) {
     }
     crewBody.count = crewHead.count = n;
     crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
-    S.crewShown = n; S.crewM = n;
+    S.crewShown = n;
     S.crewUV = Float32Array.from(uv); S.crewMask = null; S.fitKey = '';
     return g;
   }
@@ -2055,8 +2052,6 @@ function start(DATA, isAsakusa) {
     const rot = S.rot || 0, key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2) + ',' + rot.toFixed(3);
     if (S.fitKey === key) return;
     S.fitKey = key;
-    /* 縮めたときに帰る人の立っていた所を出すため、いまの位置と向きを覚えておく（leaveStart） */
-    S.crewPose = { px, py, ori, sp };
     const c = Math.cos(ori), s = Math.sin(ori), uv = S.crewUV;
     if (uv) {
       const n = uv.length / 2, mask = new Uint8Array(n);
@@ -2072,7 +2067,7 @@ function start(DATA, isAsakusa) {
         S.crewMask = mask;
         let m = 0;
         for (let i = 0; i < n; i++) if (mask[i]) { tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpM.compose(tmpP, tmpQ, tmpS); crewBody.setMatrixAt(m, tmpM); crewHead.setMatrixAt(m, tmpM); m++; }
-        crewBody.count = crewHead.count = S.crewM = m;
+        crewBody.count = crewHead.count = m;
         crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
       }
     }
@@ -2096,216 +2091,6 @@ function start(DATA, isAsakusa) {
     }
     /* 夜の提灯（担ぎ棒の先）も、棒の先に合わせて動かす */
     if (ud.lans) for (const L of ud.lans) { const e = ends.get(L.v); if (e) L.o.position.x = L.end < 0 ? e[0] + 0.2 : e[1] - 0.2; }
-  }
-
-  /* ---- 縮めたとき、要らなくなった担ぎ手が帰っていく（本人決定 10/21。動画の字幕「せっかく集まってくれたのに悪いので、建物を縮められるようにしました」を画にした場面） ----
-     縮める前に見えていた担ぎ手のうち、縮めた後の担ぎ手の範囲の外にいた人が、その場でうつむいてから背を向け、近くの道に沿って四方へとぼとぼ歩いて去る。
-     描くのは担ぎ手と同じ InstancedMesh（crewBody・crewHead）の、残った担ぎ手の後ろの番号。描く回数は増えず、描く人数も縮める前より増えない（MAX_CREW の中）。
-     帰る人は町の座標で動かし、毎こま担ぎ手の組（S.crew）の中の座標に直して書く（神輿を進めても、その場に残って帰っていく）。
-     本人（10/22）「担ぎ手が溶けていくのは意味わからない」：大きさは変えずに歩いて去り、見ている人が気づかない所でだけ消す（lvGone）。
-     消すのは、画面の外に出た所・建物の陰に入った所・カメラから遠く小さくなった所。道に出た人は道に沿って歩き、横道の口に来たら曲がって入っていく。
-     そのあいだも進める（待たせない） */
-  /* LV_SND：足音の重さに数える時間（人ごとにばらつかせる。見えなくなる時刻とは別に、縮めた直後から少しずつ軽くする）。
-     LV_PX：人の背丈が画面の上でこの画素より小さくなったら、遠くて見えないとして消す。LV_MAX：それでも残っている人を消す秒数（行き止まりで迷ったときの止め） */
-  const LV_SND = 2.5, LV_PX = 3, LV_MAX = 60, LV_HEAD = 1.8;
-  const LV = { n: 0, alive: 0, total: 0, ton0: 0, last: 0, fr: 0, ms: 0, gone: [0, 0, 0, 0],
-    /* x0・y0：立っていた所（試験で、どれだけ歩けたかを数えるのに使う）。tc：最後に横道へ曲がった時刻、sd：左右が塞がっていたか（1＝左、2＝右、4＝まだ見ていない） */
-    x: new Float32Array(MAX_CREW), y: new Float32Array(MAX_CREW), x0: new Float32Array(MAX_CREW), y0: new Float32Array(MAX_CREW), h: new Float32Array(MAX_CREW), hw: new Float32Array(MAX_CREW), ho: new Float32Array(MAX_CREW),
-    sp: new Float32Array(MAX_CREW), t0: new Float64Array(MAX_CREW), dl: new Float32Array(MAX_CREW), life: new Float32Array(MAX_CREW), ph: new Float32Array(MAX_CREW), tc: new Float32Array(MAX_CREW),
-    st: new Uint8Array(MAX_CREW), rd: new Uint8Array(MAX_CREW), sd: new Uint8Array(MAX_CREW) };
-  const LV_KEYS = ['x', 'y', 'x0', 'y0', 'h', 'hw', 'ho', 'sp', 't0', 'dl', 'life', 'ph', 'tc', 'st', 'rd', 'sd'];
-  const lvV = new THREE.Vector3(), LV_OFF = [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6, 2.2, -2.2];
-  const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
-  /* 歩ける所：まわりの建物の中でなく、道に出た人は道の上だけ */
-  const lvFree = (x, y, rd) => !bldAt(x, y, 0.5, notMe) && (!rd || onRoad(x, y));
-  /* 陰を作らない建物：担いでいる建物、手前で半透明にしている建物 */
-  const lvSeeThrough = bb => bb === S.b || ghosts.has(bb) || flatState.get(bb) === 2;
-  /* 建物の陰に入ったか：人の頭（1.8m）からカメラへの線が、途中の建物にさえぎられるか。屋根の形の分を見込んで、建物の高さの75%までで判定する。
-     人の幅の分、左右0.3mずらした線も見て、三本ともさえぎられたときだけ陰とする */
-  function lvHidden(x, y) {
-    const cp = camera.position, cx = cp.x, cy = -cp.z, cz = cp.y;
-    const dx = cx - x, dy = cy - y, L = Math.hypot(dx, dy);
-    if (L < 2 || cz <= LV_HEAD) return false;
-    const ux = dx / L, uy = dy / L, rise = (cz - LV_HEAD) / L;
-    /* 線が町でいちばん高い建物（の75%）より上に出たら、そこから先は調べない */
-    const tMax = Math.min(L - 1, (maxH * 0.75 - LV_HEAD) / rise);
-    if (tMax < 1) return false;
-    for (const off of [0, 0.3, -0.3]) {
-      const ox = x - uy * off, oy = y + ux * off;
-      let hit = false;
-      for (let t = 1; t <= tMax; t += 1) {
-        const px = ox + ux * t, py = oy + uy * t, z = (LV_HEAD + rise * t) / 0.75;
-        if ((bgridH.get(Math.floor(px / BG) * 100003 + Math.floor(py / BG)) || 0) < z) continue;
-        if (bldAt(px, py, z, lvSeeThrough)) { hit = true; break; }
-      }
-      if (!hit) return false;
-    }
-    return true;
-  }
-  /* 見ている人に気づかれずに消せるか。返す値：0＝まだ見えている、1＝画面の外（カメラの後ろも）、2＝建物の陰、3＝遠くて小さい、4＝長く残りすぎ。
-     陰を調べるのは重いので、deep のこまだけ */
-  function lvGone(x, y, deep, tt) {
-    lvV.set(x, LV_HEAD / 2, -y).applyMatrix4(camera.matrixWorldInverse);
-    const d = -lvV.z;
-    if (d < camera.near) return 1;
-    lvV.applyMatrix4(camera.projectionMatrix);
-    const th = Math.tan(camera.fov * Math.PI / 360);
-    /* 体が画面の縁から完全に出るまで待つ（人の背丈の半分より広く、縁の外に余白を取る） */
-    const mg = 1.0 / (d * th);
-    if (Math.abs(lvV.x) > 1 + mg || Math.abs(lvV.y) > 1 + mg) return 1;
-    if (LV_HEAD / (2 * d * th) * innerHeight < LV_PX || (scene.fog && d > scene.fog.far * 0.9)) return 3;
-    if (deep && lvHidden(x, y)) return 2;
-    if (tt > LV_MAX) return 4;
-    return 0;
-  }
-  /* 帰る人の分だけ、足音の重さ（SND.carry に渡すトン数）を前の重さから少しずつ下げる */
-  function leaveTon() {
-    const t1 = S.weight ? S.weight.ton : 100;
-    if (!LV.n || !LV.total) return t1;
-    const r = LV.alive / LV.total;
-    return Math.exp(Math.log(Math.max(1, t1)) + (Math.log(Math.max(1, LV.ton0)) - Math.log(Math.max(1, t1))) * r);
-  }
-  /* 縮める直前に呼ぶ（S.dim はもう縮めた後、担ぎ手 S.crewUV はまだ前のまま）。縮めた後の担ぎ手の範囲（buildCrew の外枠）の外にいた人を、帰る人にする */
-  function leaveStart() {
-    const uv = S.crewUV, P = S.crewPose;
-    if (!uv || !P || !S.crew || !S.crew.visible) return;
-    const ton = leaveTon(), tS = performance.now();
-    /* 帰っている途中でまた縮めたときは、帰り終えた人を詰めてから足す（見えなくなった人も、足音に数えている間は残す） */
-    let w = 0;
-    for (let i = 0; i < LV.n; i++) if (!LV.st[i] || (tS - LV.t0[i]) / 1000 < LV.life[i]) {
-      if (w !== i) for (const k of LV_KEYS) LV[k][w] = LV[k][i];
-      w++;
-    }
-    const was = w ? LV.alive : 0;
-    LV.n = w;
-    if (!w) LV.gone = [0, 0, 0, 0];
-    const n = uv.length / 2, mask = S.crewMask, c = Math.cos(P.ori), s = Math.sin(P.ori), sp = P.sp || 1;
-    const Lk = S.dim.L / 2 + 2.3 + 0.3, Wk = S.dim.W / 2 + 1.7 + 0.3, face = P.ori - (S.rot || 0), now = performance.now();
-    let add = 0;
-    for (let i = 0; i < n && LV.n < MAX_CREW; i++) {
-      if (mask && !mask[i]) continue;
-      const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
-      if (Math.abs(u) <= Lk && Math.abs(v) <= Wk) continue;
-      const x = P.px + u * c - v * s, y = P.py + u * s + v * c, j = LV.n++;
-      LV.x[j] = LV.x0[j] = x; LV.y[j] = LV.y0[j] = y; LV.h[j] = face; LV.t0[j] = now; LV.st[j] = 0; LV.tc[j] = 0; LV.sd[j] = 4;
-      /* 神輿から離れる向き（少しずつばらけさせる）。まずその場でうつむいて（0〜0.5秒）、それから背を向けて歩き出す */
-      LV.ho[j] = LV.hw[j] = Math.atan2(y - P.py, x - P.px) + (Math.random() - 0.5) * 0.9;
-      /* 歩く速さと歩き出す時刻はばらばらに */
-      LV.dl[j] = Math.random() * 0.5; LV.sp[j] = 1.3 + Math.random() * 1.0; LV.ph[j] = Math.random() * Math.PI * 2;
-      LV.life[j] = LV.dl[j] + LV_SND + Math.random() * 3.3;
-      LV.rd[j] = onRoad(x, y) ? 1 : 0;
-      add++;
-    }
-    if (!add && !LV.n) return;
-    /* 足音の重さは、いまの重さ（ton）から続ける */
-    LV.total = LV.alive = was + add; LV.ton0 = ton; LV.last = now; LV.msStart = performance.now() - tS;
-  }
-  function leaveEnd() {
-    LV.n = LV.alive = LV.total = 0; LV.ms = 0;
-    if (S.crew) crewBody.count = crewHead.count = S.crewM || 0;
-  }
-  /* 毎こま（fitCrew の後）：歩かせて、残った担ぎ手の後ろの番号に書く */
-  function leaveStep(now) {
-    if (!LV.n) return;
-    /* 着いてお祓い・魂振り・帰り道の間は続ける（来た道を戻ると、画面の外に出て消える）。元の場所に下ろすとき（担ぎ手が散る）は終わり */
-    if (S.intro || mode !== 'carry' || !S.crew || !S.crew.visible || (S.done && S.done.phase === 'home')) { leaveEnd(); return; }
-    const t0 = performance.now();
-    const dt = Math.min(0.25, Math.max(0, (now - LV.last) / 1000)); LV.last = now;
-    /* 道に沿って向きを選び直し、消せるかを見るのは、4こまに一度ずつ（人ごとにずらす）。建物の陰は8こまに一度 */
-    LV.fr = (LV.fr + 1) & 7;
-    const base = S.crewM || 0, room = MAX_CREW - base, G = S.crew, gx = G.position.x, gy = G.position.y, gz = G.position.z, go = G.rotation.y, gc = Math.cos(go), gs = Math.sin(go);
-    const bArr = crewBody.instanceMatrix.array, hArr = crewHead.instanceMatrix.array;
-    /* snd：足音の重さに数える人数。一人ずつ、数える時間の残りの割合で数える（縮めた直後から少しずつ軽くなる）。見えなくなった人も数える */
-    let k = 0, alive = 0, snd = 0;
-    for (let i = 0; i < LV.n; i++) {
-      const tt = (now - LV.t0[i]) / 1000;
-      if (tt < LV.life[i]) snd += 1 - tt / LV.life[i];
-      if (LV.st[i]) continue;
-      let x = LV.x[i], y = LV.y[i];
-      const mine = (i & 3) === (LV.fr & 3);
-      /* 見えなくなった所で、帰り終えたことにする（縮める直前の画面には全員映っているので、少したってから） */
-      if (mine && tt > 0.25) {
-        const g = lvGone(x, y, (i & 7) === LV.fr, tt);
-        if (g) { LV.st[i] = 1; LV.gone[g - 1]++; continue; }
-      }
-      alive++;
-      const w = tt - LV.dl[i];
-      let walk = 0;
-      if (w > 0) {
-        const rd = LV.rd[i];
-        if (mine) {
-          /* 横道へ曲がる：道に出た人は、左右それぞれ2・4・6m先まで道が続いているかを見る。前に見たときは塞がっていた側が開いたら、横道の口。
-             神輿の方へ戻る向きでなければ、8割の人はそこで曲がって入っていく（曲がってから3秒は曲がらない） */
-          if (rd) {
-            const hx = Math.cos(LV.h[i]), hy = Math.sin(LV.h[i]);
-            let sd = 0;
-            for (let sg = 0; sg < 2; sg++) {
-              const nx = sg ? hy : -hy, ny = sg ? -hx : hx;
-              if (!lvFree(x + nx * 2, y + ny * 2, 1) || !lvFree(x + nx * 4, y + ny * 4, 1) || !lvFree(x + nx * 6, y + ny * 6, 1)) sd |= 1 << sg;
-            }
-            const prev = LV.sd[i], opened = prev & 4 ? 0 : prev & ~sd & 3;
-            LV.sd[i] = sd;
-            if (opened && tt - LV.tc[i] > 3 && Math.random() < 0.8) {
-              const ax = x - S.x, ay = y - S.y, ad = Math.hypot(ax, ay);
-              for (const sg of Math.random() < 0.5 ? [0, 1] : [1, 0]) {
-                if (!(opened & (1 << sg))) continue;
-                const a = LV.h[i] + (sg ? -Math.PI / 2 : Math.PI / 2);
-                if (Math.cos(a) * ax + Math.sin(a) * ay < -0.3 * ad) continue;
-                LV.ho[i] = LV.hw[i] = a; LV.tc[i] = tt;
-                break;
-              }
-            }
-          }
-          /* 行きたい向き：いま向いている向きを、少しずつ行きたい向き（ho）へ戻す。前1mが歩けないときは、左右へ少しずつ振って探す */
-          const want = LV.hw[i] + wrapA(LV.ho[i] - LV.hw[i]) * 0.25;
-          const sg = (i & 1) ? 1 : -1;
-          let found = false;
-          for (const off of LV_OFF) {
-            const a = want + off * sg;
-            if (lvFree(x + Math.cos(a), y + Math.sin(a), rd)) { LV.hw[i] = a; found = true; break; }
-          }
-          if (!found) { LV.hw[i] = want + Math.PI; LV.ho[i] += Math.PI; }
-          /* 道に出た人は、行きたい向きを歩いている道の向きへ少しずつ合わせる（道が曲がっていても沿って歩く） */
-          else if (rd) LV.ho[i] += wrapA(LV.hw[i] - LV.ho[i]) * 0.1;
-        }
-        const dh = wrapA(LV.hw[i] - LV.h[i]), turn = 2.5 * dt;
-        LV.h[i] += Math.max(-turn, Math.min(turn, dh));
-        /* 歩き出しはゆっくり */
-        walk = Math.min(1, w / 0.6);
-        const v = LV.sp[i] * walk * dt, nx = x + Math.cos(LV.h[i]) * v, ny = y + Math.sin(LV.h[i]) * v;
-        /* 歩けるかを確かめるのは、向きを選び直すこまだけ（前1mを見て選んだ向きなので、その間の数こまは確かめずに進める。人数が多いので） */
-        if (v > 0 && (!mine || lvFree(nx, ny, rd))) { x = LV.x[i] = nx; y = LV.y[i] = ny; if (mine && !rd && onRoad(nx, ny)) LV.rd[i] = 1; }
-      }
-      if (k >= room) continue;
-      /* しょんぼり：うつむいて前かがみ（0.42rad）、肩を落として少し縮み、頭は肩にうずめるように前へ下げる。
-         歩くと一歩ごとに小さく弾み、左右にゆっくり揺れる（一秒に1.3歩。来たときよりずっとゆっくり） */
-      const droop = Math.min(1, tt / 0.5), ph = LV.ph[i] + Math.max(0, w) * Math.PI * 1.3, step = Math.abs(Math.sin(ph)) * 0.04 * walk;
-      const sy = 1 - 0.08 * droop, sx = 1 + 0.04 * droop;
-      const dx = x - gx, dz = -y - gz, tx = dx * gc - dz * gs, ty = step - gy, tz = dx * gs + dz * gc;
-      /* 回転は 向き（y軸）・左右の揺れ（前の軸）・前かがみ（横の軸）の順。人数が多いので、行列の数を直接書く（Euler・Quaternion を通すと、スマホで縮めた直後のこまが重かった） */
-      const a = LV.h[i] - go, r = Math.sin(ph) * 0.11 * walk, c = -0.42 * droop;
-      const ca = Math.cos(a), sa = Math.sin(a), cr = Math.cos(r), sr = Math.sin(r), cc = Math.cos(c), sc = Math.sin(c);
-      const r00 = ca * cc + sa * sr * sc, r10 = cr * sc, r20 = -sa * cc + ca * sr * sc;
-      const r01 = -ca * sc + sa * sr * cc, r11 = cr * cc, r21 = sa * sc + ca * sr * cc;
-      const r02 = sa * cr, r12 = -sr, r22 = ca * cr;
-      const o = (base + k) * 16;
-      bArr[o] = r00 * sx; bArr[o + 1] = r10 * sx; bArr[o + 2] = r20 * sx; bArr[o + 3] = 0;
-      bArr[o + 4] = r01 * sy; bArr[o + 5] = r11 * sy; bArr[o + 6] = r21 * sy; bArr[o + 7] = 0;
-      bArr[o + 8] = r02 * sx; bArr[o + 9] = r12 * sx; bArr[o + 10] = r22 * sx; bArr[o + 11] = 0;
-      bArr[o + 12] = tx; bArr[o + 13] = ty; bArr[o + 14] = tz; bArr[o + 15] = 1;
-      /* 頭：胴の上に載せ、うつむく分だけ前へ下げる（頭の形は y=1.5 が中心） */
-      const ox = 0.1 * droop, oy = 1.3 * sy + 0.2 - 0.13 * droop - 1.5;
-      hArr[o] = r00; hArr[o + 1] = r10; hArr[o + 2] = r20; hArr[o + 3] = 0;
-      hArr[o + 4] = r01; hArr[o + 5] = r11; hArr[o + 6] = r21; hArr[o + 7] = 0;
-      hArr[o + 8] = r02; hArr[o + 9] = r12; hArr[o + 10] = r22; hArr[o + 11] = 0;
-      hArr[o + 12] = tx + r00 * ox + r01 * oy; hArr[o + 13] = ty + r10 * ox + r11 * oy; hArr[o + 14] = tz + r20 * ox + r21 * oy; hArr[o + 15] = 1;
-      k++;
-    }
-    crewBody.count = crewHead.count = base + k;
-    for (const m of [crewBody, crewHead]) { m.instanceMatrix.updateRange.offset = 0; m.instanceMatrix.updateRange.count = (base + k) * 16; m.instanceMatrix.needsUpdate = true; }
-    LV.alive = snd;
-    LV.ms = performance.now() - t0;
-    if (!alive && !snd) leaveEnd();
   }
 
   // ---- 担ぐ大きさ（実物大・半分・神輿）：倍率 k で縮めた足元の形と、判定に使う点 ----
@@ -2422,7 +2207,7 @@ function start(DATA, isAsakusa) {
     useShape(shapeFor(b, k1));
     if (k1 > old.k && check(S.x, S.y, S.head + S.rot)) { useShape(old); return false; }
     S.scaleAnim = { from: S.visK, to: k1, t0: performance.now(), dur: RESIZE_MS };
-    if (k1 < old.k) { moveIfTrapped(); leaveStart(); }
+    if (k1 < old.k) moveIfTrapped();
     carryBody(b); rebuildCarry();
     S.stuck = null; S.noGo = 0; S.noGoPose = null; hold.locked = false; hideMsg();
     S.infoSig = null; showInfo(); refreshCrowd(true);
@@ -2464,8 +2249,6 @@ function start(DATA, isAsakusa) {
     if (S.b) liftOut(S.b, false);
     S.b = b;
     liftOut(b, true);
-    /* 前の建物で帰っている途中の人は、ここで終わり */
-    LV.n = LV.alive = LV.total = 0; LV.gone = [0, 0, 0, 0];
     /* 町の画面の一行の案内は、次から出さない */
     carriedOnce();
     // 足元を、建物の長い辺が「横向き（進む向きと直角）」になるように置く。担ぐ向きは進む向きと同じ。
@@ -4309,15 +4092,13 @@ function start(DATA, isAsakusa) {
       const amp = 0.12 + 0.18 * Math.min(1, S.spd / 6);
       let bob = Math.abs(Math.sin(S.phase)) * amp * big, roll = Math.sin(S.phase / 2) * 0.012 * big * (0.5 + Math.min(1, S.spd / 6));
       if (DS && DS.bob !== undefined) { bob = DS.bob * big; roll = DS.roll * big; }
-      if (!S.intro && !S.done) SND.carry(S.phase, S.spd, leaveTon());
+      if (!S.intro && !S.done) SND.carry(S.phase, S.spd, S.weight ? S.weight.ton : 100);
       S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift));
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, 0, 'YXZ');
       if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
       /* 建物の中に入る担ぎ手は出さず、担ぎ棒は建物の手前で止める（見た目だけ。直す係 第1回・不具合1・4） */
       if (S.crew && S.crew.visible) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
-      /* 縮めたときに帰っていく担ぎ手（leaveStart） */
-      leaveStep(performance.now());
     }
     if (peek) { camera.position.copy(peek.pos); camera.lookAt(peek.look); }
     else if (mode === 'pick') {
@@ -4405,7 +4186,6 @@ function start(DATA, isAsakusa) {
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,
-    leave: () => { let mv = 0, mn = 0, st = 0; for (let i = 0; i < LV.n; i++) if (!LV.st[i]) { const d = Math.hypot(LV.x[i] - LV.x0[i], LV.y[i] - LV.y0[i]); mv += d; mn++; if (d < 0.5) st++; } return { moved: mn ? +(mv / mn).toFixed(2) : 0, still: st, n: LV.n, walking: mn, alive: LV.alive, total: LV.total, drawn: crewBody.count - (S.crewM || 0), crewM: S.crewM, ms: +LV.ms.toFixed(2), msStart: +(LV.msStart || 0).toFixed(2), gone: { out: LV.gone[0], hidden: LV.gone[1], far: LV.gone[2], max: LV.gone[3] }, ton: +leaveTon().toFixed(1) }; }, leavePos: () => { const r = []; for (let i = 0; i < LV.n; i++) if (!LV.st[i]) r.push([i, LV.x[i], LV.y[i]]); return r; },
     setPhoto, photo: () => ({ on: photoOn, index: TT.index && TT.index.parts.length, loaded: TT.next, parts: TT.parts.length, blds: TT.byB.size, base: TT.base }) };
 }
 </script>

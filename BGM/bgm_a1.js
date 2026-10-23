@@ -10,7 +10,13 @@
   ・鉦は本物に近づけた：雑音の擦れと、すぐ消える不協和な鳴りで作った短く乾いた音（A の澄んで響く FM の鉦はやめた）。
   ・A の鈴（ガムランふうの FM ベル）は、選ぶ画面と夜明けにだけ残した。担ぐ場面では囃子を前に出すため、
     鈴の代わりにこもった「はじく音」（のこぎり波＋閉じていくローパス）が和音を刻む。
-  ・篠笛は C（kiso）の作り方：1本の息で吹き続ける1声。倍音の波形＋息の雑音＋ずり上げ＋遅れて入るビブラート＋指打ち。
+  ・篠笛は C（kiso）の作り方を土台に、本物へ近づけた（10/23 夕）：基音が強く倍音の少ない鳴り＋鳴り続ける息（音の高さのまわり・
+    「シュー」・「スー」）＋息の揺らぎ＋吹き始めの「トゥ」と明るさ＋下からのずり上げ＋指打ち。長い音はまっすぐ伸ばし、終わり近くだけ少し揺らす（10/23 夜）。
+    高い音ほど倍音が減って息っぽくなる。主旋律がはっきり笛と分かる大きさにし、パッドとはじく音（電子的な音）は後ろに下げた。
+  ・太鼓も重くした（10/23 夕）。締太鼓は硬い皮の「テン」「ツク」。大胴は 10/23 夜にさらに低くした：胴鳴り 54Hz（前は 70Hz）＋その2倍・3倍の高さ
+    （スマホのスピーカーでも聞こえるように）＋低く張った皮の「ドン」（約 140・178Hz、前は 161・252Hz）＋長い余韻。
+    大胴の低い所は、ゲームの足音（拍の頭で鳴る 40〜75Hz）を埋めないよう、担ぐ場面では拍の頭ごとに引き（拍の 40 ミリ秒前から 85 ミリ秒後まで −26dB）、38Hz を削った。
+    10/23 夜、本人の「もうちょい大太鼓の音をでかくして」で大胴だけ +3.5dB。山は大胴だけの割れ止めで丸め、ほかの音の大きさは変えていない。
   ・音源ファイルは使わない。乱数は種を固定したハッシュで、書き出すたびに同じ音になる。
 */
 window.MIKOSHI_BGM = window.MIKOSHI_BGM || {};
@@ -21,7 +27,9 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
 
   /* 出口の音量。書き出しで carry を測って、ここだけ動かす */
   /* 10/23 書き出しで測って 1.6 → 0.94（担ぐ区間 12〜30秒が −13.4 LUFS だったので −4.6dB。目標 −18 LUFS） */
-  const MASTER = 0.94;
+  /* 10/23 夕：笛と太鼓を直したあと、担ぐ区間を同じ大きさ（−18.32 LUFS、直す前と同じ流れで測った値）にそろえ直した。0.94 → 0.356 */
+  /* 10/23 夜：大胴を低くしたあと、もう一度 −18.32 LUFS にそろえた。0.356 → 下の値（場面ごとの SCENE_G も直して、ほかの場面の大きさを前に戻した） */
+  const MASTER = 0.325;
   const SEED = 0xa1a11023;
   const SR = ctx.sampleRate;
 
@@ -36,13 +44,19 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     場面ごとの層の音量（0〜1）。
     rev は残響へ送る量、dlp は太鼓の遠さ（太鼓と鉦にかけるローパス）、plp はパッドの明るさ（ローパス）。
   */
+  /*
+    10/23 夕：笛を前に出し、パッド（のこぎり波の和音）・はじく音・低音（電子的な刻み）を後ろに下げた。
+    大胴は担ぐ場面で前に出した（od 0.85 → 1.05）。
+    前の値 carry：pad 0.34・pluck 0.32・bass 0.5・plp 1000・od 0.85／tamafuri：pad 0.5・bass 0.65／back：pad 0.6・pluck 0.36
+    10/23 夜：大胴の音を +3.5dB 上げた（OD_G）。魂振りは前から一番大きい場面で、出口の割れ止めが強く効いたので、魂振りの od は 1 → 0.8（魂振りでの上げ幅は約 +1.6dB）
+  */
   const MIX = {
     idle:     { pad: 0.72, pluck: 0.6,  bell: 0.72, bass: 0,    shime: 0.5,  od: 0.52, kane: 0.46, fue: 0.72, sho: 0,   air: 0.72, rev: 0.6,  dlp: 1300,  plp: 750 },
-    carry:    { pad: 0.34, pluck: 0.32, bell: 0,    bass: 0.5,  shime: 0.9,  od: 0.85, kane: 0.62, fue: 0.85, sho: 0,   air: 0,    rev: 0.26, dlp: 12000, plp: 1000 },
+    carry:    { pad: 0.2,  pluck: 0.14, bell: 0,    bass: 0.32, shime: 0.9,  od: 1.05, kane: 0.62, fue: 1,    sho: 0,   air: 0,    rev: 0.26, dlp: 12000, plp: 800 },
     stuck:    { pad: 0.4,  pluck: 0,    bell: 0,    bass: 0,    shime: 0.5,  od: 0,    kane: 0,    fue: 0.8,  sho: 0,   air: 0.35, rev: 0.55, dlp: 6000,  plp: 700 },
     harai:    { pad: 0.32, pluck: 0,    bell: 0,    bass: 0,    shime: 0,    od: 0,    kane: 0,    fue: 0,    sho: 0.7, air: 0.3,  rev: 0.6,  dlp: 6000,  plp: 600 },
-    tamafuri: { pad: 0.5,  pluck: 0,    bell: 0,    bass: 0.65, shime: 1,    od: 1,    kane: 0.75, fue: 0.85, sho: 0,   air: 0,    rev: 0.3,  dlp: 15000, plp: 2600 },
-    back:     { pad: 0.6,  pluck: 0.36, bell: 0.54, bass: 0.36, shime: 0.5,  od: 0.5,  kane: 0.36, fue: 0.84, sho: 0,   air: 0.42, rev: 0.45, dlp: 5000,  plp: 900 }
+    tamafuri: { pad: 0.28, pluck: 0,    bell: 0,    bass: 0.45, shime: 1,    od: 0.8,  kane: 0.75, fue: 1,    sho: 0,   air: 0,    rev: 0.3,  dlp: 15000, plp: 2600 },
+    back:     { pad: 0.42, pluck: 0.24, bell: 0.54, bass: 0.36, shime: 0.5,  od: 0.5,  kane: 0.36, fue: 0.9,  sho: 0,   air: 0.42, rev: 0.45, dlp: 5000,  plp: 900 }
   };
   const LAYERS = ['pad', 'pluck', 'bell', 'bass', 'shime', 'od', 'kane', 'fue', 'sho', 'air'];
 
@@ -251,7 +265,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     shaper.curve = c;
     shaper.oversample = 'none';
   }
-  sum.connect(hp); hp.connect(carve); carve.connect(master); master.connect(pre); pre.connect(shaper); shaper.connect(dest);
+  /*
+    場面ごとの大きさ（SCENE_G）：10/23 夕、笛と太鼓を直して担ぐ区間に合わせて MASTER を下げたので、
+    ほかの場面が前と同じ大きさになるよう、場面ごとに戻す（書き出しで測って決めた）。
+    10/23 夜、大胴を低くして MASTER を 0.356 → 0.325 にしたので、測り直して決め直した（前は 選ぶ 2.63・つかえた 2.25・お祓い 2.66・魂振り 1.02・帰り道 1.355）
+  */
+  const SCENE_G = { idle: 2.785, carry: 1, stuck: 2.465, harai: 2.915, tamafuri: 0.942, back: 1.435 };
+  const sceneG = G(SCENE_G.idle);
+  sum.connect(hp); hp.connect(carve); carve.connect(sceneG); sceneG.connect(master); master.connect(pre); pre.connect(shaper); shaper.connect(dest);
 
   /* 残響（長い）・ゲートリバーブ（短い）・付点8分のディレイ */
   const rev = ctx.createConvolver();
@@ -298,15 +319,67 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const drumLP = BQ('lowpass', MIX.idle.dlp, 0.5);
   const shimeA = PAN(-0.3), shimeB = PAN(0.3), kanePan = PAN(0.35);
   shimeA.connect(B.shime); shimeB.connect(B.shime); kanePan.connect(B.kane);
-  B.shime.connect(drumLP); B.od.connect(drumLP); B.kane.connect(drumLP);
+  B.shime.connect(drumLP); B.kane.connect(drumLP);
   drumLP.connect(sum);
   send(drumLP, revIn, 0.2);
-  send(B.od, gateIn, 0.7);
-  send(B.shime, gateIn, 0.2);
+  /*
+    大胴だけは別の通り道：出口の「低い所を空ける」ハイパス（110Hz）を通さず、胴鳴り（54Hz）を残す。
+    ゲームの足音とドンの芯の下のほうだけを削り（38Hz で −6dB）、32Hz より下は切る。
+    10/23 夜：前は 45Hz で −7dB・36Hz より下を切っていた。胴鳴りを 54Hz に下げたので、胴鳴りまで削らないよう下へずらした
+    10/23 夕：前は大胴もハイパスを通り、ゲートリバーブへ 0.7 送っていた（電子的な質感）。今は 0.2
+  */
+  const odLP = BQ('lowpass', MIX.idle.dlp, 0.5);
+  const odDip = BQ('peaking', 38, 1.4, -6);
+  const odHP = BQ('highpass', 32, 0.7);
+  /*
+    大胴だけの割れ止め（10/23 夜）：大胴を +3.5dB 上げたら、強い打（山の段など）の皮の鳴りと倍音が強め合う所で、
+    大胴だけで出口の割れ止めの上限に届き、打つたびに曲全体を最大 3.2dB 縮めていた（笛などまでひずむ）。
+    大胴の山は大胴の中だけで丸める：OD_SAT_T までは素通し、その上は tanh で寄せ、OD_SAT_T＋OD_SAT_R で止まる。
+    ほかの音と混ぜる直前（120Hz で分けた上下を合わせた後）に置くので、笛や締太鼓はひずまない。2倍のオーバーサンプルで、丸めたときの濁りを減らす。
+    値は大胴の層の中の大きさ（1/4 にしてから曲線に通し、4倍で戻す）。担ぐ場面では、出口の大きさ＝この値×0.325（MASTER×pre×出口の割れ止めの曲線の2倍）。
+    1.17 は出口で 0.38（−8.4dBFS）、止まる所 1.54 は 0.50（−6.0dBFS。出口の割れ止めが働き始める 0.55 の少し下）
+  */
+  const OD_SAT_T = 1.17, OD_SAT_R = 0.37;
+  const odPre = G(0.25), odSat = ctx.createWaveShaper(), odPost = G(4);
+  {
+    const N = 4097, c = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const v = (i / (N - 1) * 2 - 1) * 4, a = Math.abs(v);
+      c[i] = (a <= OD_SAT_T ? v : Math.sign(v) * (OD_SAT_T + OD_SAT_R * Math.tanh((a - OD_SAT_T) / OD_SAT_R))) / 4;
+    }
+    odSat.curve = c;
+    odSat.oversample = '2x';
+  }
+  B.od.connect(odLP); odLP.connect(odDip); odDip.connect(odHP);
+  /*
+    大胴を 130Hz で上下に分け（足すと元に戻る分け方：Q 0.707 のフィルターを2つ重ねたもの同士）、下（胴鳴り）だけに odDuck をかける。
+    担ぐ場面では拍の頭ごとに、ゲームの足音が鳴る所の下を引いて、足音の通り道を空ける（duckLow）。
+    10/23 夜：大胴を +3.5dB 上げたので、−20dB・拍の 16 ミリ秒前から → −26dB・40 ミリ秒前からにした（前の打の胴鳴りが拍の頭まで残っていたため）。
+    拍の頭で打つ大胴は、胴鳴りがこの 80 ミリ秒のあとにふくらむので、「ドン（皮の当たり）…ゴーン（胴鳴り）」と聞こえる。
+  */
+  /* 10/23 夜：大胴を +3.5dB 上げたので、分ける高さを 120Hz → 130Hz に上げた（胴鳴りの2倍の高さ 108Hz も引く側に入れて、足音との差を 6dB 以上に保つ） */
+  const OD_X = 130;
+  const odLow = BQ('lowpass', OD_X, 0.707), odLow2 = BQ('lowpass', OD_X, 0.707), odHigh = BQ('highpass', OD_X, 0.707), odHigh2 = BQ('highpass', OD_X, 0.707), odDuck = G(1);
+  /* 上下を合わせてから、大胴だけの割れ止めを通して、ほかの音と混ぜる */
+  odHP.connect(odLow); odLow.connect(odLow2); odLow2.connect(odDuck); odDuck.connect(odPre);
+  odHP.connect(odHigh); odHigh.connect(odHigh2); odHigh2.connect(odPre);
+  odPre.connect(odSat); odSat.connect(odPost); odPost.connect(carve);
+  /* 残響へは上（120Hz より上）だけ送る（胴鳴りの残響が足音の所に残らないように） */
+  send(odHigh2, revIn, 0.2);
+  send(odHigh2, gateIn, 0.2);
+  /* 引く深さと、拍の何秒前から引くか：10/23 夜、大胴を +3.5dB 上げたので、0.1（−20dB）・0.016秒前から深く早くした（足音との差を 6dB 以上に保つため） */
+  const OD_DUCK = 0.05, OD_DUCK_PRE = 0.04;
+  function duckLow(t) {
+    const g = odDuck.gain;
+    g.setTargetAtTime(OD_DUCK, Math.max(ctx.currentTime, t - OD_DUCK_PRE), 0.006);
+    g.setTargetAtTime(1, t + 0.085, 0.03);
+  }
+  send(B.shime, gateIn, 0.1);
 
+  /* 笛：付点8分のディレイ（電子的なこだま）は 0.2 → 0.05 に減らし、残響で広げる */
   B.fue.connect(sum);
-  send(B.fue, revIn, 0.35);
-  send(B.fue, dlyIn, 0.2);
+  send(B.fue, revIn, 0.32);
+  send(B.fue, dlyIn, 0.05);
 
   B.sho.connect(sum);
   send(B.sho, revIn, 0.6);
@@ -358,27 +431,53 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     篠笛（C の作り方）：1本の息で吹き続ける1声。音ごとに部品を作らず、音程と音量を動かす。
     開管なので全部の倍音があり上ほど弱い波形。息は、音程のまわりの帯域通過の雑音と、吹き口の「スー」（高い所の雑音）。
   */
+  /*
+    10/23 夕に本物へ近づけた所：
+    ・鳴り：前は倍音が多い波形（2倍音 0.38・3倍音 0.2…）を音の高さの6倍のローパスに通していて、明るく電子的だった。
+      篠笛は基音がいちばん強く、倍音は少ない。2倍音 0.2・3倍音 0.07 からすぐ消える波形にし、ローパスも高い音ほど低く（基音の3.2倍→2.2倍）する。
+    ・息：鳴っている間ずっと、3つの帯域の雑音が鳴り続ける。音の高さのまわり（細い帯域。音に「かすれ」が乗る）、
+      「シュー」（3kHz のまわり）、吹き口の「スー」（7kHz より上）。高い音ほど息の量を増やす。
+    ・息の揺らぎ：遅い雑音で、音量（±3%ほど）と音の高さ（数セント）を細かく揺らす。正弦波の揺れだけだと機械的に聞こえるため。
+    ・吹き始め：舌で突く「トゥ」（帯域を絞った雑音の短い当たり）と、最初の 60 ミリ秒だけ倍音が多い明るさ。
+    ・ビブラート：長い音だけ、遅れて入る細かい揺れ（毎秒 5.8回）。音の高さと一緒に音量も少し揺らす（息で揺らすビブラート）。
+  */
   const F = {};
   {
-    const amps = [0, 1, 0.38, 0.2, 0.11, 0.06, 0.035, 0.02, 0.012];
+    const amps = [0, 1, 0.2, 0.07, 0.025, 0.01, 0.004];
     F.osc = ctx.createOscillator();
     F.osc.setPeriodicWave(ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps)));
     F.osc.frequency.value = 880;
-    F.amp = G(0); F.trem = G(1); F.lp = BQ('lowpass', 4000, 0.4);
-    F.osc.connect(F.amp); F.amp.connect(F.trem); F.trem.connect(F.lp); F.lp.connect(B.fue);
+    F.amp = G(0); F.trem = G(1); F.lp = BQ('lowpass', 2800, 0.5);
+    F.out = G(1);
+    F.osc.connect(F.amp); F.amp.connect(F.trem); F.trem.connect(F.lp); F.lp.connect(F.out); F.out.connect(B.fue);
     F.noise = ctx.createBufferSource(); F.noise.buffer = noise; F.noise.loop = true;
-    F.bp = BQ('bandpass', 880, 2.2); F.hp = BQ('highpass', 5500, 0.7); F.airG = G(0.25); F.breath = G(0);
-    F.noise.connect(F.bp); F.bp.connect(F.breath);
+    /*
+      息の3つの帯域。音の高さのまわり（F.bp）だけ、音ごとに中心を動かす。
+      （中心を動かすフィルターは係数を毎サンプル計算し直すので重い。2倍音のまわりの帯域は、重さを測ってやめた）
+    */
+    F.bp = BQ('bandpass', 880, 7); F.sh = BQ('bandpass', 3000, 0.8); F.hp = BQ('highpass', 7000, 0.7);
+    F.bpG = G(2.8); F.shG = G(0.12); F.airG = G(0.06);
+    F.breath = G(0);
+    F.noise.connect(F.bp); F.bp.connect(F.bpG); F.bpG.connect(F.breath);
+    F.noise.connect(F.sh); F.sh.connect(F.shG); F.shG.connect(F.breath);
     F.noise.connect(F.hp); F.hp.connect(F.airG); F.airG.connect(F.breath);
-    F.breath.connect(B.fue);
-    /* ビブラート（長い音だけ遅れてかける）、ゆっくりした音程のゆらぎ、音量の揺れ */
-    F.vibL = ctx.createOscillator(); F.vibL.frequency.value = 5.2; F.vib = G(0);
+    F.breath.connect(F.out);
+    /* 吹き始めの「トゥ」（帯域は固定） */
+    F.chBP = BQ('bandpass', 3200, 1.2); F.chiff = G(0);
+    F.noise.connect(F.chBP); F.chBP.connect(F.chiff); F.chiff.connect(F.out);
+    /* 息の揺らぎ：雑音をごく遅く再生して（1秒に約190点）、12Hz より下だけ残す */
+    F.slow = ctx.createBufferSource(); F.slow.buffer = noise; F.slow.loop = true; F.slow.playbackRate.value = 0.004;
+    F.slowLP = BQ('lowpass', 12, 0.7); F.jitA = G(0.15); F.jitP = G(0);
+    F.slow.connect(F.slowLP); F.slowLP.connect(F.jitA); F.jitA.connect(F.trem.gain);
+    F.slowLP.connect(F.jitP); F.jitP.connect(F.osc.frequency);
+    /* ビブラート（長い音だけ遅れてかける）：音の高さ（vib）と音量（vibA）を同じ揺れで */
+    F.vibL = ctx.createOscillator(); F.vibL.frequency.value = 5.2; F.vib = G(0); F.vibA = G(0);
     F.vibL.connect(F.vib); F.vib.connect(F.osc.frequency);
-    F.drL = ctx.createOscillator(); F.drL.frequency.value = 0.29; F.dr = G(2.5);
+    F.vibL.connect(F.vibA); F.vibA.connect(F.trem.gain);
+    /* ゆっくりした音程のゆらぎ（前と同じ） */
+    F.drL = ctx.createOscillator(); F.drL.frequency.value = 0.29; F.dr = G(2);
     F.drL.connect(F.dr); F.dr.connect(F.osc.frequency);
-    F.trL = ctx.createOscillator(); F.trL.frequency.value = 4.3; F.tr = G(0.06);
-    F.trL.connect(F.tr); F.tr.connect(F.trem.gain);
-    for (const s of [F.osc, F.noise, F.vibL, F.drL, F.trL]) { s.start(t0); persist.push(s); }
+    for (const s of [F.osc, F.noise, F.slow, F.vibL, F.drL]) { s.start(t0); persist.push(s); }
     F.f = 0; F.lvl = 0; F.end = -1; F.fresh = true;
   }
 
@@ -434,38 +533,100 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   }
 
   /*
-    締太鼓：C の本物寄りの皮の鳴り（一瞬高く入ってすぐ落ちる）を三角波にして硬い皮の上の鳴りを兼ね、
-    A のクラベスのような乾いた短さ（0.09秒）にした。撥の「カッ」は 3.2kHz の帯域の雑音。2人目は少し高い。
-    大胴（大太鼓）：C の作り（上から落ちてくる胴の鳴り＋胴の上の鳴り＋皮の雑音）。
-    足音とドン（40〜120Hz）にぶつからないよう基音を 108Hz に置いて 0.6秒で切り、胴の上の鳴り（約290Hz）で太鼓らしさを出す。A のゲートリバーブに送る。
-    鉦（当たり鉦・摺り鉦）：真鍮の皿を撞木で打つ「チャン」と、押さえた「チキ」。
+    皮の1つの鳴り（正弦）を足す。o：{ f 落ち着く高さ, up 打った瞬間の高さの倍率, tg その落ち方の時定数, sag 余韻で下がる割合, ts その時定数,
+    amp 大きさ, tau 減り方の時定数, att 立ち上がり（なめらかにふくらむ秒数）}。−100dB まで減ったら打ち切る
+  */
+  /* 正弦の表（4096点、間は直線でつなぐ）。起動時に太鼓の音を作る手間を減らすため、Math.sin の代わりに使う */
+  const SIN_N = 4096, SIN_T = new Float32Array(SIN_N + 1);
+  for (let i = 0; i <= SIN_N; i++) SIN_T[i] = Math.sin(2 * Math.PI * i / SIN_N);
+  function addMode(d, o) {
+    const n = d.length, kt = Math.exp(-1 / (o.tau * SR)), kg = Math.exp(-1 / ((o.tg || 0.01) * SR)), ks = Math.exp(-1 / ((o.ts || 1) * SR));
+    const na = Math.max(1, Math.round((o.att || 0.001) * SR)), up = (o.up || 1) - 1, sag = o.sag || 0, w = SIN_N / SR;
+    let ph = 0, e = o.amp, g = 1, s = 1;
+    for (let i = 0; i < n && e > o.amp * 1e-4; i++) {
+      ph += w * o.f * (1 + up * g) * (1 - sag * (1 - s));
+      if (ph >= SIN_N) ph -= SIN_N;
+      const k = ph | 0, fr = ph - k;
+      d[i] += (SIN_T[k] + (SIN_T[k + 1] - SIN_T[k]) * fr) * e * (i < na ? 0.5 - 0.5 * Math.cos(Math.PI * i / na) : 1);
+      e *= kt; g *= kg; s *= ks;
+    }
+  }
+  /* 帯域を絞った雑音の当たり（すぐ立ち上がり、時定数 tau で減る） */
+  function addBurst(d, type, f, q, amp, tau, r) {
+    const s = bqCoef(type, f, q), k = Math.exp(-1 / (tau * SR)), n = Math.min(d.length, Math.ceil(tau * 11.5 * SR));
+    let e = amp;
+    for (let i = 0; i < n; i++) { d[i] += bqRun(s, r() * 2 - 1) * e * Math.min(1, i / 24); e *= k; }
+  }
+  /* 終わりを sec 秒で消す（切れ目のプツッを防ぐ） */
+  function tailFade(d, sec) {
+    const m = Math.min(d.length, Math.round(sec * SR));
+    for (let i = 0; i < m; i++) d[d.length - 1 - i] *= i / m;
+  }
+
+  /*
+    10/23 夕に作り直した太鼓（前は締太鼓が三角波＋雑音の 0.09秒の軽い音、大胴が 108Hz を 0.6秒で切った音で、軽かった）。
+    締太鼓：硬く張った小さな皮。
+      ・皮の鳴り：張りの強い皮の、整数倍でない5つの鳴り（基音の 1・1.59・2.14・2.30・2.65 倍）。打った瞬間だけ 12% 高く、6 ミリ秒で落ちる。
+      ・胴鳴り：190Hz から 175Hz へ落ちる短い鳴り（時定数 25 ミリ秒）。ここで芯を出し、軽いクリック音にしない。
+      ・撥の当たり：4kHz と 1.5kHz の帯域の雑音を、3〜8 ミリ秒で。
+      「テン」（強い・普通の打ち）は皮の真ん中を打って鳴りを残す（基音の時定数 70 ミリ秒）。
+      「ツク」（弱い打ち）は端を軽く打つ音で、少し高く（6%）、鳴りは半分以下の短さ、当たりが主。2人目は前と同じく少し高い（432Hz と 498Hz）。
+    大胴（大太鼓）：10/23 夜に、本人の「太鼓ってもうちょい低い感じの方が良い」で低くした。
+      ・胴鳴り：54Hz（前は 70Hz。打った瞬間は 1.25倍から落ち、余韻で 4% 下がる）。表と裏の皮の少しずれた高さ（1.022倍）を重ねて、ゆっくりうならせる。
+        余韻の時定数は 0.55秒（前は 0.45秒。約1.3秒で −20dB、1.8秒で消える）。ゲームの足音を埋めないよう、25 ミリ秒かけてふくらむ。
+      ・スマホのスピーカーは 100Hz より下がほとんど鳴らないので、胴鳴りの2倍・3倍の高さ（108Hz・162Hz、胴鳴りと同じ高さの動き）を少し足し、
+        胴鳴りと合わせて軽く飽和させる（tanh）。耳は倍音の並びから低い基音を聞き取るので、スマホでも「ドーン」の低さが残る。
+      ・皮の「ドン」：低く張った皮の鳴り（約 140Hz・178Hz。前は 161Hz・252Hz）と、150Hz あたりの帯域の雑音。打った瞬間の当たりはここで出す。
+        足音の測る帯域（40〜120Hz）にかからないよう、120Hz より上に置いた（120Hz の鳴りにすると、足音との差が 6dB を切る歩が出た）。
+      ・撥の当たり：1.1kHz の帯域の雑音を 4 ミリ秒（前は 1.8kHz で大きめ。「コン」と軽くならないよう低く小さくした）。
+      「コ」（軽い打ち）は胴鳴りを小さく短くして（時定数 0.16秒）、皮の当たりを主にした。
+    鉦（当たり鉦・摺り鉦）：真鍮の皿を撞木で打つ「チャン」と、押さえた「チキ」（前のまま）。
     澄んで響き続ける音にしない：主役は高い帯域の雑音（擦れ）。金属の鳴りは矩形波1つ（奇数倍音が不協和に混ざる）で、25〜70 ミリ秒で消す。
     それぞれ高さと雑音を少しずつ変えた3通りを作り、打つたびに選ぶ。
   */
-  const DR = { shime: [[], []], don: [], ko: [], chan: [], chiki: [] };
+  /* 太鼓の音の大きさ（書き出しで測って合わせる） */
+  /* 10/23 夜：本人の「もうちょい大太鼓の音をでかくして」で、大胴だけ +3.5dB（OD_G 0.42 → 0.63）。MASTER と SCENE_G は変えず、ほかの音の大きさはそのまま */
+  const SHIME_G = 0.19, OD_G = 0.63;
+  /* 大胴の胴鳴りの高さ（10/23 夜に 70Hz から下げた）、2倍・3倍の高さの大きさ、軽い飽和の強さ */
+  const OD_F = 54, OD_H2 = 0.15, OD_H3 = 0.2, OD_SAT = 2;  const DR = { shime: [[], []], tsuku: [[], []], don: [], ko: [], chan: [], chiki: [] };
   {
-    const r = mulberry(SEED ^ 0x5eed);
+    const r = mulberry(SEED ^ 0x5eed), rd = mulberry(SEED ^ 0x7a1c0);
+    const SH_MODES = [[1, 1, 0.07], [1.59, 0.5, 0.04], [2.14, 0.35, 0.03], [2.3, 0.3, 0.025], [2.65, 0.2, 0.02]];
     for (let v = 0; v < 3; v++) {
       for (let side = 0; side < 2; side++) {
-        const f0 = (side ? 498 : 432) * (1 + (r() - 0.5) * 0.012);
-        DR.shime[side].push(mkBuf(0.1, function (d) {
-          addTone(d, f0 * 1.4, f0, 0.045, 0.24, 0.09, 1, 0.0015);
-          addNoise(d, 'bandpass', 3200, 0.9, 0.32, 0.035, r);
-        }));
+        const base = (side ? 498 : 432) * (1 + (rd() - 0.5) * 0.012);
+        for (const ten of [true, false]) {
+          const f0 = base * (ten ? 1 : 1.06);
+          (ten ? DR.shime : DR.tsuku)[side].push(mkBuf(0.22, function (d) {
+            for (const md of SH_MODES) addMode(d, { f: f0 * md[0], up: 1.12, tg: 0.006, amp: md[1] * (ten ? 1 : 0.6), tau: md[2] * (ten ? 1 : 0.42), att: 0.0008 });
+            addMode(d, { f: 175, up: 1.1, tg: 0.01, amp: ten ? 0.5 : 0.3, tau: 0.025, att: 0.001 });
+            addBurst(d, 'bandpass', 4000, 0.8, ten ? 4 : 4.6, 0.0035, rd);
+            addBurst(d, 'bandpass', 1500, 1.2, ten ? 2.2 : 2.5, 0.008, rd);
+            tailFade(d, 0.02);
+            for (let i = 0; i < d.length; i++) d[i] *= SHIME_G;
+          }));
+        }
       }
       for (const don of [true, false]) {
-        const f0 = 108 * (1 + (r() - 0.5) * 0.02), dur = don ? 0.6 : 0.28, bd = don ? 0.26 : 0.13;
-        (don ? DR.don : DR.ko).push(mkBuf(dur + 0.01, function (d) {
-          let ph = 0;
-          const n = Math.ceil(dur * SR);
-          for (let i = 0; i < n; i++) {
-            const t = i / SR;
-            const fr = t < 0.05 ? f0 * Math.pow(1.7, 1 - t / 0.05) : f0 * Math.pow(0.94, Math.min(1, (t - 0.05) / 0.45));
-            ph += 2 * Math.PI * fr / SR;
-            d[i] += Math.sin(ph) * 0.5 * envAt(t, 0.004, dur);
-          }
-          addTone(d, f0 * 2.7, f0 * 2.45, Math.min(0.05, bd * 0.5), 0.26, bd, 0, 0.0015);
-          addNoise(d, 'lowpass', don ? 900 : 1200, 0.7, 0.32, 0.07, r);
+        const f0 = OD_F * (1 + (rd() - 0.5) * 0.02), dur = don ? 1.8 : 0.6;
+        (don ? DR.don : DR.ko).push(mkBuf(dur, function (d) {
+          /* 胴鳴り（表と裏の皮）と、その2倍・3倍の高さ。別の入れ物で作り、軽く飽和させてから足す */
+          const b = new Float32Array(d.length);
+          addMode(b, { f: f0, up: 1.25, tg: 0.025, sag: 0.04, ts: 0.6, amp: don ? 0.85 : 0.28, tau: don ? 0.55 : 0.16, att: 0.025 });
+          addMode(b, { f: f0 * 1.022, up: 1.25, tg: 0.025, sag: 0.04, ts: 0.6, amp: don ? 0.45 : 0.14, tau: don ? 0.48 : 0.13, att: 0.025 });
+          addMode(b, { f: f0 * 2, up: 1.25, tg: 0.025, sag: 0.04, ts: 0.6, amp: don ? OD_H2 : OD_H2 * 0.4, tau: don ? 0.3 : 0.1, att: 0.02 });
+          addMode(b, { f: f0 * 3, up: 1.25, tg: 0.025, sag: 0.04, ts: 0.6, amp: don ? OD_H3 : OD_H3 * 0.4, tau: don ? 0.2 : 0.08, att: 0.015 });
+          let pk = 1e-9;
+          for (let i = 0; i < b.length; i++) pk = Math.max(pk, Math.abs(b[i]));
+          for (let i = 0; i < b.length; i++) d[i] += pk * Math.tanh(OD_SAT * b[i] / pk) / Math.tanh(OD_SAT);
+          /* 皮の「ドン」：低く張った皮の鳴り（約 140Hz・178Hz）と、150Hz のまわりの雑音の当たり */
+          addMode(d, { f: f0 * 2.6, up: 1.12, tg: 0.015, amp: don ? 1.0 : 0.7, tau: don ? 0.16 : 0.08, att: 0.002 });
+          addMode(d, { f: f0 * 3.3, up: 1.08, tg: 0.01, amp: don ? 0.4 : 0.35, tau: don ? 0.08 : 0.05, att: 0.0015 });
+          addBurst(d, 'bandpass', 150, 0.9, don ? 3.6 : 2.6, don ? 0.04 : 0.022, rd);
+          /* 撥の当たり：前（1.8kHz）より低く小さく、「コン」と軽くならないように */
+          addBurst(d, 'bandpass', 1100, 1.0, 0.32, 0.004, rd);
+          tailFade(d, don ? 0.3 : 0.04);
+          for (let i = 0; i < d.length; i++) d[i] *= OD_G;
         }));
       }
       for (const open of [true, false]) {
@@ -484,10 +645,10 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     s.connect(g); g.connect(out);
     s.start(t);
   }
-  /* side＝1 は2人目（右、少し高い） */
+  /* side＝1 は2人目（右、少し高い）。強い・普通の打ち（0.5 以上）は「テン」、弱い打ちは「ツク」 */
   function shimeHit(t, vel, side) {
     if (vel < 0.01) return;
-    playBuf(t, DR.shime[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), side ? shimeB : shimeA);
+    playBuf(t, (vel >= 0.5 ? DR.shime : DR.tsuku)[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), side ? shimeB : shimeA);
   }
   function odaiko(t, vel, kind) {
     if (vel < 0.01) return;
@@ -617,12 +778,18 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     const fresh = F.fresh || t > F.end + 0.02;
     F.fresh = false;
     const legato = e.leg && !fresh, uchi = e.uchi && !fresh;
-    const lvl = 0.13 * vel * (0.88 + 0.12 * clamp((m - 74) / 19, 0, 1));
-    /* 呂（低いオクターブ）は息が多く、甲（高いオクターブ）は息が少なく明るい */
-    const br = (kan ? 1.0 : 1.5) * lvl;
-    const fq = F.osc.frequency, amp = F.amp.gain, be = F.breath.gain;
-    F.lp.frequency.setValueAtTime(f * (kan ? 6 : 3.8), t);
+    /* hi：音の高さ（E5＝0 〜 C7＝1）。高い音ほど倍音が減り、息が増える */
+    const hi = clamp((m - 76) / 20, 0, 1);
+    /* calm：太鼓が抜けて笛だけが聞こえる所（担ぐ場面の「抜け」）。息と音の高さの揺らぎを弱める */
+    const calm = S.scene === 'carry' && S.lead === 0 && FORM[S.fb] === 'nuke';
+    const lvl = 0.27 * vel * (0.9 + 0.1 * hi);
+    const br = lvl * (0.85 + 0.75 * hi) * (kan ? 1 : 1.15) * (calm ? 0.7 : 1);
+    const fq = F.osc.frequency, amp = F.amp.gain, be = F.breath.gain, lpf = F.lp.frequency, ch = F.chiff.gain;
+    const bright = f * (3.2 - 1.0 * hi);
     F.bp.frequency.setValueAtTime(f, t);
+    /* 息で音の高さが揺れる量：10/23 夜に f×0.01 から減らした（静かな所で音程が上下して聞こえたため） */
+    F.jitP.gain.setValueAtTime(f * (calm ? 0.0015 : 0.004), t);
+    hold(lpf, t);
     if (grace) {
       fq.setValueAtTime(mtof(grace), t);
       fq.setValueAtTime(f * 0.992, t + 0.045);
@@ -630,30 +797,46 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     } else if (uchi) {
       /* 打ち指：同じ音が続くとき、指で穴を一瞬たたいて切る（一瞬だけ下の音が出る） */
       fq.setValueAtTime(mtof(lowerN(m)), t);
-      fq.setValueAtTime(f, t + 0.024);
+      fq.setValueAtTime(f, t + 0.026);
     } else if (legato) {
       fq.setValueAtTime(F.f || f, t);
       fq.exponentialRampToValueAtTime(f, t + 0.025);
     } else {
-      /* 吹き始めは少し低く入って本来の高さへ上がる */
-      fq.setValueAtTime(f * 0.955, t);
-      fq.exponentialRampToValueAtTime(f, t + 0.07);
+      /* 吹き始めは少し低く（約 −70 セント）入って、本来の高さへずり上がる */
+      fq.setValueAtTime(f * 0.96, t);
+      fq.exponentialRampToValueAtTime(f * 0.995, t + 0.06);
+      fq.exponentialRampToValueAtTime(f, t + 0.11);
     }
     if (uchi) {
-      amp.setValueAtTime(lvl * 0.45, t); amp.linearRampToValueAtTime(lvl, t + 0.035);
-      be.setValueAtTime(br * 1.8, t); be.linearRampToValueAtTime(br, t + 0.05);
+      /* 指が穴をたたく一瞬：音が細くなり、息だけが強く漏れる */
+      amp.setValueAtTime(lvl * 0.3, t); amp.linearRampToValueAtTime(lvl, t + 0.04);
+      be.setValueAtTime(br * 2.2, t); be.linearRampToValueAtTime(br, t + 0.06);
+      lpf.setValueAtTime(bright, t);
+      ch.setValueAtTime(0, t); ch.linearRampToValueAtTime(lvl * 0.5, t + 0.004); ch.setTargetAtTime(0, t + 0.006, 0.008);
     } else if (legato) {
       amp.setValueAtTime(F.lvl || lvl, t); amp.linearRampToValueAtTime(lvl, t + 0.03);
-      be.setValueAtTime(br * 1.3, t); be.linearRampToValueAtTime(br, t + 0.05);
+      be.setValueAtTime(br * 1.4, t); be.linearRampToValueAtTime(br, t + 0.06);
+      lpf.setValueAtTime(bright, t);
     } else {
-      amp.setValueAtTime(0.0001, t); amp.linearRampToValueAtTime(lvl, t + 0.035);
-      be.setValueAtTime(0.0001, t); be.linearRampToValueAtTime(br * 2.6, t + 0.012); be.linearRampToValueAtTime(br, t + 0.09);
+      /* 舌で突く「トゥ」：息の当たりが先に出て、音は 40 ミリ秒で立つ。最初の 60 ミリ秒だけ倍音が多い */
+      amp.setValueAtTime(0.0001, t); amp.linearRampToValueAtTime(lvl * 1.1, t + 0.04); amp.linearRampToValueAtTime(lvl, t + 0.09);
+      be.setValueAtTime(0.0001, t); be.linearRampToValueAtTime(br * 2.8, t + 0.01); be.linearRampToValueAtTime(br, t + 0.1);
+      ch.setValueAtTime(0, t); ch.linearRampToValueAtTime(lvl * 1.4, t + 0.003); ch.setTargetAtTime(0, t + 0.005, 0.012);
+      lpf.setValueAtTime(f * 5, t); lpf.exponentialRampToValueAtTime(bright, t + 0.06);
     }
     if (d > 0.5) amp.linearRampToValueAtTime(lvl * 1.08, t + d * 0.8);
     F.vib.gain.setValueAtTime(0, t);
-    if (d > 0.42) {
-      F.vib.gain.setValueAtTime(0, t + 0.22);
-      F.vib.gain.linearRampToValueAtTime(f * 0.0075, t + Math.min(0.7, d * 0.7));
+    F.vibA.gain.setValueAtTime(0, t);
+    if (d > 0.9) {
+      /*
+        祭りの篠笛の長い音：まっすぐ伸ばし、終わり近く（長さの 6割を過ぎてから）に少しだけ揺らす（±約7セント、音量は ±2%）。
+        10/23 夜：前は 0.42秒より長い音すべてに、入りの 0.25秒から ±17セントの揺れをかけていて、静かな所で音程の上下が目立った
+      */
+      const tv0 = t + d * 0.6, tv = t + d * 0.85;
+      F.vib.gain.setValueAtTime(0, tv0);
+      F.vib.gain.linearRampToValueAtTime(f * (calm ? 0.003 : 0.004), tv);
+      F.vibA.gain.setValueAtTime(0, tv0);
+      F.vibA.gain.linearRampToValueAtTime(0.02, tv);
     }
     if (e.rel) {
       const tr = Math.max(t + d - 0.05, t + 0.1);
@@ -670,6 +853,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     hold(F.amp.gain, T); F.amp.gain.setTargetAtTime(0.0001, T, 0.03);
     hold(F.breath.gain, T); F.breath.gain.setTargetAtTime(0, T, 0.03);
     hold(F.vib.gain, T); F.vib.gain.setTargetAtTime(0, T, 0.05);
+    hold(F.vibA.gain, T); F.vibA.gain.setTargetAtTime(0, T, 0.05);
+    hold(F.chiff.gain, T); F.chiff.gain.setTargetAtTime(0, T, 0.01);
     F.fresh = true; F.end = T;
   }
   /* ヒシギ（魂振り）：高い音の細かい行き来 */
@@ -680,19 +865,24 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     let k = 0;
     for (let x = t + 0.28; x < t + dur - 0.12; x += 0.066) { fq.setValueAtTime(k % 2 ? fa : fb, x); k++; }
   }
-  /* つかえた：笛が「ヒュルル」と落ちる */
+  /*
+    つかえた：笛が一度だけ「ヒュー」と落ちる。
+    10/23 夜：前は落ちながら ±2.5%（±約43セント）の揺れをかけ、入りも一瞬上から入っていて、静かな所で音程が何度も上下して聞こえた。
+    今は揺れなし・上からも入らず、本来の高さから1回だけなめらかに下がる
+  */
   function fueDrop(T) {
     const f = clamp(F.f || mtof(81), 700, 1500), fq = F.osc.frequency, amp = F.amp.gain, be = F.breath.gain;
-    hold(fq, T); hold(amp, T); hold(be, T); hold(F.vib.gain, T); hold(F.bp.frequency, T);
-    fq.setValueAtTime(f * 1.06, T);
-    fq.exponentialRampToValueAtTime(f, T + 0.06);
+    hold(fq, T); hold(amp, T); hold(be, T); hold(F.vib.gain, T); hold(F.bp.frequency, T); hold(F.jitP.gain, T);
+    hold(F.vibA.gain, T); F.vibA.gain.setValueAtTime(0, T);
+    hold(F.lp.frequency, T); F.lp.frequency.setValueAtTime(f * 3, T);
+    F.jitP.gain.setValueAtTime(0, T);
+    fq.setValueAtTime(f, T);
     fq.exponentialRampToValueAtTime(f * 0.42, T + 0.62);
     F.bp.frequency.setValueAtTime(f, T);
     F.bp.frequency.exponentialRampToValueAtTime(f * 0.42, T + 0.62);
     F.vib.gain.setValueAtTime(0, T);
-    F.vib.gain.linearRampToValueAtTime(f * 0.025, T + 0.35);
     amp.setValueAtTime(0.0001, T);
-    amp.linearRampToValueAtTime(0.1, T + 0.03);
+    amp.linearRampToValueAtTime(0.15, T + 0.03);
     amp.setTargetAtTime(0.0001, T + 0.42, 0.08);
     be.setValueAtTime(0.0001, T);
     be.linearRampToValueAtTime(0.14, T + 0.02);
@@ -801,10 +991,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     else if (name === 'harai') tc = 0.2;
     else if (name === 'tamafuri') tc = 0.06;
     setLayers(t, tc);
+    hold(sceneG.gain, t);
+    sceneG.gain.setTargetAtTime(SCENE_G[name], t, tc);
     hold(revIn.gain, t);
     revIn.gain.setTargetAtTime(m.rev, t, fast ? 0.1 : 0.5);
     hold(drumLP.frequency, t);
     drumLP.frequency.setTargetAtTime(m.dlp, t, 0.4);
+    hold(odLP.frequency, t);
+    odLP.frequency.setTargetAtTime(m.dlp, t, 0.4);
     padLP.frequency.setTargetAtTime(m.plp, t, 0.5);
 
     if (name === 'stuck') { zukkoke(t); return; }
@@ -1100,8 +1294,15 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     const tt = function (lag) {
       return Math.max(ctx.currentTime, t + (s % 2 ? SWING * sd : 0) + MICRO[s] * 0.001 + lag);
     };
-    if (s === 0 && S.dlyBpm !== S.bpm) { S.dlyBpm = S.bpm; dly.delayTime.setTargetAtTime(0.75 * 60 / S.bpm, t, 0.5); }
+    /*
+      付点8分のディレイの長さは場面の基本のテンポに合わせ、担ぐ場面の段ごとの上下（124〜132）には追いかけない。
+      10/23 夜：前は小節ごとに追いかけていて、長さが動く間はこだまの音程が最大で約45セントずれた（抜けで笛のこだまが下がって聞こえる）。
+      場面が替わる時だけ、ゆっくり（時定数 3秒）動かす
+    */
+    if (s === 0 && S.dlyBpm !== BPM[S.scene]) { S.dlyBpm = BPM[S.scene]; dly.delayTime.setTargetAtTime(0.75 * 60 / S.dlyBpm, t, 3); }
     const sc = S.scene;
+    /* 担ぐ場面：拍の頭（足音が鳴る所）で大胴の低い所を一瞬引く */
+    if (sc === 'carry' && s % 4 === 0) duckLow(t);
     if (sc === 'idle') stepIdle(t, n, s, sd, tt);
     else if (sc === 'carry') stepCarry(t, n, s, sd, tt);
     else if (sc === 'stuck') stepStuck(t, n, s);

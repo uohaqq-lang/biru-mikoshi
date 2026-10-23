@@ -3144,14 +3144,16 @@ function start(DATA, isAsakusa) {
     const p = { x: S.x, y: S.y, h: S.head }, lp = S.noGoPose; S.noGoPose = p;
     const moved = !lp || Math.abs(p.x - lp.x) + Math.abs(p.y - lp.y) > 0.01 || Math.abs(p.h - lp.h) > 1e-4;
     if (moved || !S.stuck) { S.noGo = 0; return; }
-    const pushing = hold.on || hold.back || rotHold.dir;
-    /* 押していない間は数えない */
-    if (!pushing) return;
+    /* 押していない間は数えない。ただし幅・高さではっきりつかえたときは、指を離していても出す
+       （10/23 本人「どのタイミングで建物のサイズ変えられるの？」。押し続けないと出ず、見つからなかった）。
+       担ぎ始めの置き場所でもうつかえているだけ（まだ一度もドンと当たっていない）なら、押すまで出さない（実物大の公会堂で、何もしないうちに出ていた） */
+    const pushing = hold.on || hold.back || rotHold.dir, hard = hardStuck(S.stuck) && S.lastThud > (S.introEnd || 0);
+    if (!pushing && !hard) return;
     /* 担ぎ始めてすぐは出さない */
     if (performance.now() - (S.introEnd || 0) < 1500) return;
     S.noGo += dt;
-    /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2） */
-    if (S.noGo >= (boxedIn() ? 0 : hardStuck(S.stuck) ? 1.0 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
+    /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す */
+    if (S.noGo >= (boxedIn() ? 0 : hard ? 0.4 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
   }
   function showInfo() {
     if (!S.b) { $('info').innerHTML = ''; return; }

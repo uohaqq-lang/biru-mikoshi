@@ -736,8 +736,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       o.detune.value = (hrand(i, 31) - 0.5) * 10;
       g.gain.setValueAtTime(0, t);
       g.gain.setTargetAtTime(0.02, t, 0.9);
-      /* お祓いは約8秒。途中で止まって聞こえないよう、4秒あたりで F#4 だけを G4 へゆっくり動かす */
-      if (i === 1) o.frequency.setTargetAtTime(mtof(67), t + 4, 0.8);
+      /* お祓いは約5.9秒（10/23 大麻を外して8秒から詰めた）。途中で止まって聞こえないよう、3秒あたりで F#4 だけを G4 へゆっくり動かす（前は4秒） */
+      if (i === 1) o.frequency.setTargetAtTime(mtof(67), t + 3, 0.8);
       o.connect(g); g.connect(shoLP);
       o.start(t); o.stop(t + 60);
       shoVoices.push({ o: o, g: g });

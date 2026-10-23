@@ -299,7 +299,9 @@
 <button id="skip">飛ばす ▶</button>
 
 <script src="lib/three.min.js"></script>
-<script src="data/kakegoe.js"></script>
+<script src="data/kakegoe.js"></script><!-- 担いで進む間の掛け声（10/23 候補1「大勢の棒読み」に替えた。前の版は data/kakegoe_旧.js） -->
+<script src="data/kakegoe_miyadashi.js"></script><!-- 魂振りの掛け声「オイサ、ハッ」（候補5） -->
+<script src="BGM/bgm_a1.js"></script><!-- BGM「A1」（Web Audio でその場で作る曲。書き出しの BGM/render.html も同じファイルを読む）。無ければ曲なしで動く -->
 <script src="data/difficulty.js"></script><!-- 建物ごとの難しさ（tools/difficulty.py が書く）。無くても動く -->
 <script src="data/shops.js"></script><!-- 建物ごとの店（OpenStreetMap。tools/osm_shops.py が書く）。無くても動く -->
 
@@ -2138,6 +2140,8 @@ function start(DATA, isAsakusa) {
     S.speedK = Math.max(0.72, Math.min(1, 1 - 0.28 * Math.log10(Math.max(1, S.weight.ton / 300))));
     /* 0＝100トンまで、1＝3,000トン以上 */
     S.heavy = Math.max(0, Math.min(1, Math.log10(Math.max(1, S.weight.ton / 100)) / Math.log10(30)));
+    /* 曲の厚み（A1 の setIntensity）も重さに合わせる。縮めて担ぎ直したときもここを通る */
+    SND.setIntensity(S.heavy);
     if (S.crew) scene.remove(S.crew);
     S.crew = buildCrew(); scene.add(S.crew);
     // 足元の影：建物の形を少し広げた暗い面を、地面に置く（神輿の絵とは別に、地面の高さで動かす）
@@ -2593,13 +2597,36 @@ function start(DATA, isAsakusa) {
 
   // ---------- 音（Web Audio でその場で作る。掛け声だけは加工した音を data/kakegoe.js に埋め込んである） ----------
   // 音が鳴るのは最初に触った後（ブラウザの決まり）。右上のボタンで消せる。?kakegoe=0 で掛け声だけ消せる。
+  /* 10/23 お囃子（16分割・BPM104）を、本人が選んだ BGM「A1」（BGM/bgm_a1.js）に替えた。足音・掛け声・担ぎ手の弾みは A1 の拍にそろえる（直した記録_BGM_A1.md） */
   const SND = (function () {
-    let ctx = null, master = null, muted = false, scene = 'idle', crowdN = 0;
+    let ctx = null, master = null, muted = false, scene = 'idle', crowdN = 0, bgm = null, inten = 0;
     try { muted = localStorage.getItem('mikoshi_mute') === '1'; } catch (e) { /* 覚えられない環境 */ }
     const useKake = new URLSearchParams(location.search).get('kakegoe') !== '0';
-    const bus = {}, kbufs = [];
-    let noise = null, hayTimer = 0, nextStep = 0, step16 = 0, lastKake = 0, kakeIdx = 0, crowdSrc = null;
+    const bus = {}, kbufs = [], mbufs = [];
+    let noise = null, hayTimer = 0, lastKake = 0, lastKakeAt = -1e9, kakeIdx = 0, crowdSrc = null, beatN = -1, bgmBus = null, outNode = null, miyaTap = null;
+    /* 曲の大きさ（render.html で本人が聴いた A1.mp3 と同じ釣り合いが 1） */
+    const BGM_GAIN = 1;
     const log = (type, o) => { if (window.__soundLog) window.__soundLog.push(Object.assign({ t: performance.now(), type }, o || {})); };
+    /* 掛け声の素の、声の立ち上がり（素の頭から何秒か）。150〜1,500Hz の帯域の大きさが、いちばん大きい所の1/4（−12dB）に初めて届く所。
+       素の頭には0.09〜0.2秒の無音があるので、この分だけ早く鳴らし始めて、声の頭を拍に合わせる */
+    function voiceOnset(b) {
+      const v = voiceEnv(b);
+      for (let i = 0; i < v.e.length; i++) if (v.e[i] >= v.mx * 0.25) return Math.max(0, (i - v.w / 2) / v.sr);
+      return 0;
+    }
+    function voiceEnv(b) {
+      const sr = b.sampleRate, d = b.getChannelData(0), n = d.length, w = Math.max(1, Math.round(sr * 0.01)), r = new Float32Array(n);
+      /* 2次の高域通過（150Hz）と低域通過（1,500Hz）を続けて通す */
+      const mk = (lp, f) => { const o = 2 * Math.PI * f / sr, al = Math.sin(o) * Math.SQRT1_2, c = Math.cos(o), a0 = 1 + al, g = (lp ? 1 - c : 1 + c) / 2 / a0; return { b0: g, b1: (lp ? 2 : -2) * g, b2: g, a1: -2 * c / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 }; };
+      const run = (s, x) => { const y = s.b0 * x + s.b1 * s.x1 + s.b2 * s.x2 - s.a1 * s.y1 - s.a2 * s.y2; s.x2 = s.x1; s.x1 = x; s.y2 = s.y1; s.y1 = y; return y; };
+      const hp = mk(false, 150), lp = mk(true, 1500);
+      for (let i = 0; i < n; i++) r[i] = Math.abs(run(lp, run(hp, d[i])));
+      /* 10ms の移動平均（e）と、そのいちばん大きい値（mx）。e[i] の窓の真ん中は i − w/2 */
+      const e = new Float32Array(n);
+      let acc = 0, mx = 0;
+      for (let i = 0; i < n; i++) { acc += r[i]; if (i >= w) acc -= r[i - w]; e[i] = acc; if (acc > mx) mx = acc; }
+      return { e, mx, w, sr };
+    }
     function init() {
       if (ctx) return;
       try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
@@ -2607,16 +2634,38 @@ function start(DATA, isAsakusa) {
       // 割れ止め：0.8までは素通し、それを超えた所だけ丸めて1を超えないようにする（重い建物のドンと寺社の鐘が重なったときなど。10/19 録って確かめた）
       { const pre = ctx.createGain(), ws = ctx.createWaveShaper(), N = 4097, c = new Float32Array(N);
         pre.gain.value = 0.5;   // 入力の±2までを曲線の±1に収める（曲線の外は端の値で止まるため）
-        for (let i = 0; i < N; i++) { const v = (i / (N - 1) * 2 - 1) * 2, a = Math.abs(v); c[i] = a <= 0.8 ? v : Math.sign(v) * (0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2)); }
-        ws.curve = c; ws.oversample = '2x'; master.connect(pre).connect(ws).connect(ctx.destination); }
-      for (const k of ['fx', 'carry', 'hay', 'crowd', 'kake']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
-      bus.hay.gain.value = scene === 'idle' ? 0.045 : 0; bus.crowd.gain.value = 0; bus.kake.gain.value = 0.55; bus.carry.gain.value = 0.7;
+        /* 10/23 BGM「A1」を入れたとき：重い建物のドンに曲が重なって −0.5dBFS まで出たので、丸めた上の天井を 1.0 から 0.86（約 −1.3dBFS。mp3 にしたときのはみ出しの余裕込み）に下げた。0.8 までは前と同じ素通し */
+        for (let i = 0; i < N; i++) { const v = (i / (N - 1) * 2 - 1) * 2, a = Math.abs(v); c[i] = a <= 0.8 ? v : Math.sign(v) * (0.8 + 0.06 * Math.tanh((a - 0.8) / 0.06)); }
+        ws.curve = c; ws.oversample = '2x'; master.connect(pre).connect(ws).connect(ctx.destination); outNode = ws; }
+      for (const k of ['fx', 'carry', 'crowd', 'kake']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
+      bus.crowd.gain.value = 0; bus.kake.gain.value = 0.55; bus.carry.gain.value = 0.7;
       noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       makeCrowd();
       if (useKake && window.MIKOSHI_KAKEGOE) for (const c of window.MIKOSHI_KAKEGOE.clips) {
         const bin = atob(c.mp3), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        ctx.decodeAudioData(u.buffer).then(b => { kbufs.push({ g: c.group, b }); }).catch(() => {});
+        ctx.decodeAudioData(u.buffer).then(b => { kbufs.push({ g: c.group, b, on: voiceOnset(b) }); }).catch(() => {});
       }
+      /* 魂振りの「オイサ、ハッ」。ha は「ハッ」の頭（素の頭から何秒か）。どの素もハッはオイサの0.55秒後に作ってあり（掛け声/候補.md）、
+         素ごとに測ると、オイサの頭からハッの立ち上がりまで 0.544〜0.564秒（8つのうち7つ。中央値0.557秒）だったので、オイサの頭＋0.557秒とする */
+      if (useKake && window.MIKOSHI_KAKEGOE_MIYA) for (const c of window.MIKOSHI_KAKEGOE_MIYA.clips) {
+        const bin = atob(c.mp3), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        ctx.decodeAudioData(u.buffer).then(b => { const on = voiceOnset(b); mbufs.push({ g: c.group, b, on, ha: on + 0.557 }); }).catch(() => {});
+      }
+      /* BGM「A1」：game の master に入れる（書き出しの BGM/render.html と同じ通り道。消音ボタンで一緒に消える）。作れない環境では曲なしで続ける。
+         太鼓の音や残響を作る手間があるので、最初に触った処理とは分けて0.2秒後に作る（スマホ相当で、最初の一押しの処理が 841ms → 1,136ms に延びたため） */
+      setTimeout(() => {
+        try {
+          if (window.MIKOSHI_BGM && window.MIKOSHI_BGM.a1) {
+            bgmBus = ctx.createGain(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(master);
+            bgm = window.MIKOSHI_BGM.a1(ctx, bgmBus);
+            bgm.setScene(scene, ctx.currentTime);
+            bgm.setIntensity(inten, ctx.currentTime);
+            /* 鈴の音（10通りの高さ）を、30msおきに0.1秒ぶんずつ先に作っておく（鳴らす時にまとめて作ると、スマホ相当で1回60〜100ms止まった） */
+            const prep = () => { try { if (bgm && bgm.prepare && bgm.prepare(0.1)) setTimeout(prep, 30); } catch (e) { /* 作れなければ鳴らす時に作る */ } };
+            setTimeout(prep, 30);
+          }
+        } catch (e) { bgm = null; }
+      }, 200);
       hayTimer = setInterval(schedule, 90);
       setTimeout(() => cerPrepare(false), 400);
     }
@@ -2662,44 +2711,23 @@ function start(DATA, isAsakusa) {
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + (attack || 0.004)); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
       o.connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.02);
     }
-    function odaiko(t, k) { tone(t, 95, 52, 0.55, 'sine', 0.9 * k, bus.hay); noiseHit(t, 0.08, 'lowpass', 400, 0.7, 0.5 * k, bus.hay); }
-    function shime(t, k) { tone(t, 340, 260, 0.09, 'triangle', 0.35 * k, bus.hay); noiseHit(t, 0.05, 'bandpass', 1800, 2, 0.4 * k, bus.hay); }
-    function kane(t, k) { for (const [f, a] of [[2210, 1], [3120, 0.6], [4380, 0.4]]) tone(t, f, f * 0.995, 0.12, 'sine', 0.08 * a * k, bus.hay); }
     function hyoshigi(t, k) { noiseHit(t, 0.03, 'bandpass', 2400, 7, 1.6 * k, bus.fx); tone(t, 1950, 1900, 0.06, 'sine', 0.5 * k, bus.fx); }
-    // 篠笛：律音階ふうの旋律（2小節で一回り）
-    const FUE = [880, 880, 988, 880, 784, 659, 784, 880, 1175, 988, 880, 784, 880, 0, 880, 0, 784, 784, 880, 784, 659, 587, 659, 784, 880, 784, 659, 587, 659, 0, 659, 0];
-    function fue(t, f, dur) {
-      if (!f) return;
-      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(f * 0.985, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
-      const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 5.5; lg.gain.value = f * 0.008; lfo.connect(lg).connect(o.frequency);
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.04); g.gain.setTargetAtTime(0.0001, t + dur * 0.85, 0.04);
-      o.connect(g).connect(bus.hay); o.start(t); lfo.start(t); o.stop(t + dur + 0.2); lfo.stop(t + dur + 0.2);
-      noiseHit(t, dur, 'bandpass', f * 1.5, 6, 0.03, bus.hay);   // 息の音
-    }
-    // お囃子の拍子（16分割の一小節）。魂振りでは大太鼓を強く・多く
-    const OD = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0], SH = [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1], KN = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
-    const BPM = 104, STEP = 60 / BPM / 2;
+    /* BGM「A1」の予約：約0.1秒ごとに「今＋0.3秒」まで（A1 の決まり）。選ぶ画面でも鳴らす（最初に触った後から） */
     function schedule() {
-      if (!ctx || ctx.state !== 'running') return;
-      // 選ぶ画面（idle）でも、遠くのお囃子として小さく鳴らす（音量は setScene で決める。最初に触った後から鳴る）
-      if (!nextStep || nextStep < ctx.currentTime) nextStep = ctx.currentTime + 0.05;
-      while (nextStep < ctx.currentTime + 0.3) {
-        const i = step16 % 16, strong = scene === 'tamafuri';
-        if (OD[i] || (strong && i % 2 === 0)) odaiko(nextStep, strong ? 1.6 : 1);
-        if (SH[i]) shime(nextStep, strong ? 1.3 : 1);
-        if (KN[i] && !strong) kane(nextStep, 1);
-        if (!strong) fue(nextStep, FUE[step16 % 32], STEP);
-        nextStep += STEP; step16++;
-      }
+      if (!ctx || ctx.state !== 'running' || !bgm) return;
+      try { bgm.scheduleUntil(ctx.currentTime + 0.3); } catch (e) { bgm = null; return; }
+      /* 確かめ用：曲の拍の頭の時刻（ctx の時刻）を記録する。__soundLog があるときだけ */
+      if (window.__soundLog) for (const s of bgm.steps()) if (s.n > beatN && s.n % 4 === 0) { beatN = s.n; log('beat', { n: s.n, at: s.t }); }
     }
     function setScene(sc) {
       if (sc === scene) return;
       scene = sc; log('scene', { scene: sc });
       if (!ctx) return;
       const t = ctx.currentTime;
-      // idle：遠くで祭りをやっている程度。tamafuri：前は0.95で、録ると大太鼓が毎打1を超えて割れ、ほかの場面より12dBほど大きかった（10/19）。混ぜ具合はそのままで全体を下げた
-      const hay = { idle: 0.045, carry: 0.22, harai: 0.08, tamafuri: 0.45, back: 0.16 }[sc] || 0;
-      bus.hay.gain.setTargetAtTime(hay, t, 0.25);
+      /* 曲の場面も替える。つかえた（stuck）は、ぶつかった「ドン」と同じ時刻に即座に。ほかは曲のほうで次の拍の頭にそろえて、なめらかに移る */
+      if (bgm) bgm.setScene(sc, t);
+      /* お祓いに入るときは、担ぐ曲の残り（太鼓の響き）が最初の拍子木（0.5秒）に重なるので、曲を1.0秒下げたままにしてから戻す */
+      if (sc === 'harai') duck(t, 1.0);
       // お祓い・魂振りの音は haraiSfx・tamafuriSfx（前は拍子木9回と大太鼓だけで、本人に「ちゃっちい」と言われた。10/23）
       if (sc === 'harai') haraiSfx(t);
       if (sc === 'tamafuri') tamafuriSfx(t);
@@ -2707,23 +2735,82 @@ function start(DATA, isAsakusa) {
       if (sc === 'idle' || sc === 'carry') cerStop();
       if (sc === 'idle') bus.crowd.gain.setTargetAtTime(0, t, 0.5);
     }
-    // 毎こま：担ぎ手の弾み（phase）が下を通ったら足音と掛け声、上を通ったらきしみ
+    /* 曲の厚み（0〜1）。担いでいる建物の重さ（S.heavy：100トンまで0、3,000トン以上で1）を渡す */
+    function setIntensity(x) {
+      inten = Math.max(0, Math.min(1, +x || 0));
+      if (ctx && bgm) bgm.setIntensity(inten, ctx.currentTime);
+    }
+    /* いま耳に届いている音の、ctx の時刻（出力の遅れの分だけ ctx.currentTime より前）。担ぎ手の弾みの見た目は、この時刻の拍にそろえる */
+    function heardNow() {
+      if (ctx.getOutputTimestamp) {
+        const o = ctx.getOutputTimestamp();
+        if (o && o.contextTime > 0 && o.performanceTime > 0) return o.contextTime + Math.min(0.1, Math.max(0, performance.now() - o.performanceTime) / 1000);
+      }
+      return Math.max(0, ctx.currentTime - (ctx.outputLatency || ctx.baseLatency || 0));
+    }
+    /* 曲の拍：{ pos 拍の位置（小数）, bps 1秒あたりの拍の数 }。曲が無い・止まっているときは null（弾みは前のとおり進む速さで決める） */
+    function beat() {
+      if (!ctx || !bgm || ctx.state !== 'running') return null;
+      return bgm.beatAt(heardNow());
+    }
+    /* ctx の時刻 t を、記録用の performance.now() の時刻に直す（動画用の音の記録が、鳴った時刻として使う） */
+    const perfAt = t => performance.now() + (t - heardNow()) * 1000;
+    // 足音（大勢）：担ぎ手の足のドッと、ばらばらの足のざっ
+    function footstep(t, k, hv) {
+      tone(t, 75 * (1 - 0.25 * hv), 45 * (1 - 0.25 * hv), 0.18 + 0.08 * hv, 'sine', 0.5 * k * (1 + 0.3 * hv), bus.carry);
+      for (let j = 0; j < 7; j++) noiseHit(t + Math.random() * 0.12, 0.06, 'lowpass', 700 + Math.random() * 500, 0.8, 0.25 * k * Math.random(), bus.carry);
+    }
+    // 掛け声：声の頭（素ごとに測った c.on 秒）が t に来るように、その分だけ早く鳴らし始める。もう過ぎていれば、素の途中から鳴らす
+    function kakegoe(t, k) {
+      const grp = kakeIdx++ % 4, rate = 0.97 + Math.random() * 0.06;
+      if (!ctx) { log('kake', { grp, k, rate }); return; }
+      const cand = kbufs.filter(c => c.g === grp), c = cand[Math.floor(Math.random() * cand.length)] || kbufs[0];
+      if (!c) return;
+      const src = ctx.createBufferSource(); src.buffer = c.b; src.playbackRate.value = rate;
+      const g = ctx.createGain(); g.gain.value = 0.35 + 0.65 * k; src.connect(g).connect(bus.kake);
+      const st = t - (c.on || 0) / rate, now = ctx.currentTime;
+      if (st >= now) src.start(st); else src.start(now, (now - st) * rate);
+      log('kake', { grp, k, rate, at: t, t: perfAt(t) });
+    }
+    /*
+      毎こま：担ぎ手の弾み（phase）が上を通ったら、次に下へ着く時（足が地面に着く時）の足音と掛け声を、曲の拍の頭に予約する。上ではきしみ。
+      下へ着く時は、弾みの速さ hz から見積もる（弾みは曲の拍にそろえてあるので、着く時は拍の頭のすぐ近く）。予約は半拍先なので、待ちは半拍以内。
+      曲が無いとき（作れなかった環境）は、前と同じく下を通った時にすぐ鳴らす
+    */
     let lastHalf = 0;
-    function carry(phase, spd, ton) {
+    function carry(phase, spd, ton, hz) {
       const half = Math.floor(phase / (Math.PI / 2));
       if (half === lastHalf) return;
       const prev = lastHalf; lastHalf = half;
       if (Math.abs(half - prev) > 4) return;
-      const k = Math.min(1, spd / 5), hv = Math.max(0, Math.min(1, Math.log10(Math.max(1, ton / 100)) / Math.log10(30)));   // hv：重さ（0〜1）。重いほど足音を低く、掛け声の間をあける
-      if (half % 2 === 0) {           // 下：足音（大勢）＋掛け声
-        if (k > 0.05) { log('step', { k, hv }); if (ctx) { const t = ctx.currentTime; tone(t, 75 * (1 - 0.25 * hv), 45 * (1 - 0.25 * hv), 0.18 + 0.08 * hv, 'sine', 0.5 * k * (1 + 0.3 * hv), bus.carry); for (let j = 0; j < 7; j++) noiseHit(t + Math.random() * 0.12, 0.06, 'lowpass', 700 + Math.random() * 500, 0.8, 0.25 * k * Math.random(), bus.carry); } }
+      const k = Math.min(1, spd / 5), hv = Math.max(0, Math.min(1, Math.log10(Math.max(1, ton / 100)) / Math.log10(30)));   /* hv：重さ（0〜1）。重いほど足音を低く、掛け声の間をあける */
+      const sync = !!(ctx && bgm && ctx.state === 'running' && hz > 0);
+      /* 下：足音（大勢）＋掛け声（曲が無いときだけ、ここで鳴らす） */
+      if (half % 2 === 0) {
+        if (sync) return;
+        if (k > 0.05) { log('step', { k, hv }); if (ctx) footstep(ctx.currentTime, k, hv); }
         const now = performance.now();
-        if (useKake && spd > 1.5 && now - lastKake > 1100 + 400 * hv) {
-          lastKake = now; const grp = kakeIdx++ % 4; const rate = 0.97 + Math.random() * 0.06;
-          log('kake', { grp, k, rate });
-          if (ctx) { const cand = kbufs.filter(c => c.g === grp); const c = cand[Math.floor(Math.random() * cand.length)] || kbufs[0]; if (c) { const src = ctx.createBufferSource(); src.buffer = c.b; src.playbackRate.value = rate; const g = ctx.createGain(); g.gain.value = 0.35 + 0.65 * k; src.connect(g).connect(bus.kake); src.start(); } }
+        if (useKake && spd > 1.5 && now - lastKake > 1100 + 400 * hv) { lastKake = now; kakegoe(ctx ? ctx.currentTime : 0, k); }
+        return;
+      }
+      if (sync) {
+        /* 下へ着くまでの秒数 → いちばん近い拍の頭。もう予約できない（過ぎた）なら次の拍の頭 */
+        const spb = 1 / Math.max(0.5, (bgm.beatAt(ctx.currentTime) || { bps: 2 }).bps);
+        const land = heardNow() + (Math.PI - (phase % Math.PI)) / (Math.PI * hz);
+        let tb = bgm.nextBeat(land - spb * 0.5, 4);
+        if (tb !== null && tb < ctx.currentTime + 0.01) tb = bgm.nextBeat(ctx.currentTime + 0.01, 4);
+        if (tb !== null) {
+          if (k > 0.05) { log('step', { k, hv, at: tb, t: perfAt(tb) }); footstep(tb, k, hv); }
+          /* 掛け声：鳴らすと決まったら次の拍の頭で（足音と同じ時）。待ちが半拍を超えるとき（歩き出しで弾みがまだ拍にそろっていない間）は、
+             8分の裏に回すと拍から外れて聞こえたので、ここでは鳴らさず次の一歩で決め直す */
+          if (useKake && spd > 1.5 && tb - lastKakeAt > 1.1 + 0.4 * hv && tb - ctx.currentTime <= spb * 0.5 + 0.02) {
+            lastKakeAt = tb; lastKake = performance.now();
+            kakegoe(tb, k);
+          }
         }
-      } else if (k > 0.05 && Math.random() < 0.7) {   // 上：担ぎ棒のきしみ（重いほど低い）
+      }
+      /* 上：担ぎ棒のきしみ（重いほど低い） */
+      if (k > 0.05 && Math.random() < 0.7) {
         const pitch = Math.max(0.55, 1.2 - Math.log10(Math.max(10, ton)) * 0.18);
         log('creak', { k, pitch });
         if (ctx) {
@@ -2741,7 +2828,18 @@ function start(DATA, isAsakusa) {
     }
     function crowdLog() { log('crowd', { n: crowdN }); }
     // ぶつかった音：重い建物ほど低く、長く（hv：0＝100トンまで、1＝3,000トン以上）
-    function boom(hv) { hv = hv || 0; log('thud', { hv }); if (!ctx) return; const t = ctx.currentTime; tone(t, 110 - 38 * hv, 42 - 14 * hv, 0.35 + 0.3 * hv, 'sine', 0.95, bus.fx); noiseHit(t, 0.12 + 0.1 * hv, 'lowpass', 1200 - 500 * hv, 0.7, 0.4, bus.fx); if (hv > 0.3) rumble(t, 0.5 + 0.5 * hv, 140, 0.5 * hv); }
+    /* ドンの間だけ曲を約 −10dB 下げて、hold 秒（ふだん0.3秒）後から戻す（ドンを立て、重なった山で割れないように。着いたとき・下ろしたときも同じ）。
+       もっと長く下げている途中なら、その長さを縮めない */
+    let duckEnd = 0;
+    function duck(t, hold) {
+      if (!bgmBus) return;
+      const g = bgmBus.gain, end = Math.max(duckEnd, t + (hold || 0.3));
+      duckEnd = end;
+      if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else g.cancelScheduledValues(t);
+      g.setTargetAtTime(BGM_GAIN * 0.3, t, 0.008);
+      g.setTargetAtTime(BGM_GAIN, end, 0.15);
+    }
+    function boom(hv) { hv = hv || 0; log('thud', { hv }); if (!ctx) return; const t = ctx.currentTime; duck(t); tone(t, 110 - 38 * hv, 42 - 14 * hv, 0.35 + 0.3 * hv, 'sine', 0.95, bus.fx); noiseHit(t, 0.12 + 0.1 * hv, 'lowpass', 1200 - 500 * hv, 0.7, 0.4, bus.fx); if (hv > 0.3) rumble(t, 0.5 + 0.5 * hv, 140, 0.5 * hv); }
     /* 魂振りの音は setScene('tamafuri') でまとめて予約する（tamafuriSfx）。ここは記録だけ残す（動画用の音の記録が 'taiko' を使うため） */
     function bigTaiko() { log('taiko'); }
     function rumble(t, dur, f, g) {
@@ -2893,9 +2991,11 @@ function start(DATA, isAsakusa) {
       const step = () => { const j = cerJobs.shift(); if (j) { try { j(); } catch (e) { /* 作れない環境では、その音を鳴らさない */ } } return cerJobs.length; };
       if (all) { while (step()) { /* 残りをすぐ作る */ } } else if (step()) setTimeout(() => cerPrepare(false), 40);
     }
-    function cerPlay(buf, t, gain, pan) {
+    /* tap：確かめ用に、同じ音をもう一か所へも流す（魂振りの掛け声だけを録るため。出口にはつながっていない） */
+    function cerPlay(buf, t, gain, pan, tap) {
       if (!buf || !cerRun) return;
       const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = buf; g.gain.value = gain; s.connect(g);
+      if (tap) g.connect(tap);
       if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p).connect(cerRun); } else g.connect(cerRun);
       s.start(Math.max(t, ctx.currentTime));
     }
@@ -2919,6 +3019,28 @@ function start(DATA, isAsakusa) {
       /* 神職の大麻：左・右・左 */
       CB.nusa.forEach((b, i) => cerPlay(b, t + 5.6 + 0.75 * i, 0.78, 0));
     }
+    /* 魂振りの「オイサ、ハッ」：担ぎ上げの瞬間に1回、3拍あとの揺れの中でもう1回（宮出しで担ぎ上げた瞬間に野太い「オイサ、ハッ！」が響く、という報道に合わせた）。
+       強い「ハッ」を曲の拍の頭に合わせ、オイサはその約0.55秒前から鳴る。1回が約1.6秒あるので、2回目は1回目のハッの響きが −20dB ほどに引いてから入る3拍あとにした。
+       曲が無いときは、拍の代わりに決まった間で */
+    function miyaCalls(t) {
+      if (!mbufs.length) return;
+      const g0 = Math.floor(Math.random() * 4);
+      let prev = 0;
+      for (let k = 0; k < 2; k++) {
+        const cand = mbufs.filter(c => c.g === (g0 + k) % 4), c = cand[Math.floor(Math.random() * cand.length)] || mbufs[0];
+        let th = null;
+        if (bgm && k === 0) th = bgm.nextBeat(t + c.ha + 0.05, 4);
+        else if (bgm) {
+          /* 1拍の長さは、見積もった次の拍の頭との差（魂振りのテンポ 144 で） */
+          const nb = bgm.nextBeat(prev + 0.01, 4);
+          if (nb !== null) th = bgm.nextBeat(prev + 2.75 * (nb - prev), 4);
+        }
+        if (th === null) th = k === 0 ? t + c.ha + 0.05 : prev + 1.25;
+        prev = th;
+        cerPlay(c.b, th - c.ha, 0.5, 0, miyaTap);
+        log('miya', { at: th, t: perfAt(th), grp: c.g });
+      }
+    }
     /* 魂振り（2.4秒）。揺れの見た目は doneStep：上下の弾みは 0.377秒ごと、強さは sin(経過/2.4秒×π) */
     function tamafuriSfx(t) {
       if (!cerRun) return;
@@ -2929,11 +3051,8 @@ function start(DATA, isAsakusa) {
       [0, 0.18, 0.33, 0.45, 0.55].forEach((d, i) => cerPlay(pick(CB.ki), t + d, 0.28 + 0.05 * i, 0.15));
       crowdTo(1.4, t + 0.4, 0.3);
       cerPlay(CB.cheer, t + 0.4, 0.32, 0);
-      /* 担ぎ手の「セイヤ」（掛け声の素を使う。再生の速さは1倍のまま） */
-      for (const [d, grp] of [[0.45, 0], [1.2, 1], [1.95, 2]]) {
-        const cand = kbufs.filter(c => c.g === grp), kb = cand[Math.floor(Math.random() * cand.length)] || kbufs[0];
-        if (kb) cerPlay(kb.b, t + d, 0.5, 0);
-      }
+      /* 担ぎ手の「オイサ、ハッ」（10/23 本人が選んだ候補5。前は担いで進む掛け声の素を3回）。miyaCalls */
+      miyaCalls(t);
       /* 揺さぶって上がりきるたびに飾り金具がチャリッ、沈むたびに担ぎ手の足がドッ */
       for (let ms = 188, i = 0; ms < 2400; ms += 377, i++) {
         const k = Math.sin(ms / 2400 * Math.PI);
@@ -2941,7 +3060,9 @@ function start(DATA, isAsakusa) {
         if (ms + 188 < 2400) tone(t + (ms + 188) / 1000, 72, 44, 0.2, 'sine', 0.45 * k, cerRun);
       }
     }
-    return { unlock, setMute, isMuted: () => muted, setScene, carry, setCrowd, crowdLog, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1) };
+    /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
+    return { unlock, setMute, isMuted: () => muted, setScene, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1),
+      _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap }; } };
   })();
 
   // ---------- つかえたとき：揺れ・音・寸法 ----------
@@ -2951,7 +3072,11 @@ function start(DATA, isAsakusa) {
     const now = performance.now();
     // S.quietBump：押し続けたまま向きを変えて、また当たったとき（揺らさず、鳴らさず、札だけ替える）
     if (!S.quietBump) S.shake = 1;
-    if (!quiet && !S.quietBump && now - S.lastThud > 450) { thud(); S.lastThud = now; }
+    if (!quiet && !S.quietBump && now - S.lastThud > 450) {
+      thud(); S.lastThud = now;
+      /* 曲もドンと同じ時刻につかえた場面へ（ずっこけ）。また動き出したら担ぐ場面に戻す（毎こまの所） */
+      if (mode === 'carry' && !S.intro && !S.done && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = now; }
+    }
     if (!quiet && mode === 'carry') rotHint(true);
     // つかえた所の数は数える（赤い印は描かない。本人「いらない」）
     if ((res.kind === 'width' || res.kind === 'height') && !pins.some(p => Math.hypot(p.position.x - S.x, -p.position.z - S.y) < 4)) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.3, 16), pinMat); p.position.copy(V(S.x, S.y, 0.2)); pins.push(p); }
@@ -4328,12 +4453,28 @@ function start(DATA, isAsakusa) {
       // 担ぎ手の弾みは、進む速さに合わせる（止まっているときはゆっくり小さく、速いほど速く大きく。速すぎても一秒に3.2回まで）
       const moved = S.lastPos ? Math.hypot(S.x - S.lastPos.x, S.y - S.lastPos.y) : 0; S.lastPos = { x: S.x, y: S.y };
       S.spd = (S.spd || 0) * 0.85 + Math.min(40, moved / Math.max(dt, 1e-3)) * 0.15;
-      const hz = Math.min(3.2, 0.7 + S.spd / 5) * (1 - 0.2 * (S.heavy || 0));   // 重い建物ほど弾みがゆっくり
-      S.phase = (S.phase || 0) + dt * Math.PI * hz;
+      /* 重い建物ほど弾みがゆっくり（曲が無いときの決め方） */
+      let hz = Math.min(3.2, 0.7 + S.spd / 5) * (1 - 0.2 * (S.heavy || 0));
+      const bt = SND.beat();
+      if (bt) {
+        /* 曲が鳴っているときは、弾みを曲の拍にそろえる（10/23 BGM「A1」）。歩いている間は1拍で1歩（弾みの底＝足が着く＝拍の頭）、
+           止まっているときは2拍で1回のゆっくりした弾み。速さの違いは歩幅で吸収する（足音は拍に合わせ、弾みの数は速さで変えない）。
+           底の位置のずれは、毎こま少しずつ詰める（弾みが後ろへ戻らないように、詰める量は進む量までにする） */
+        S.walk = S.spd > (S.walk ? 1 : 2);
+        const r = S.walk ? 1 : 0.5, adv = dt * Math.PI * bt.bps * r;
+        let e = Math.PI * bt.pos * r - (S.phase || 0);
+        e -= Math.PI * Math.round(e / Math.PI);
+        hz = bt.bps * r;
+        S.phase = (S.phase || 0) + adv + Math.max(-0.8 * adv, Math.min(adv, e * Math.min(1, dt * 6)));
+      } else S.phase = (S.phase || 0) + dt * Math.PI * hz;
       const amp = 0.12 + 0.18 * Math.min(1, S.spd / 6);
       let bob = Math.abs(Math.sin(S.phase)) * amp * big, roll = Math.sin(S.phase / 2) * 0.012 * big * (0.5 + Math.min(1, S.spd / 6));
       if (DS && DS.bob !== undefined) { bob = DS.bob * big; roll = DS.roll * big; }
-      if (!S.intro && !S.done) SND.carry(S.phase, S.spd, S.weight ? S.weight.ton : 100);
+      if (!S.intro && !S.done) {
+        /* つかえて曲がずっこけた後、また動き出したら（0.8秒より後）担ぐ場面に戻す */
+        if (SND.scene() === 'stuck' && S.spd > 2 && performance.now() - (S.stuckT || 0) > 800) SND.setScene('carry');
+        SND.carry(S.phase, S.spd, S.weight ? S.weight.ton : 100, hz);
+      }
       S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift));
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, 0, 'YXZ');
       if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }

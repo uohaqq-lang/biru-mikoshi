@@ -334,7 +334,7 @@
 <div id="help"><div class="hb"><div class="ht">遊び方</div>
   <p>①町の建物をひとつ選んで担ぐ</p>
   <p>②「進む」を押すと進む。向きボタンで曲がる</p>
-  <p>③浅草神社（赤い旗）まで運んでお祓い。つかえたら「バック」で下がって向きを変える</p>
+  <p>③浅草神社（赤い旗）まで運んでお祓い。つっかえたら「バック」で下がって向きを変える</p>
   <button id="helpGo">はじめる</button></div></div>
 <div id="msg"></div>
 <div id="done"><div class="big" id="doneTitle">お祓い</div><div id="doneInfo"></div></div>
@@ -3127,13 +3127,13 @@ function start(DATA, isAsakusa) {
        そのときは大きさの3つと選び直すを、押してすぐ出す（stuckWatch） */
     const bk = boxedIn() ? '' : '「バック」で下がって、向きを変える';
     if (res.kind === 'width' && res.need > 0.05) {
-      html = `幅でつかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`;
+      html = `幅でつっかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`;
     } else if (res.kind === 'width') {
       /* 幅は足りているのに角が当たった：道幅の数字は理由にならない（「道幅28m／神輿の幅16m」で進めず、意味が通らなかった）。
          角が当たった物で、ほかのつかえ方と同じ札にする。その場で回せないことが多いので、先に下がる */
       html = (cornerHitsBld(res) ? '建物に当たった' : '道の外に出る') + (bk ? `<small>${bk}</small>` : '');
     } else if (res.kind === 'height') {
-      html = `高さでつかえた<small>${gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 15 ? '雷門の提灯の下' : '桁下'} ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
+      html = `高さでつっかえた<small>${gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 15 ? '雷門の提灯の下' : '桁下'} ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
     } else if (res.kind === 'block') {
       html = `建物に当たった<small>境内の建物は通れない。${bk}</small>`;
     } else {

@@ -1421,7 +1421,7 @@ function start(DATA, isAsakusa) {
   const ptrs = new Map();
   let downAt = null, pinch0 = 0, hoverReq = null;
   const panScale = () => mapCam.dist * 2 * Math.tan(camera.fov * Math.PI / 360) / innerHeight;
-  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; };
+  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; if (S.done && S.done.phase === 'harai') S.done.skipH = true; };
   window.addEventListener('keydown', e => { if (S.intro) endIntro(); if (opening) endOpening(); }, true);
   window.addEventListener('wheel', () => endOpening(), true);
   view.addEventListener('pointerdown', e => {
@@ -2618,6 +2618,7 @@ function start(DATA, isAsakusa) {
         ctx.decodeAudioData(u.buffer).then(b => { kbufs.push({ g: c.group, b }); }).catch(() => {});
       }
       hayTimer = setInterval(schedule, 90);
+      setTimeout(() => cerPrepare(false), 400);
     }
     function unlock() { init(); if (ctx && ctx.state === 'suspended') ctx.resume(); }
     for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, true);
@@ -2699,8 +2700,11 @@ function start(DATA, isAsakusa) {
       // idle：遠くで祭りをやっている程度。tamafuri：前は0.95で、録ると大太鼓が毎打1を超えて割れ、ほかの場面より12dBほど大きかった（10/19）。混ぜ具合はそのままで全体を下げた
       const hay = { idle: 0.045, carry: 0.22, harai: 0.08, tamafuri: 0.45, back: 0.16 }[sc] || 0;
       bus.hay.gain.setTargetAtTime(hay, t, 0.25);
-      // 拍子木は、着いたときのドンが引いてから（0.15秒後）。同時に鳴らすと重なって割れていた（10/19）
-      if (sc === 'harai') { for (const [d, k] of [[0, 1], [0.55, 1], [1.2, 0.7], [1.38, 0.7], [1.52, 0.7], [1.63, 0.7], [1.72, 0.7], [1.8, 0.7], [1.87, 0.7]]) hyoshigi(t + 0.15 + d, k); }
+      // お祓い・魂振りの音は haraiSfx・tamafuriSfx（前は拍子木9回と大太鼓だけで、本人に「ちゃっちい」と言われた。10/23）
+      if (sc === 'harai') haraiSfx(t);
+      if (sc === 'tamafuri') tamafuriSfx(t);
+      if (sc === 'back') crowdTo(1, t, 0.8);
+      if (sc === 'idle' || sc === 'carry') cerStop();
       if (sc === 'idle') bus.crowd.gain.setTargetAtTime(0, t, 0.5);
     }
     // 毎こま：担ぎ手の弾み（phase）が下を通ったら足音と掛け声、上を通ったらきしみ
@@ -2732,18 +2736,210 @@ function start(DATA, isAsakusa) {
       }
     }
     function setCrowd(n) {
-      crowdN = n; const v = scene === 'idle' ? 0 : Math.min(1, n / 140) * 0.5;
+      crowdN = n; const v = scene === 'idle' ? 0 : Math.min(1, n / 140) * 0.5 * crowdMul;
       if (ctx) bus.crowd.gain.setTargetAtTime(v, ctx.currentTime, 0.4);
     }
     function crowdLog() { log('crowd', { n: crowdN }); }
     // ぶつかった音：重い建物ほど低く、長く（hv：0＝100トンまで、1＝3,000トン以上）
     function boom(hv) { hv = hv || 0; log('thud', { hv }); if (!ctx) return; const t = ctx.currentTime; tone(t, 110 - 38 * hv, 42 - 14 * hv, 0.35 + 0.3 * hv, 'sine', 0.95, bus.fx); noiseHit(t, 0.12 + 0.1 * hv, 'lowpass', 1200 - 500 * hv, 0.7, 0.4, bus.fx); if (hv > 0.3) rumble(t, 0.5 + 0.5 * hv, 140, 0.5 * hv); }
-    function bigTaiko() { log('taiko'); if (!ctx) return; odaiko(ctx.currentTime, 2.2); }
+    /* 魂振りの音は setScene('tamafuri') でまとめて予約する（tamafuriSfx）。ここは記録だけ残す（動画用の音の記録が 'taiko' を使うため） */
+    function bigTaiko() { log('taiko'); }
     function rumble(t, dur, f, g) {
       const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f; lp.Q.value = 0.7;
       const gg = ctx.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(g, t + 0.05); gg.gain.exponentialRampToValueAtTime(0.0008, t + dur);
       src.connect(lp).connect(gg).connect(bus.fx); src.start(t, Math.random()); src.stop(t + dur + 0.05);
+    }
+
+    // ---- お祓い・魂振りの音（調べたことと作り方は 直した記録_お祓いの音.md） ----
+    // 流れ：着く→境内が静まる→拍子木2つ→一本締め→神職の大麻（左・右・左）→拍子木の刻みで担ぎ上げ→魂振り（セイヤ・飾り金具・足踏み・歓声）
+    // 音の素（拍子木・手締め・大麻・飾り金具・歓声・境内の響き）は、最初に触った後に少しずつ作って使い回す。鳴らすときは素を再生するだけにして、スマホで重くしない
+    const CB = { ki: [], clap: [], nusa: [], jang: [], cheer: null };
+    let cerJobs = null, cerIn = null, cerRun = null, crowdMul = 1;
+    const gauss = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()); };
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    /* 終わりを10msで消してから、いちばん大きい所を to にそろえる */
+    function finish(chs, to) {
+      let m = 0;
+      for (const d of chs) { const f = Math.min(d.length, 480); for (let i = 0; i < f; i++) d[d.length - 1 - i] *= i / f; for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > m) m = a; } }
+      if (m > 0) for (const d of chs) for (let i = 0; i < d.length; i++) d[i] *= to / m;
+    }
+    /* 二次の帯域通過（音の素を作るときだけ使う） */
+    function bq(f, q, sr) { const w = 2 * Math.PI * Math.min(f, sr * 0.45) / sr, al = Math.sin(w) / (2 * q), a0 = 1 + al; return { b0: al / a0, b2: -al / a0, a1: -2 * Math.cos(w) / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 }; }
+    function bqSet(s, f, q, sr) { const n = bq(f, q, sr); s.b0 = n.b0; s.b2 = n.b2; s.a1 = n.a1; s.a2 = n.a2; }
+    function bqRun(s, x) { const y = s.b0 * x + s.b2 * s.x2 - s.a1 * s.y1 - s.a2 * s.y2; s.x2 = s.x1; s.x1 = x; s.y2 = s.y1; s.y1 = y; return y; }
+    /* 減衰する雑音を帯域通過に通して足す（手を打つ音、紙や金具の当たる音、拍子木の鳴り）。pan は −1（左）〜1（右）。R が無ければ L だけ */
+    function burst(L, R, sr, i0, f, q, a, tau, pan) {
+      if (i0 >= L.length) return;
+      const s = bq(f, q, sr), n = Math.min(L.length - i0, Math.ceil(tau * 6 * sr)), k = Math.exp(-1 / (tau * sr));
+      const gl = R ? Math.sqrt((1 - pan) / 2) : 1, gr = Math.sqrt((1 + pan) / 2);
+      let e = a;
+      for (let i = 0; i < n; i++) { const y = bqRun(s, (Math.random() * 2 - 1) * e); e *= k; L[i0 + i] += y * gl; if (R) R[i0 + i] += y * gr; }
+    }
+    /* 境内の響き：拝殿や社務所の壁から早く返る音（17〜112ms）と、高い音から先に消える1.2秒ほどの残り。左右で少し違える */
+    /* 10/23 本人「グラスが響くみたいな音がちゃっちい」。部品ごとに書き出して調べると、飾り金具（澄んだ高い山が65dB、0.36秒残る）と拍子木（正弦波の山が57dB）だった。
+       どちらも澄んだ正弦波を長く鳴らすのをやめ、雑音を細い帯域に通して短く止める作りにした。響きと手拍子も、高い所の鳴きと音の高さが出ないように直した */
+    /* 返りは1点ではなく2msほどの雑音の塊にして、櫛の歯のような高い鳴きを出さない。残りは5kHzより上を最初から削り、時間とともにさらに暗くする */
+    function mkIR() {
+      const sr = ctx.sampleRate, n = Math.ceil(sr * 1.3), b = ctx.createBuffer(2, n, sr);
+      for (let c = 0; c < 2; c++) {
+        const d = b.getChannelData(c); let lp = 0, l1 = 0, l2 = 0;
+        for (const [ms, a] of [[17, 0.6], [29, 0.45], [43, 0.35], [61, 0.3], [84, 0.22], [112, 0.15]]) {
+          const i0 = Math.floor((ms * (0.9 + Math.random() * 0.2) + c * 2.5) * sr / 1000);
+          for (let i = 0; i < sr * 0.004; i++) d[i0 + i] += (Math.random() * 2 - 1) * a * 0.6 * Math.exp(-i / (sr * 0.001));
+        }
+        for (let i = Math.floor(0.01 * sr); i < n; i++) { const t = i / sr, k = Math.min(0.95, 0.5 + t * 0.9); lp += (Math.random() * 2 - 1 - lp) * (1 - k); d[i] += lp * Math.exp(-t / 0.17) * 0.6; }
+        for (let i = 0; i < n; i++) { l1 += (d[i] - l1) * 0.5; l2 += (l1 - l2) * 0.5; d[i] = l2; }
+        for (let i = 0; i < 480; i++) d[n - 1 - i] *= i / 480;
+      }
+      return b;
+    }
+    /* 10/23 本人「なんか全部早送りみたいに聞こえる」。1つひとつの音が5〜16msで止まり、高すぎた。本物の鳴りの長さと高さに戻した（下の各部品の説明）。
+       澄んだ正弦波は使わない（グラスに聞こえた）まま、細い帯域の雑音を長めに鳴らして、木や金属の鳴りを出す */
+    /* 拍子木：樫の角棒2本を打ち合わせる硬い「カーン」。鳴りの高さ（1.8kHz前後とその1.07倍、2.76倍）は細い帯域の雑音で、0.2秒ほどかけて消える。
+       打った瞬間の割れるような高いカッと、手の中の棒のコッを足す */
+    function mkKi() {
+      const sr = ctx.sampleRate, b = ctx.createBuffer(1, Math.ceil(sr * 0.4), sr), d = b.getChannelData(0), f = 1750 + Math.random() * 150;
+      burst(d, null, sr, 0, 2800 + Math.random() * 1000, 0.8, 0.9, 0.0018, 0);
+      burst(d, null, sr, 0, f, 12, 1.8, 0.03, 0);
+      burst(d, null, sr, 0, f * 1.07, 12, 1.2, 0.024, 0);
+      burst(d, null, sr, 0, f * 2.756, 9, 0.5, 0.01, 0);
+      burst(d, null, sr, 0, 760 + Math.random() * 120, 5, 0.7, 0.014, 0);
+      finish([d], 0.9); return b;
+    }
+    /* 一人の拍手：手のひらの間の空気が鳴る「パン」。帯域を広く（Q 1.2〜2.2）して音の高さを感じさせず、手のひらの響きが少し残る長さ（10〜18ms）にする。打ち合わせた瞬間の短いパチッを足す */
+    function clapOne(L, R, sr, t, pan, a) {
+      const i0 = Math.max(0, Math.floor(t * sr));
+      burst(L, R, sr, i0, 700 + Math.random() * 1000, 1.2 + Math.random(), a, 0.01 + Math.random() * 0.008, pan);
+      burst(L, R, sr, i0, 2600, 0.8, a * 0.3, 0.0025, pan);
+    }
+    /* 大勢がそろえて打つ1回（手締めの1打）。人ごとに打つ時が少しずれる（標準で spread 秒、数十ms）。打つ時の中心は素の頭から0.1秒 */
+    function mkClap(people, spread) {
+      const sr = ctx.sampleRate, b = ctx.createBuffer(2, Math.ceil(sr * 0.45), sr), L = b.getChannelData(0), R = b.getChannelData(1);
+      for (let p = 0; p < people; p++) clapOne(L, R, sr, 0.1 + Math.max(-0.09, Math.min(0.2, gauss() * spread)), Math.random() * 1.6 - 0.8, 0.4 + Math.random() * 0.6);
+      finish([L, R], 0.9); return b;
+    }
+    /* 大麻：振る速さに合わせて風を切るサーッ（帯域が上がる）と紙垂のカサカサが増え、振り終わりで紙垂と麻がはためいてバサッ。dir で左右の流れを変える。
+       1振りは0.5〜0.6秒かけて振り、はためきは0.1秒ほど残る */
+    function mkNusa(dir) {
+      const sr = ctx.sampleRate, n = Math.ceil(sr * 0.95), b = ctx.createBuffer(2, n, sr), L = b.getChannelData(0), R = b.getChannelData(1);
+      const sw = 0.5 + Math.random() * 0.1, wf = bq(400, 1.1, sr), cf = bq(3500, 0.9, sr), cf2 = bq(1500, 1.4, sr);
+      let lpN = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr, v = t < sw ? Math.pow(Math.sin(Math.PI * t / sw), 2) : 0, flap = t > sw * 0.8 ? Math.exp(-(t - sw * 0.8) / 0.09) : 0;
+        if ((i & 31) === 0) bqSet(wf, 300 + 1100 * v, 1.1, sr);
+        const air = bqRun(wf, Math.random() * 2 - 1) * 0.15 * v * v;
+        const imp = Math.random() < (40 + 1200 * v + 2500 * flap) / sr ? (Math.random() * 2 - 1) * (0.4 + Math.random()) : 0;
+        const crk = bqRun(cf, imp) + bqRun(cf2, imp) * 0.6 * (0.3 + flap);
+        lpN += (Math.random() * 2 - 1 - lpN) * 0.08;
+        const y = air + crk * (0.2 + 0.8 * Math.max(v, flap)) + lpN * flap * 0.5, p = dir * (-0.6 + 1.2 * Math.min(1, t / sw));
+        L[i] += y * Math.sqrt((1 - p) / 2); R[i] += y * Math.sqrt((1 + p) / 2);
+      }
+      finish([L, R], 0.9); return b;
+    }
+    /* 飾り金具：重い真鍮や鉄の金具が揺れて当たる鈍い「ガチャン」。8〜12回の当たりを80msほどに散らす。
+       1回の当たりは、低めの鳴り（400〜1,100Hz と、その1.71倍・2.53倍）を細い帯域の雑音にして0.1〜0.2秒で消えるものと、当たった瞬間の雑音と低いゴッ。正弦波で鳴らすと澄んだ鳴きが残ったので使わない */
+    function mkJang() {
+      const sr = ctx.sampleRate, b = ctx.createBuffer(2, Math.ceil(sr * 0.5), sr), L = b.getChannelData(0), R = b.getChannelData(1);
+      for (let g = 0, ng = 8 + Math.floor(Math.random() * 5); g < ng; g++) {
+        const i0 = Math.floor((0.005 + Math.abs(gauss()) * 0.06) * sr), f = 400 + Math.random() * 700, a = 0.4 + Math.random() * 0.6, pan = Math.random() * 1.4 - 0.7;
+        for (const [r, ra, rt] of [[1, 1.6, 0.03], [1.71, 1, 0.02], [2.53, 0.7, 0.012]]) burst(L, R, sr, i0, f * r * (0.97 + Math.random() * 0.06), 14, a * ra, rt * (0.8 + Math.random() * 0.4), pan);
+        burst(L, R, sr, i0, 1200 + Math.random() * 1500, 1.2, a * 1.1, 0.005, pan);
+        burst(L, R, sr, i0, 300, 1.5, a * 0.6, 0.012, pan);
+      }
+      finish([L, R], 0.9); return b;
+    }
+    /* 歓声と拍手：14人の「ワー」「オー」「エー」（声帯の打つ列を、口の響きの山3つに通す。息の雑音を混ぜる）＋24人の拍手。24kHzで作って軽くする */
+    function mkCheer() {
+      const sr = 24000, n = Math.ceil(sr * 2.8), b = ctx.createBuffer(2, n, sr), L = b.getChannelData(0), R = b.getChannelData(1);
+      const VW = [[750, 1150, 2500], [550, 900, 2400], [600, 1700, 2500]];
+      for (let v = 0; v < 14; v++) {
+        const sc = 0.9 + Math.random() * 0.2, [f1, f2, f3] = VW[v % 3], A = bq(f1 * sc, 5, sr), B = bq(f2 * sc, 7, sr), C = bq(f3 * sc, 9, sr);
+        const f0 = 150 + Math.random() * 170, t0 = Math.random() * 0.35, dur = 1 + Math.random() * 1.3, pan = Math.random() * 1.6 - 0.8, amp = 0.5 + Math.random() * 0.5;
+        const gl = Math.sqrt((1 - pan) / 2), gr = Math.sqrt((1 + pan) / 2), i1 = Math.min(n, Math.floor((t0 + dur) * sr));
+        let ph = 0;
+        for (let i = Math.floor(t0 * sr); i < i1; i++) {
+          const t = i / sr - t0, env = Math.min(1, t / 0.12) * Math.min(1, (dur - t) / 0.5);
+          ph += f0 * (1 + 0.12 * Math.min(1, t / 0.25) - 0.1 * Math.max(0, t - dur * 0.5) / dur) * (1 + 0.01 * Math.sin(t * 34.6 + v)) / sr;
+          let src = (Math.random() * 2 - 1) * 0.35; if (ph >= 1) { ph -= 1; src += 2; }
+          const y = (bqRun(A, src) + bqRun(B, src) * 0.6 + bqRun(C, src) * 0.25) * env * amp;
+          L[i] += y * gl; R[i] += y * gr;
+        }
+      }
+      return b;
+    }
+    /* 歓声の素に拍手を足して仕上げる（手間を2回に分けて、1回の処理を短くする） */
+    function addCheerClaps(b) {
+      const sr = b.sampleRate, L = b.getChannelData(0), R = b.getChannelData(1);
+      for (let p = 0; p < 24; p++) {
+        const per = 1 / (4 + Math.random() * 2.5), end = 0.8 + Math.random() * 1.6, pan = Math.random() * 1.6 - 0.8, a0 = 0.15 + Math.random() * 0.2;
+        for (let t = 0.15 + Math.random() * 0.2; t < end; t += per * (0.9 + Math.random() * 0.2)) clapOne(L, R, sr, t, pan, a0 * (1 - 0.6 * t / end));
+      }
+      finish([L, R], 0.9); return b;
+    }
+    /* 音の素を作る。all＝残りを今すぐ全部作る（着いたときにまだ出来ていなければ）。ふだんは1つずつ間をあけて作る */
+    function cerPrepare(all) {
+      if (!ctx) return;
+      if (!cerJobs) {
+        cerJobs = [() => { const cv = ctx.createConvolver(), wet = ctx.createGain(); cv.buffer = mkIR(); wet.gain.value = 0.3; const g = ctx.createGain(); g.connect(master); g.connect(cv).connect(wet).connect(master); cerIn = g; }];
+        for (let i = 0; i < 4; i++) cerJobs.push(() => CB.ki.push(mkKi()));
+        for (let i = 0; i < 3; i++) cerJobs.push(() => CB.clap.push(mkClap(36, 0.022)));
+        for (const dir of [1, -1, 1]) cerJobs.push(() => CB.nusa.push(mkNusa(dir)));
+        for (let i = 0; i < 3; i++) cerJobs.push(() => CB.jang.push(mkJang()));
+        let cheer = null;
+        cerJobs.push(() => { cheer = mkCheer(); });
+        cerJobs.push(() => { if (cheer) { addCheerClaps(cheer); CB.cheer = cheer; } });
+      }
+      const step = () => { const j = cerJobs.shift(); if (j) { try { j(); } catch (e) { /* 作れない環境では、その音を鳴らさない */ } } return cerJobs.length; };
+      if (all) { while (step()) { /* 残りをすぐ作る */ } } else if (step()) setTimeout(() => cerPrepare(false), 40);
+    }
+    function cerPlay(buf, t, gain, pan) {
+      if (!buf || !cerRun) return;
+      const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = buf; g.gain.value = gain; s.connect(g);
+      if (pan && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p).connect(cerRun); } else g.connect(cerRun);
+      s.start(Math.max(t, ctx.currentTime));
+    }
+    /* 見物のざわめきの大きさを、場面に合わせて何倍かにする */
+    function crowdTo(mul, t, tau) { crowdMul = mul; if (scene !== 'idle') bus.crowd.gain.setTargetAtTime(Math.min(1, crowdN / 140) * 0.5 * mul, t, tau); }
+    function cerStop() { if (cerRun) { cerRun.gain.setTargetAtTime(0, ctx.currentTime, 0.08); cerRun = null; } crowdMul = 1; }
+    /* お祓い（8.0秒。ゲームの doneStep と合わせる）。間合いは実際の速さに合わせた（拍子木は0.8秒あけ、一本締めは「いよーっ」の間のあと約3秒、大麻は1振り0.75秒） */
+    function haraiSfx(t) {
+      cerPrepare(true);
+      if (!cerIn) return;
+      if (cerRun) cerRun.gain.setTargetAtTime(0, t, 0.05);
+      cerRun = ctx.createGain(); cerRun.connect(cerIn);
+      crowdTo(0.35, t, 0.6);
+      /* 拍子木を2つ（カーン、カーン）。着いたときのドンが引いてから */
+      cerPlay(pick(CB.ki), t + 0.5, 0.7, -0.15);
+      cerPlay(pick(CB.ki), t + 1.3, 0.7, -0.15);
+      /* 1.3〜2.0秒は「いよーっ」の間（声は入れない）。一本締め：シャン・シャン・シャン（休み）を3回、最後にシャン。1打0.26秒 */
+      let c = 0;
+      for (const g of [2.0, 3.04, 4.08]) for (const d of [0, 0.26, 0.52]) cerPlay(CB.clap[c++ % CB.clap.length], t + g + d - 0.1, d > 0.5 ? 0.68 : 0.58, 0);
+      cerPlay(pick(CB.clap), t + 5.12 - 0.1, 0.75, 0);
+      /* 神職の大麻：左・右・左 */
+      CB.nusa.forEach((b, i) => cerPlay(b, t + 5.6 + 0.75 * i, 0.78, 0));
+    }
+    /* 魂振り（2.4秒）。揺れの見た目は doneStep：上下の弾みは 0.377秒ごと、強さは sin(経過/2.4秒×π) */
+    function tamafuriSfx(t) {
+      if (!cerRun) return;
+      /* お祓いを飛ばしたときに、まだ鳴っていないお祓いの音を消す（響きの残りは cerIn の先なので残る） */
+      cerRun.gain.setTargetAtTime(0, t, 0.08);
+      cerRun = ctx.createGain(); cerRun.connect(cerIn);
+      /* 拍子木の刻み（カン、カン、カンカンカン）で担ぎ上げる */
+      [0, 0.18, 0.33, 0.45, 0.55].forEach((d, i) => cerPlay(pick(CB.ki), t + d, 0.28 + 0.05 * i, 0.15));
+      crowdTo(1.4, t + 0.4, 0.3);
+      cerPlay(CB.cheer, t + 0.4, 0.32, 0);
+      /* 担ぎ手の「セイヤ」（掛け声の素を使う。再生の速さは1倍のまま） */
+      for (const [d, grp] of [[0.45, 0], [1.2, 1], [1.95, 2]]) {
+        const cand = kbufs.filter(c => c.g === grp), kb = cand[Math.floor(Math.random() * cand.length)] || kbufs[0];
+        if (kb) cerPlay(kb.b, t + d, 0.5, 0);
+      }
+      /* 揺さぶって上がりきるたびに飾り金具がチャリッ、沈むたびに担ぎ手の足がドッ */
+      for (let ms = 188, i = 0; ms < 2400; ms += 377, i++) {
+        const k = Math.sin(ms / 2400 * Math.PI);
+        cerPlay(pick(CB.jang), t + ms / 1000, 0.12 + 0.3 * k, i % 2 ? 0.35 : -0.35);
+        if (ms + 188 < 2400) tone(t + (ms + 188) / 1000, 72, 44, 0.2, 'sine', 0.45 * k, cerRun);
+      }
     }
     return { unlock, setMute, isMuted: () => muted, setScene, carry, setCrowd, crowdLog, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1) };
   })();
@@ -2874,7 +3070,8 @@ function start(DATA, isAsakusa) {
   const poseNow = () => ({ x: S.x, y: S.y, h: S.head });
   // 最初に押したら、選び直す・地図も出す（運び出しの直後は「押している間 進む」だけにしている）
   const firstPush = () => { if (S.intro) return; document.body.classList.remove('calm1', 'calm2'); };
-  function startHold() { holdHint(false); if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
+  /* お祓いの間に進む（スペース・↑）を押したら、お祓いを飛ばして魂振りへ */
+  function startHold() { holdHint(false); if (S.done && S.done.phase === 'harai') { S.done.skipH = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
   function stopHold() { hold.on = false; $('hold').classList.remove('on'); }
   function startBack() { rotHint(false); if (!S.b || mode !== 'carry') return; firstPush(); hold.back = true; $('back').classList.add('on'); SND.unlock(); }
   function stopBack() { hold.back = false; $('back').classList.remove('on'); }
@@ -3543,14 +3740,18 @@ function start(DATA, isAsakusa) {
     /* 右上の情報は着いたら消す（同じ数字を金の札で見せている） */
     $('info').style.display = 'none'; goGoalReset();
     tourReset();     // 車夫の案内は、お祓いの演出に重ねない
+    /* お祓い（8秒）は飛ばせる */
+    $('skip').style.display = 'block'; S.camOrbit = 0;
     thud();
   }
   // 毎こま：お祓いの後の流れ。返り値 {px,py,ori,lift,shake} で神輿の絵を動かす（null なら普段どおり）
   function doneStep(now) {
     const D = S.done; if (!D) return null;
     const el = now - D.t0, b = S.b;
-    if (D.phase === 'harai') {                       // お祓い：少し静かに（1.6秒）
-      if (el > 1600) { D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; SND.setScene('tamafuri'); }
+    /* お祓い：少し静かに（8.0秒。前は1.6秒。拍子木→一本締め→大麻の音の流れを実際の間合いにして延ばした。音は SND の haraiSfx。10/23）
+       待たせないように、「飛ばす ▶」・スペース・↑（進む）で魂振りへ進める（D.skipH）。その間カメラはゆっくり回る（camOrbit） */
+    if (D.phase === 'harai') {
+      if (el > 8000 || D.skipH) { D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; $('skip').style.display = 'none'; SND.setScene('tamafuri'); }
       return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
     if (D.phase === 'tamafuri') {                    // 魂振り：大きく揺らす（2.4秒）
@@ -4170,7 +4371,10 @@ function start(DATA, isAsakusa) {
       const vk = S.visK || 1, vh = S.b.h * vk, size = Math.max(S.b.d.L * vk, S.b.d.W * vk, vh + LIFT);
       // 引きの位置：まわりの道の並びが見えるように、少し高い所から。PCは建物の大きさの2.6倍（最低35m）、スマホは3.5倍（最低50m）
       const D = (isSm() ? Math.max(50, size * 3.5) : Math.max(35, size * 2.6)) * camZoom;
-      const ca = S.head + Math.PI + 0.35; // 真後ろから少し右へずらして、斜め上から
+      /* お祓い（8秒）の間は、画面が止まって見えないように、神輿のまわりをゆっくり回る（毎秒0.06rad、8秒で約27°）。済んだら少しずつ元の向きへ戻す */
+      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)); if (S.done && S.done.phase === 'harai') S.camOrbit = (S.camOrbit || 0) + 0.06 * cdt; else if (S.camOrbit) S.camOrbit *= Math.max(0, 1 - 0.8 * cdt); }
+      /* 真後ろから少し右へずらして、斜め上から */
+      const ca = S.head + Math.PI + 0.35 + (S.camOrbit || 0);
       let cx0 = S.intro && S.intro.px !== undefined ? S.intro.px : S.x, cy0 = S.intro && S.intro.py !== undefined ? S.intro.py : S.y;
       if (!camFollow && !S.intro) { cx0 = camPan.x; cy0 = camPan.y; }   // 地図のようにドラッグで動かしている間は、神輿を追わない
       const back = V(cx0 + Math.cos(ca) * D * 0.8, cy0 + Math.sin(ca) * D * 0.8, D * 1.0 + vh * 0.25);

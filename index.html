@@ -661,6 +661,33 @@ function start(DATA, isAsakusa) {
   const NIGHT = new URLSearchParams(location.search).get('night') !== '0';
   const nightBasic = [];   // 夜に色を掛けて沈める、光を受けない材質（地面の写真など）
   let walkMat = null;      // 歩ける所の薄い塗り（夜は色を替える）
+  /* 境内の明かり（本人の希望 10/25「浅草寺あたり全体を光らせる」）：浅草寺の境内と仲見世を、祭りの夜の明かりで暖かく浮かび上がらせる。
+     明るさの分布（uKeiTex：境内のまわりの地図の上の値。r＝明るさ）を一枚持ち、地面の光・建物の壁と屋根の照り返しに使う。作るのは夜の版の用意（keiSetup） */
+  const KEI_U = { uKeiTex: { value: null }, uKeiT: { value: new THREE.Vector4(0, 0, 0, 0) }, uKei: { value: 0 }, uKeiNo: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0, 0)) } };
+  /* 建物の材質に「境内の明かりで下から照らされる」を足す（onBeforeCompile の中で呼ぶ）。壁は足元ほど明るく、屋根は少しだけ。写真の色に掛けるので、光で照らしたように見える。
+     今光っているおすすめの建物（uKeiNo：中心と半径。4棟まで）は照らさない（照らすと、金の光が白っぽく薄まって目立たなくなった） */
+  function keiShader(sh) {
+    Object.assign(sh.uniforms, KEI_U);
+    sh.vertexShader = 'varying vec3 vKeiP;\nvarying vec3 vKeiN;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n  vKeiP = (modelMatrix * vec4(transformed, 1.0)).xyz;\n  vKeiN = normalize(mat3(modelMatrix) * objectNormal);');
+    sh.fragmentShader = 'uniform sampler2D uKeiTex;\nuniform vec4 uKeiT;\nuniform float uKei;\nuniform vec4 uKeiNo[4];\nvarying vec3 vKeiP;\nvarying vec3 vKeiN;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', [
+      '#include <emissivemap_fragment>',
+      '  if (uKei > 0.001) {',
+      '    vec2 kq = (vec2(vKeiP.x, -vKeiP.z) - uKeiT.xy) * uKeiT.zw;',
+      '    if (kq.x > 0.0 && kq.x < 1.0 && kq.y > 0.0 && kq.y < 1.0) {',
+      '      float kg = texture2D(uKeiTex, kq).r;',
+      '      float kup = abs(vKeiN.y) > 0.5 ? 0.22 : 0.12 + 0.88 * exp(-max(vKeiP.y, 0.0) / 11.0);',
+      '      for (int i = 0; i < 4; i++) if (uKeiNo[i].z > 0.0) kup *= smoothstep(uKeiNo[i].z, uKeiNo[i].z + 3.0, length(vec2(vKeiP.x, -vKeiP.z) - uKeiNo[i].xy));',
+      '      totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.55, 0.22) * (kg * kup * uKei);',
+      '    }',
+      '  }'].join('\n'));
+  }
+  /* 名所の写真付きの形（texMatsOf）にも足す */
+  function keiLight(mat) {
+    const prev = mat.onBeforeCompile;
+    mat.onBeforeCompile = (sh, r) => { if (prev) prev(sh, r); keiShader(sh); };
+    mat.customProgramCacheKey = () => '|keiLight';
+    mat.needsUpdate = true;
+  }
   // 座標：x=東 → X、y=北 → -Z、高さ → Y
   const V = (x, y, z) => new THREE.Vector3(x, z || 0, -y);
 
@@ -890,6 +917,7 @@ function start(DATA, isAsakusa) {
     const map = new THREE.TextureLoader().load('data:image/jpeg;base64,' + t.img);
     map.encoding = THREE.sRGBEncoding; map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     m = [new THREE.MeshLambertMaterial({ map, side: THREE.DoubleSide }), new THREE.MeshLambertMaterial({ color: b.col, side: THREE.DoubleSide })];
+    if (NIGHT) { keiLight(m[0]); keiLight(m[1]); }   /* 夜の版：境内の明かりで下から照らす */
     texMats.set(b, m); return m;
   }
   function texGeo(arr, uv, xf) {
@@ -5010,6 +5038,7 @@ function start(DATA, isAsakusa) {
         '    float rr = fract(sin(dot(cl + vec2(sign(vWinN.x) * 31.0, sign(vWinN.z) * 57.0), vec2(12.9898, 78.233))) * 43758.5453);',
         '    if (rr < 0.05 && fr.x > 0.3 && fr.x < 0.7 && fr.y > 0.34 && fr.y < 0.7) totalEmissiveRadiance += uWin * (0.6 + 0.4 * fract(rr * 37.0)) * mix(0.3, 1.0, reachLit(vWinP)) * vec3(1.0, 0.66, 0.3);',   // 明かりの届く範囲の外は、窓も少なく暗く
         '  }'].join('\n'));
+      keiShader(sh);   /* 境内の明かりで下から照らす */
       reachShader(sh, RCH.darkB);   // 明かりの届く範囲の外は、建物を一段暗く
     };
     mat.needsUpdate = true;
@@ -5087,6 +5116,161 @@ function start(DATA, isAsakusa) {
     return por ? { x, y, dist: 640 + (1350 - 640) * e, pitch: (40 - 8 * f) * Math.PI / 180 }
       : { x, y, dist: 380 + (880 - 380) * e, pitch: (37 - 8 * f) * Math.PI / 180 };
   }
+  // ---- 境内の明かり（本人の希望 10/25「浅草寺あたり全体を光らせる」。夜の版で、浅草のデータのときだけ） ----
+  /* 上空の引きから、浅草寺の境内（本堂・五重塔・宝蔵門・浅草神社・二天門のあたり）と仲見世が、祭りの夜の明かりでふわっと浮かび上がるように。
+     ・明るさの分布：境内の名所ごとのやわらかい光の丸（KEI_SPOTS）と、雷門から宝蔵門への仲見世の筋を足して、一枚の絵（2mのマス）にする。仲見世は境内より控えめ
+     ・地面の光：その絵を地面に重ねる（足し算の重ね方。建物の陰は建物が隠す）。場所ごとに少しだけゆらぐ
+     ・建物の照り返し：同じ絵で、壁の足元を暖色に照らし、屋根もわずかに（keiShader）
+     ・提灯：境内と仲見世の歩ける所の縁に、3.5mおきに（道の提灯は8mおき）。一つずつ少しゆらぐ。カメラのすぐ近くでは小さくして消す
+     ・光のもや：境内の上に、やわらかい光の丸を数枚（いつも正面を向く板。深さに関係なく重ねる）。引きの画だけで出し、寄った画では消す
+     描く回数は3つ増える（地面の光・提灯・もや）。明るさは提灯と同じく夜明けとともに消える（朝は出さない）。数字の決め方は 直した記録_境内の明かり.md */
+  const KEI_SPOTS = [
+    /* x, y（m）, 半径（m）, 強さ */
+    [200, 146, 64, 0.32],   /* 宝蔵門と本堂の間の広場 */
+    [202, 184, 54, 0.34],   /* 本堂 */
+    [195, 102, 40, 0.26],   /* 宝蔵門 */
+    [140, 122, 34, 0.34],   /* 五重塔 */
+    [166, 150, 36, 0.26],   /* 五重塔と本堂の間 */
+    [242, 160, 40, 0.30],   /* 本堂の東（二天門へ） */
+    [276, 158, 28, 0.30],   /* 二天門 */
+    [264, 212, 42, 0.38],   /* 浅草神社 */
+    [150, 218, 34, 0.26],   /* 影向堂 */
+    [205, 238, 40, 0.20],   /* 本堂の裏 */
+  ];
+  const KEI = { on: false };
+  function keiSetup() {
+    if (!blds.find(b => b.id.startsWith('bldg_89e579d5')) || !gate || !isFinite(gate.x)) return;   /* 浅草のデータでないときは出さない */
+    const X0 = 70, X1 = 340, Y0 = gate.y - 40, Y1 = 290, MS = 2, W = Math.ceil((X1 - X0) / MS), H = Math.ceil((Y1 - Y0) / MS);
+    /* 仲見世の筋：雷門から宝蔵門の前へ、5mおきに小さな光の丸を並べる */
+    const HX = 194.8, HY = 92, dx = HX - gate.x, dy = HY - gate.y, L = Math.hypot(dx, dy), spots = KEI_SPOTS.slice();
+    for (let s = 6; s <= L; s += 5) spots.push([gate.x + dx * s / L, gate.y + dy * s / L, 12, 0.085]);
+    spots.push([gate.x, gate.y, 22, 0.25]);   /* 雷門 */
+    const raw = (x, y) => { let v = 0; for (const p of spots) { const d2 = (x - p[0]) ** 2 + (y - p[1]) ** 2; if (d2 < p[2] * p[2] * 6) v += p[3] * Math.exp(-d2 / (p[2] * p[2])); } return 1 - Math.exp(-1.7 * v); };
+    const val = new Float32Array(W * H), px = new Uint8Array(W * H * 4);
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      /* 絵の縁は0に（外へ伸びないように） */
+      const i = r * W + c, edge = r === 0 || c === 0 || r === H - 1 || c === W - 1, v = edge ? 0 : raw(X0 + (c + 0.5) * MS, Y0 + (r + 0.5) * MS);
+      val[i] = v; px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = Math.round(v * 255); px[i * 4 + 3] = 255;
+    }
+    const tex = new THREE.DataTexture(px, W, H, THREE.RGBAFormat);
+    tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+    KEI_U.uKeiTex.value = tex; KEI_U.uKeiT.value.set(X0, Y0, 1 / (W * MS), 1 / (H * MS));
+    const at = (x, y) => { const c = Math.floor((x - X0) / MS), r = Math.floor((y - Y0) / MS); return c < 0 || r < 0 || c >= W || r >= H ? 0 : val[r * W + c]; };
+    const uT = { value: 0 };
+    /* 地面の光 */
+    const gm = new THREE.ShaderMaterial({
+      uniforms: { uTex: { value: tex }, uK: { value: 0 }, uT },
+      vertexShader: 'varying vec2 vUv;\nvarying vec2 vP;\nvoid main() { vUv = uv; vec4 wp = modelMatrix * vec4(position, 1.0); vP = vec2(wp.x, -wp.z); gl_Position = projectionMatrix * viewMatrix * wp; }',
+      fragmentShader: [
+        'uniform sampler2D uTex; uniform float uK; uniform float uT;',
+        'varying vec2 vUv; varying vec2 vP;',
+        'void main() {',
+        '  float g = texture2D(uTex, vUv).r;',
+        '  float fl = 0.93 + 0.07 * sin(uT * 1.3 + vP.x * 0.05 + 1.5 * sin(uT * 0.8 + vP.y * 0.04));',
+        '  vec3 c = mix(vec3(0.8, 0.2, 0.04), vec3(1.0, 0.5, 0.18), g) * g * fl;',
+        '  gl_FragColor = linearToOutputTexel(vec4(c, uK));',
+        '}'].join('\n'),
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+    });
+    const gp = new THREE.Mesh(new THREE.PlaneGeometry(W * MS, H * MS), gm);
+    gp.rotation.x = -Math.PI / 2; gp.position.set(X0 + W * MS / 2, 0.05, -(Y0 + H * MS / 2)); gp.renderOrder = -8; gp.raycast = () => {};
+    scene.add(gp);
+    /* 提灯：境内と仲見世の歩ける所の縁に、3.5mおき。高さは2.6〜3.8m。色は橙・朱・暖かい白を混ぜる */
+    const SP = 3.5, used = new Map(), pts = [], cols = [], ph = [];
+    const cellOf = (x, y) => Math.floor(x / SP) * 100003 + Math.floor(y / SP);
+    const c0 = Math.max(1, Math.floor((X0 - minX) / CELL)), c1 = Math.min(GW - 2, Math.ceil((X1 - minX) / CELL));
+    const r0 = Math.max(1, Math.floor((Y0 - minY) / CELL)), r1 = Math.min(GH - 2, Math.ceil((Y1 - minY) / CELL));
+    const hsh = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
+    const PAL = [[1.0, 0.62, 0.32], [1.0, 0.42, 0.2], [1.0, 0.82, 0.58]];
+    for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) {
+      const i = r * GW + cc; if (!road[i]) continue;
+      const Lf = !road[i - 1], R = !road[i + 1], D = !road[i - GW], U = !road[i + GW];
+      if (!(Lf || R || D || U)) continue;
+      const x = minX + (cc + 0.5) * CELL, y = minY + (r + 0.5) * CELL;
+      if (at(x, y) < 0.3) continue;
+      const gx = Math.floor(x / SP), gy = Math.floor(y / SP);
+      let near = false;
+      for (let a = -1; a <= 1 && !near; a++) for (let bq = -1; bq <= 1 && !near; bq++) { const q = used.get((gx + a) * 100003 + gy + bq); if (q) for (const [qx, qy] of q) if ((qx - x) ** 2 + (qy - y) ** 2 < SP * SP) { near = true; break; } }
+      if (near) continue;
+      const k = cellOf(x, y); let a = used.get(k); if (!a) used.set(k, a = []); a.push([x, y]);
+      const h1 = hsh(x, y), h2 = hsh(y, x), col = PAL[h1 < 0.45 ? 0 : h1 < 0.8 ? 1 : 2], br = 0.75 + 0.25 * at(x, y);
+      const v = V(x, y, 2.6 + 1.2 * h2); pts.push(v.x, v.y, v.z);
+      cols.push(col[0] * br, col[1] * br, col[2] * br); ph.push(h2 * 6.283, 1.6 + 2.2 * h1);
+    }
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    lg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    lg.setAttribute('aPh', new THREE.Float32BufferAttribute(ph, 2));
+    const lm = new THREE.PointsMaterial({ map: NT.glowTex, size: 3.0, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true });
+    lm.onBeforeCompile = sh => {
+      sh.uniforms.uT = uT;
+      sh.vertexShader = 'attribute vec2 aPh;\nuniform float uT;\nvarying float vFl;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '  gl_PointSize *= smoothstep(4.0, 16.0, -mvPosition.z);\n  vFl = 0.84 + 0.1 * sin(uT * aPh.y + aPh.x) + 0.06 * sin(uT * aPh.y * 2.3 + aPh.x * 3.0);\n#include <worldpos_vertex>');
+      sh.fragmentShader = 'varying float vFl;\n' + sh.fragmentShader.replace('#include <output_fragment>', '  diffuseColor.a *= vFl;\n#include <output_fragment>');
+    };
+    lm.customProgramCacheKey = () => '|keiLan';
+    const lan = new THREE.Points(lg, lm); lan.raycast = () => {}; lan.renderOrder = 3; scene.add(lan);
+    /* 光のもや：境内の上の、やわらかい大きな光の丸と、仲見世の上の小さな丸（x, y, 高さ, 半径, 強さ） */
+    const HZ = [[206, 178, 18, 150, 0.04]];   /* 名所ごとの小さなもやは、光る建物に白い膜をかけたのでやめた */
+    for (let s = 70; s <= L - 50; s += 70) HZ.push([gate.x + dx * s / L, gate.y + dy * s / L, 6, 42, 0.03]);   /* 仲見世の上 */
+    const hp = [], hc = [], ha = [], hi = [];
+    HZ.forEach((z, n) => {
+      const v = V(z[0], z[1], z[2]);
+      for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { hp.push(cx, cy, 0); hc.push(v.x, v.y, v.z, z[3]); ha.push(z[4]); }
+      hi.push(n * 4, n * 4 + 1, n * 4 + 2, n * 4, n * 4 + 2, n * 4 + 3);
+    });
+    const hg = new THREE.BufferGeometry();
+    hg.setAttribute('position', new THREE.Float32BufferAttribute(hp, 3));
+    hg.setAttribute('aC', new THREE.Float32BufferAttribute(hc, 4));
+    hg.setAttribute('aA', new THREE.Float32BufferAttribute(ha, 1));
+    hg.setIndex(hi);
+    const hm = new THREE.ShaderMaterial({
+      uniforms: { uK: { value: 0 }, uT },
+      vertexShader: [
+        'attribute vec4 aC; attribute float aA; uniform float uT;',
+        'varying vec2 vUv; varying float vA;',
+        'void main() {',
+        '  vec4 mv = modelViewMatrix * vec4(aC.xyz, 1.0);',
+        '  float d = -mv.z;',
+        '  mv.xy += position.xy * aC.w;',
+        '  vUv = position.xy;',
+        '  vA = aA * smoothstep(aC.w * 2.0, aC.w * 4.5, d) * (0.95 + 0.05 * sin(uT * 0.9 + aC.x * 0.1));',
+        '  gl_Position = projectionMatrix * mv;',
+        '}'].join('\n'),
+      fragmentShader: [
+        'uniform float uK;',
+        'varying vec2 vUv; varying float vA;',
+        'void main() {',
+        '  float r2 = dot(vUv, vUv);',
+        '  float a = exp(-r2 * 3.0) * max(0.0, 1.0 - r2);',
+        '  gl_FragColor = linearToOutputTexel(vec4(vec3(1.0, 0.5, 0.2) * a * vA, uK));',
+        '}'].join('\n'),
+      transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false,
+    });
+    const haze = new THREE.Mesh(hg, hm); haze.frustumCulled = false; haze.renderOrder = 4; haze.raycast = () => {};
+    scene.add(haze);
+    Object.assign(KEI, { on: true, gp, gm, lan, lm, haze, hm, uT, n: pts.length / 3 });
+  }
+  /* 毎こま（nightFrame から）：lanK＝提灯の灯り具合（夜1→朝0） */
+  function keiFrame(lanK) {
+    if (!KEI.on) return;
+    /* 題字の画面は、字のまわりを夜空の色で沈めている（#ttlShade）ので、その間だけ少し強く */
+    const k = KEI.off ? 0 : Math.pow(lanK, 1.3) * (TS ? 1.3 : 1), show = k > 0.002;
+    KEI.uT.value = performance.now() / 1000 % 1000;
+    KEI.gp.visible = KEI.lan.visible = show;
+    /* 寄った画（カメラが低い）では、地面の光を少し弱める（近くで見ると、地面が昼のように明るく見えたので） */
+    const hi = Math.max(0, Math.min(1, (camera.position.y - 40) / 120));
+    KEI.gm.uniforms.uK.value = 0.26 * k * (0.72 + 0.28 * hi);
+    KEI.lm.opacity = k;
+    KEI_U.uKei.value = 0.24 * k;
+    /* 今光っているおすすめの建物は照らさない */
+    let j = 0;
+    for (const r of reachGlow) if (r.g.visible && j < 4) KEI_U.uKeiNo.value[j++].set(r.b.d.cx, r.b.d.cy, Math.hypot(r.b.d.L, r.b.d.W) / 2 + 1, 0);
+    while (j < 4) KEI_U.uKeiNo.value[j++].set(0, 0, 0, 0);
+    /* もやは、引きの画（カメラが高い所）だけ。寄った画・担いでいる間の近い画では消す */
+    const far = Math.max(0, Math.min(1, (camera.position.y - 90) / 110));
+    KEI.hm.uniforms.uK.value = k * far * far * (3 - 2 * far);
+    KEI.haze.visible = show && far > 0.001;
+  }
   if (NIGHT) (function nightSetup() {
     // ---- 空：上が濃紺、地平線が明るい丸天井（カメラに付いて回る）。夜明けには東の地平線が橙〜桃色になる ----
     const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.ShaderMaterial({
@@ -5147,6 +5331,7 @@ function start(DATA, isAsakusa) {
     const pool = new THREE.Mesh(new THREE.PlaneGeometry(NW * 2 * CELL, NH * 2 * CELL), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     pool.rotation.x = -Math.PI / 2; pool.position.set(minX + NW * CELL, 0.02, -(minY + NH * CELL)); pool.renderOrder = -9; pool.raycast = () => {};
     scene.add(pool); NT.pool = pool;
+    keiSetup();
     // ---- 神輿に付いて回る明かり（本物のライトはこれ一つ） ----
     NT.lamp = new THREE.PointLight(0xffb070, 0, 40, 1); scene.add(NT.lamp);
     // ---- 夜でも見えるように：選んだときの光、ゴールの旗、雷門の大提灯 ----
@@ -5347,6 +5532,7 @@ function start(DATA, isAsakusa) {
       }
     } else NT.lamp.intensity = 0;
     reachFrame(dt, lanK);   // 明かりの届く範囲
+    keiFrame(lanK);   /* 境内の明かり */
   }
 
   // ---------- 描く ----------
@@ -5720,7 +5906,7 @@ function start(DATA, isAsakusa) {
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
   window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
-    night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, renderInfo: () => renderer.info.render,
+    night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, kei: () => ({ on: KEI.on, lan: KEI.n || 0, k: KEI.on ? +KEI.gm.uniforms.uK.value.toFixed(3) : 0, haze: KEI.on ? +KEI.hm.uniforms.uK.value.toFixed(3) : 0 }), keiOff: v => { KEI.off = !!v; }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,
     setPhoto, photo: () => ({ on: photoOn, index: TT.index && TT.index.parts.length, loaded: TT.next, parts: TT.parts.length, blds: TT.byB.size, base: TT.base }),

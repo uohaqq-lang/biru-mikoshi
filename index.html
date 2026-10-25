@@ -293,6 +293,8 @@
   #ttl.out #ttlVeil { animation:ttlOut .7s ease-out forwards; }
   @keyframes ttlOut { from { opacity:1; } to { opacity:0; } }
   /* 題字の画面の間は、町の画面のボタン・札を出さない（出典だけは残す。左上の題の箱は、字と下地を消して出典の置き場にだけ使う） */
+  /* 花火の間は、空と浅草神社を見せるため、小さな地図とズームのボタンを隠す */
+  body.hanabi #mini, body.hanabi #zoom { display:none !important; }
   body.titling #boot, body.titling #right, body.titling #diffSel, body.titling #best, body.titling #pickHint, body.titling #zoom, body.titling #sel, body.titling #skip, body.titling #help, body.titling #goGoal { display:none !important; }
   /* 出典の入った上の段は、題字の画面（#ttl）がある間はその上に出す（触ったあとの暗転の間も出典が消えないように） */
   #ttl ~ #top { z-index:96; }
@@ -1479,7 +1481,7 @@ function start(DATA, isAsakusa) {
   const ptrs = new Map();
   let downAt = null, pinch0 = 0, hoverReq = null;
   const panScale = () => mapCam.dist * 2 * Math.tan(camera.fov * Math.PI / 360) / innerHeight;
-  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; if (S.done && S.done.phase === 'harai') S.done.skipH = true; };
+  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; if (S.done && S.done.phase === 'harai') S.done.skipH = true; if (S.done && S.done.phase === 'hanabi') S.done.skipF = true; };
   window.addEventListener('keydown', e => { if (S.intro) endIntro(); if (opening) endOpening(); }, true);
   window.addEventListener('wheel', () => endOpening(), true);
   view.addEventListener('pointerdown', e => {
@@ -3027,6 +3029,8 @@ function start(DATA, isAsakusa) {
         let cheer = null;
         cerJobs.push(() => { cheer = mkCheer(); });
         cerJobs.push(() => { if (cheer) { addCheerClaps(cheer); CB.cheer = cheer; } });
+        /* 花火のパラパラの素（3通り）も、ここで先に作っておく（花火を始めるときにまとめて作ると、スマホ相当で止まった） */
+        for (let i = 0; i < 3; i++) cerJobs.push(() => { if (FW.crk.length < 3) FW.crk.push(fwCrackle(i)); });
       }
       const step = () => { const j = cerJobs.shift(); if (j) { try { j(); } catch (e) { /* 作れない環境では、その音を鳴らさない */ } } return cerJobs.length; };
       if (all) { while (step()) { /* 残りをすぐ作る */ } } else if (step()) setTimeout(() => cerPrepare(false), 40);
@@ -3099,9 +3103,109 @@ function start(DATA, isAsakusa) {
         if (ms + 188 < 2400) tone(t + (ms + 188) / 1000, 72, 44, 0.2, 'sine', 0.45 * k, cerRun);
       }
     }
+    // ---- 花火の音（10/25 本人の決定「ヒュ〜…ドーン、パラパラ」。すべて Web Audio で作る。音源ファイルは足さない） ----
+    /* 澄んで長く響く音（グラスのような音。本人が嫌った）は使わない：笛も破裂も、雑音を帯域に通して作る。正弦波は低い胴鳴り（60Hz より下）だけ。
+       ヒュ〜：雑音を中くらいの幅の帯域（Q 5）に通し、中心を 520Hz → 1,500Hz へ上げる（上がっていく玉の笛）。音の高さは感じても、鳴きは残らない
+       ドーン：割れる瞬間のバン（3kHz より下の雑音 0.05秒）、胴（低い雑音の帯域を 260Hz → 80Hz へ下げながら1.3秒）、腹に来る低い唸り（55Hz → 30Hz）。
+              町の建物から返る音として、0.31秒と0.62秒あとに、低い所だけの返り（遅らせて重ねる）
+       パラパラ：割れたあとの星がはじける細かい音。2〜5ms で止まる雑音の粒を、幅の広い帯域（Q 0.8）に通して、1.6秒に散らす（素を3通り作って使い回す） */
+    const FW = { crk: [], bus: null, echo: null };
+    function fwCrackle(seed) {
+      const sr = ctx.sampleRate, n = Math.ceil(sr * 1.8), b = ctx.createBuffer(2, n, sr), L = b.getChannelData(0), R = b.getChannelData(1);
+      const pops = 130 + Math.floor(Math.random() * 40);
+      for (let p = 0; p < pops; p++) {
+        /* はじめが密で、だんだんまばらに */
+        const t = 0.02 + Math.pow(Math.random(), 1.7) * 1.55, a = (0.25 + Math.random() * 0.75) * (1 - 0.55 * t / 1.6);
+        burst(L, R, sr, Math.floor(t * sr), 1500 + Math.random() * 3500, 0.8, a, 0.0012 + Math.random() * 0.0018, Math.random() * 1.6 - 0.8);
+      }
+      finish([L, R], 0.9); return b;
+    }
+    /* 花火を始めるとき：音の通り道を作る（飛ばしたときは、この通り道ごと消す） */
+    function fwOpen() {
+      if (!ctx) return false;
+      while (FW.crk.length < 3) FW.crk.push(fwCrackle(FW.crk.length));
+      if (FW.bus) fwClose(true);
+      const bus = ctx.createGain(); bus.gain.value = 1; bus.connect(master);
+      /* 返り：低い所だけを、0.31秒と0.62秒あとに重ねる */
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+      const d1 = ctx.createDelay(1), d2 = ctx.createDelay(1), g1 = ctx.createGain(), g2 = ctx.createGain();
+      d1.delayTime.value = 0.31; d2.delayTime.value = 0.62; g1.gain.value = 0.32; g2.gain.value = 0.16;
+      lp.connect(d1).connect(g1).connect(bus); lp.connect(d2).connect(g2).connect(bus);
+      FW.bus = bus; FW.echo = lp;
+      return true;
+    }
+    function fwClose(fast) {
+      if (!FW.bus || !ctx) return;
+      const bus = FW.bus, t = ctx.currentTime;
+      FW.bus = null; FW.echo = null;
+      if (fast) { bus.gain.setTargetAtTime(0, t, 0.05); setTimeout(() => { try { bus.disconnect(); } catch (e) { /* もう外れている */ } }, 600); }
+      else setTimeout(() => { try { bus.disconnect(); } catch (e) { /* もう外れている */ } }, 4000);
+    }
+    /* ヒュ〜：t から dur 秒、上がっていく笛。k は大きさ（0〜1） */
+    function fwWhistle(t, dur, k, pan) {
+      if (!FW.bus) return;
+      const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+      /* 帯域を通すと雑音の大きさは1/20ほどになるので、上げ幅を大きく取る（曲の下でも聞こえる −28dB 前後。録って確かめた） */
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 4.5;
+      f.frequency.setValueAtTime(520, t); f.frequency.exponentialRampToValueAtTime(1500, t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.3 * k, t + 0.18);
+      g.gain.setValueAtTime(1.3 * k, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+      let out = g;
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan || 0; g.connect(p); out = p; }
+      src.connect(f).connect(g); out.connect(FW.bus);
+      src.start(t, Math.random()); src.stop(t + dur + 0.05);
+    }
+    /* ドーン：s は玉の大きさ（0.6 小さい玉〜1.6 大玉） */
+    function fwBoom(t, s, pan) {
+      if (!FW.bus) return;
+      const bus = FW.bus, k = Math.min(1, 0.45 + 0.35 * s);
+      let dest = bus;
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = (pan || 0) * 0.6; p.connect(bus); dest = p; }
+      /* 割れる瞬間のバン */
+      noiseHit(t, 0.05 + 0.02 * s, 'lowpass', 3000, 0.7, 0.5 * k, dest);
+      /* 胴：低い雑音を下げながら */
+      const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.9;
+      f.frequency.setValueAtTime(260 + 60 * s, t); f.frequency.exponentialRampToValueAtTime(80, t + 0.9 + 0.5 * s);
+      const g = ctx.createGain(), dur = 1.0 + 0.6 * s;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.35 * k, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      src.connect(f).connect(g); g.connect(dest); if (FW.echo) g.connect(FW.echo);
+      src.start(t, Math.random()); src.stop(t + dur + 0.05);
+      /* 腹に来る低い唸り */
+      tone(t, 55 - 8 * Math.min(1, s - 0.6), 30, 0.7 + 0.5 * s, 'sine', 0.55 * k, dest, 0.01);
+      /* 大玉のときだけ、曲を少し下げてドーンを立てる */
+      if (s >= 1.3) duck(t, 0.5);
+    }
+    /* パラパラ：割れて少しあとから。k は大きさ、len は長さ（柳は長い） */
+    function fwCrk(t, k, pan, len) {
+      if (!FW.bus || !FW.crk.length) return;
+      const s = ctx.createBufferSource(); s.buffer = FW.crk[Math.floor(Math.random() * FW.crk.length)];
+      s.playbackRate.value = len > 1.2 ? 0.75 : 0.9 + Math.random() * 0.2;
+      const g = ctx.createGain(); g.gain.value = 0.16 * k;
+      let out = g;
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan || 0; g.connect(p); out = p; }
+      s.connect(g); out.connect(FW.bus); s.start(t);
+    }
+    /* 花火の時計：いま耳に届いている音の ctx の時刻（音が出ていないときは null。見た目は performance.now() で進める） */
+    function fwClock() { return ctx && ctx.state === 'running' ? heardNow() : null; }
+    /* 曲の格子（div：4＝拍の頭、2＝8分）で、t 以後のいちばん近い時刻。曲が無ければ null */
+    function fwGrid(t, div) { try { return bgm ? bgm.nextBeat(t, div) : null; } catch (e) { return null; } }
+    /* 花火の音の通り道を開く。list：[{ launch, burst, s, pan, whistle, crk, len }]（ctx の時刻）。音そのものは fwOne で、打ち上げの少し前に1発ずつ予約する
+       （全部をまとめて予約すると、音の部品を一度に250ほど作るので、スマホ相当で80ms止まった） */
+    function fwPlay(list) {
+      if (!fwOpen()) return false;
+      log('hanabi', { n: list.length, first: list.length ? list[0].launch : 0, at: list.map(q => [+q.launch.toFixed(4), +q.burst.toFixed(4)]) });
+      return true;
+    }
+    function fwOne(q) {
+      if (!FW.bus) return;
+      if (q.whistle) fwWhistle(q.launch + 0.05, Math.max(0.4, q.burst - q.launch - 0.08), q.wk || 0.8, q.pan);
+      fwBoom(q.burst, q.s, q.pan);
+      if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
+    }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1),
-      _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap }; } };
+    return { unlock, setMute, isMuted: () => muted, setScene, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
+      _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW }; } };
   })();
 
   // ---------- つかえたとき：揺れ・音・寸法 ----------
@@ -3237,7 +3341,7 @@ function start(DATA, isAsakusa) {
   // 最初に押したら、選び直す・地図も出す（運び出しの直後は「押している間 進む」だけにしている）
   const firstPush = () => { if (S.intro) return; document.body.classList.remove('calm1', 'calm2'); };
   /* お祓いの間に進む（スペース・↑）を押したら、お祓いを飛ばして魂振りへ */
-  function startHold() { holdHint(false); if (S.done && S.done.phase === 'harai') { S.done.skipH = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
+  function startHold() { holdHint(false); if (S.done && S.done.phase === 'harai') { S.done.skipH = true; return; } if (S.done && S.done.phase === 'hanabi') { S.done.skipF = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
   function stopHold() { hold.on = false; $('hold').classList.remove('on'); }
   function startBack() { rotHint(false); if (!S.b || mode !== 'carry') return; firstPush(); hold.back = true; $('back').classList.add('on'); SND.unlock(); }
   function stopBack() { hold.back = false; $('back').classList.remove('on'); }
@@ -3750,67 +3854,107 @@ function start(DATA, isAsakusa) {
     }
   }
   if (new URLSearchParams(location.search).get('marks') === '1') lmMarks();   // ?marks=1 のときだけ出す（見比べ用）
-  // ---------- ゴールまで行ける建物を光らせる（町の画面だけ。担いだら消え、町の画面に戻るとまた出る） ----------
-  // tools/reach.py で、ゲームと同じ判定（0.5mの点・境内の広場・建物の足元・桁下、15°刻みの向き、前後とその場での回転）で
-  // 浅草神社の前のゴールまで行けると確かめ、出発の構図から見える中から、大きさがばらけるように選んだ（理由と道のりは 試作メモ.md）
-  // 本人の決定で、難しさ★1の写真付きの名所だけを光らせる：五重塔・宝蔵門・二天門・浅草神社（1棟目）（tools/difficulty.py）
+  // ---------- 段取りの案内：光る建物（町の画面だけ。段ごとに替わる） ----------
+  /* 本人の決定（10/25）「段取りの案内」：光る建物が段ごとに順に替わる（4段）。光る建物は、どれも浅草神社に着ける（着き方は段ごとに違う）。
+     その段の光る建物を1棟、浅草神社でお祓いまで済ませると次の段へ。4段目（挑戦）は何度でも挑める（光り続ける）。
+     光っていない建物も、いつでも選べる（道案内で、縛りではない）。説明の文は出さず、光る建物が替わることと、待つ担ぎ手の人数で伝える。
+     進み具合はブラウザに覚えさせない（開き直すと1段目から）。前の「1回運んだら光と担ぎ手が消える」（guideOff）は、これに置き換えた。
+     どの棟も、ゲームの判定（check）で道すじを探し、rotate・move で実際に運んで、お祓いまで行けることを確かめた（直した記録_段取りと花火.md）
+       1段目：楽に着ける名所（実物大でほぼまっすぐ）：五重塔・宝蔵門・二天門・浅草神社（1棟目）。tools/reach.py・difficulty.py で★1
+       2段目：実物大のままでも、向きを変える（曲がる・バック）と着く：宝蔵門の南の細長い店（長さ19.5m・幅3.6m。角ごとに回す）・二天門の南の細長い家（同じく18.8m）・
+              浅草神社の北東の3階建て（前にも回すにも動けない所から出るので、まず後ろへ出す）。最初の町の画面で見つけやすい所から選んだ（浅草神社の北の7階建ても後ろへ出す棟だが、画面の上の端で小さかった）
+       3段目：実物大ではつっかえる。半分にすれば着く：浅草寺の本堂・二天門の北東のビル（1階が薬局）・影向堂
+       4段目（挑戦）：実物大のままでも、うまく運べば着く大きな建物：二天門の北東の11階建て・浅草神社の東のホテル・白いタワーマンション（15階・45.3m）。光は朱色、待つ担ぎ手は大勢 */
   const REACH_IDS = [
     'bldg_b9141e64-a2c8-4da1-97a6-e427459a44dc', 'bldg_8760bd58-39ef-476c-997c-773ba8e3018a', 'bldg_afb46b6e-2989-494f-95e5-5cd5f20ce956', 'bldg_7d109a41-5b34-4ad2-b40a-c82d56a8e8f1',
   ];
+  /* 段ごとの建物（建物IDの bldg_ の後ろ8字） */
+  const STAGE_IDS = [
+    REACH_IDS.map(id => id.slice(5, 13)),
+    ['9d361e2d', '409b776f', '95e6e331'],
+    ['89e579d5', '05e0d2d9', '545aba1b'],
+    ['963c4c71', 'e33d345b', '3d66e44c'],
+  ];
+  const STAGE_LAST = STAGE_IDS.length - 1;
+  /* 待っている担ぎ手の人数（段が進むほど大勢。4段目の挑戦はぐっと大勢） */
+  const WAIT_NS = [14, 20, 26, 48];
+  let stage = 0;
+  const stageOf = new Map();
   const reachGlow = [];
   const glowFillMat = new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const tourGlowMat = glowFillMat.clone();   // 通りがかりの説明をしている名所を光らせる（担いでいる間）
+  /* 通りがかりの説明をしている名所を光らせる（担いでいる間） */
+  const tourGlowMat = glowFillMat.clone();
   const glowLineMat = new THREE.LineBasicMaterial({ color: 0xffd040, transparent: true, opacity: 0.9, depthWrite: false });
-  let haloTex = null;
-  function haloSprite() {
-    if (!haloTex) {
+  /* 4段目（挑戦）の光は朱色（金色の段と見分けがつくように） */
+  const glowFillMatR = glowFillMat.clone(); glowFillMatR.color.setHex(0xff4a22);
+  const glowLineMatR = new THREE.LineBasicMaterial({ color: 0xff7a34, transparent: true, opacity: 0.9, depthWrite: false });
+  const haloTex = {};
+  function haloSprite(red) {
+    const key = red ? 'r' : 'g';
+    if (!haloTex[key]) {
       const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d');
       const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-      g.addColorStop(0, 'rgba(255,240,180,1)'); g.addColorStop(0.35, 'rgba(255,200,60,.85)'); g.addColorStop(1, 'rgba(255,190,40,0)');
+      if (red) { g.addColorStop(0, 'rgba(255,232,190,1)'); g.addColorStop(0.35, 'rgba(255,92,40,.85)'); g.addColorStop(1, 'rgba(230,50,20,0)'); }
+      else { g.addColorStop(0, 'rgba(255,240,180,1)'); g.addColorStop(0.35, 'rgba(255,200,60,.85)'); g.addColorStop(1, 'rgba(255,190,40,0)'); }
       c.fillStyle = g; c.fillRect(0, 0, 64, 64);
-      haloTex = new THREE.CanvasTexture(cv); haloTex.encoding = THREE.sRGBEncoding;
+      haloTex[key] = new THREE.CanvasTexture(cv); haloTex[key].encoding = THREE.sRGBEncoding;
     }
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, sizeAttenuation: false }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex[key], depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, sizeAttenuation: false }));
     sp.renderOrder = 5; return sp;
   }
-  for (const id of REACH_IDS) {
-    const b = blds.find(q => q.id === id); if (!b) continue;
-    const g = new THREE.Group(), gBox = new THREE.Group();
-    const geo = bldGeo(b, b.h);
-    gBox.add(new THREE.Mesh(geo, glowFillMat));
-    gBox.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), glowLineMat));   // 金色のふち
-    g.add(gBox);
-    const halo = haloSprite(); g.add(halo);
-    scene.add(g);
-    const r = { b, g, gBox, gPh: null, phNow: undefined, halo }; reachGlow.push(r); reachPhoto(r);
-  }
+  STAGE_IDS.forEach((ids, st) => {
+    for (const id8 of ids) {
+      const b = blds.find(q => q.id.startsWith('bldg_' + id8)); if (!b) continue;
+      const red = st === STAGE_LAST, fill = red ? glowFillMatR : glowFillMat;
+      const g = new THREE.Group(), gBox = new THREE.Group();
+      const geo = bldGeo(b, b.h);
+      gBox.add(new THREE.Mesh(geo, fill));
+      /* 金色（4段目は朱色）のふち */
+      gBox.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), red ? glowLineMatR : glowLineMat));
+      g.add(gBox);
+      const halo = haloSprite(red); g.add(halo);
+      g.visible = false; scene.add(g);
+      stageOf.set(b, st);
+      const r = { b, g, gBox, gPh: null, phNow: undefined, halo, st, fill }; reachGlow.push(r); reachPhoto(r);
+    }
+  });
   // 写真付きの形が出ている建物は、写真付きの形に重ねて明るくする（写真の有り無しを替えたとき・町の写真が届いたときに替わる）
   function reachPhoto(r) {
     const ph = photoOf(r.b);
     if (ph === r.phNow) return;
     r.phNow = ph;
     if (r.gPh) { r.g.remove(r.gPh); r.gPh.traverse(o => { if (o.geometry) o.geometry.dispose(); }); r.gPh = null; }
-    if (ph) { r.gPh = new THREE.Group(); for (const geo of photoGeos(ph, xfTown)) r.gPh.add(new THREE.Mesh(geo, glowFillMat)); r.g.add(r.gPh); }
+    if (ph) { r.gPh = new THREE.Group(); for (const geo of photoGeos(ph, xfTown)) r.gPh.add(new THREE.Mesh(geo, r.fill)); r.g.add(r.gPh); }
     r.gBox.visible = !ph;
     r.halo.position.copy(V(r.b.d.cx, r.b.d.cy, (ph ? ph.top : r.b.h) + 3));
   }
-  // ゆっくり脈打つ（2.4秒で一回）
-  /* 本人の決定（10/23）「選んで感」：光る4棟は、1.8秒で一回、前よりはっきり脈打つ（前は2.4秒で、明るさの幅も小さかった）。
+  /* その段の光る建物でお祓いまで済んだら、次の段へ（4段目は進まない。光り続ける）。魂振りに移るときに呼ぶ（doneStep） */
+  function stageDone(b) {
+    if (stageOf.get(b) === stage && stage < STAGE_LAST) stage++;
+  }
+  /* 本人の決定（10/23）「選んで感」：光る建物は、1.8秒で一回、前よりはっきり脈打つ（前は2.4秒で、明るさの幅も小さかった）。
      マウスを乗せたとき・スマホで触ったとき（hover）は、建物が少し持ち上がって弾む（ばねで持ち上げ、乗せている間は小さく跳ねる）。
-     持ち上げるのは名所の写真付きの形・金の光・乗せたときの金の箱（写真なしの箱は町の箱とつながっているので動かさない）。
-     浅草神社で一度お祓いまで済んだら（guideOff）、このページを開いている間は光らせない（ブラウザには覚えない。開き直すとまた出る） */
+     持ち上げるのは名所の写真付きの形・光・乗せたときの金の箱（写真なしの箱は町の箱とつながっているので動かさない）。
+     出すのは、今の段の建物だけ（stage） */
   const GLOW_MS = 1800;
-  let guideOff = false, reachLastT = 0;
+  let reachLastT = 0;
   function updateReach(t) {
     if (!reachGlow.length) return;
-    const on = mode === 'pick' && !S.intro && !TS && !guideOff, p = 0.5 - 0.5 * Math.cos(t / GLOW_MS * Math.PI * 2);
+    const on = mode === 'pick' && !S.intro && !TS, p = 0.5 - 0.5 * Math.cos(t / GLOW_MS * Math.PI * 2);
     const pt = 0.5 - 0.5 * Math.cos(t / 2400 * Math.PI * 2);   /* 担いでいる間の通りがかりの光は前のまま */
     glowFillMat.opacity = 0.05 + 0.43 * p; glowLineMat.opacity = 0.22 + 0.78 * p; tourGlowMat.opacity = 0.15 + 0.35 * pt;
+    /* 朱色は加算すると金色より暗く見えるので、少し濃く */
+    glowFillMatR.opacity = 0.08 + 0.5 * p; glowLineMatR.opacity = 0.3 + 0.7 * p;
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1) * (0.68 + 0.42 * p);
     const dt = Math.min(0.05, Math.max(0, (t - (reachLastT || t)) / 1000)); reachLastT = t;
     for (const r of reachGlow) {
+      /* 今の段でない建物は、隠したまま何もしない */
+      /* 写真付きの形の光は、町の写真が届いたときに作っておく（出す段になってからまとめて作ると、3棟ぶんで0.5秒ほど止まった） */
       reachPhoto(r);
-      r.g.visible = on && !flatState.get(r.b);   // 持ち上げた跡（選び直したときの元の建物）は光らせない
+      /* 持ち上げた跡（選び直したときの元の建物）は光らせない */
+      const vis = on && r.st === stage && !flatState.get(r.b);
+      if (!vis && !r.g.visible && !r.ly) continue;
+      r.g.visible = vis;
       r.halo.scale.set(k, k, 1); r.halo.material.opacity = 0.35 + 0.65 * p;
       /* 持ち上がって弾む：ばね（強さ140・減衰10。目標を一割ほど行き過ぎて戻る）。乗せている間は、0.42秒ごとに小さく跳ねる */
       const tm = texTown.get(r.b), canLift = r.g.visible && tm && tm.visible;
@@ -3826,14 +3970,24 @@ function start(DATA, isAsakusa) {
       if (hoverMesh && hover === r.b) hoverMesh.position.y = y;
     }
   }
-  // ---------- 光る4棟のまわりで待つ担ぎ手（本人の決定 10/23「選んで感」） ----------
-  /* 4棟それぞれのそばに、半纏の担ぎ手が十数人ずつ立ち、体を揺らして待つ。形と材質は担ぎ手と同じ（胴と頭の InstancedMesh。全部で56人）。
-     半纏の色は、その建物を担いだときの町会の色（teamOf）。町の画面だけで出し、担ぎ始めたら、選んだ建物の担ぎ手は建物へ寄っていき、
-     担ぎ手が集まりきるころ（運び出しの32%）に消える（集まってくる担ぎ手につながって見えるように）。ほかの3棟の担ぎ手はすぐ消える。
+  // ---------- 光る建物のまわりで待つ担ぎ手（本人の決定 10/23「選んで感」。10/25 段ごとに人数を替える） ----------
+  /* 光る建物それぞれのそばに、半纏の担ぎ手が一つの群れで立ち、体を揺らして待つ。形と材質は担ぎ手と同じ（胴と頭の InstancedMesh）。
+     人数は段ごと（WAIT_NS：14・20・26・48人）。半纏の色は、その建物を担いだときの町会の色（teamOf）。
+     町の画面で、今の段の建物の担ぎ手だけを出す。担ぎ始めたら、選んだ建物の担ぎ手は建物へ寄っていき、
+     担ぎ手が集まりきるころ（運び出しの32%）に消える（集まってくる担ぎ手につながって見えるように）。ほかの棟の担ぎ手はすぐ消える。
      立つ所：建物のまわりにばらばらに立たせると、町の画面の引きでは見えず、寄っても杭のように見えた。そこで、建物の足元の外の、
      最初の画面のカメラから見える側（南）の歩ける所に、一つの群れ（0.75mおき）にして立たせる。どの建物の足元にもかからない所だけ。建物のまん中を向く */
-  const WAIT_N = 14, waitCrews = [];
-  function waitSpots(b) {
+  const waitCrews = [];
+  /* 群れの広さ（中心からの半幅 m）。人数が多いほど広く。収まる所がなければ一回り狭くして、入るだけ立たせる */
+  const waitHalf = n => n <= 16 ? 2.25 : n <= 30 ? 3.0 : 3.75;
+  function waitSpots(b, N) {
+    for (let hs = waitHalf(N); hs >= 2.25; hs -= 0.75) {
+      const s = waitSpotsAt(b, N, hs);
+      if (s.length) return s;
+    }
+    return [];
+  }
+  function waitSpotsAt(b, N, hs) {
     const ring = b.polys[0][0], { cx, cy } = b.d;
     let A = 0; for (let i = 0; i < ring.length - 1; i++) A += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
     const sg = A > 0 ? 1 : -1;   /* 左回りの外周なら、辺の右手が外 */
@@ -3851,11 +4005,15 @@ function start(DATA, isAsakusa) {
       for (let t = 1.5; t < hl; t += 0.8) { const z = 1.2 + k * t; if (z > Math.min(maxH, 120)) break; if (bldAt(x + ux * t, y + uy * t, z)) return false; }
       return true;
     };
+    /* 群れのまわりの点（0.75mおき）。広さ hs の四角の7割が空いている広い所だけ */
+    const grid = []; for (let du = -hs; du <= hs + 1e-6; du += 0.75) for (let dv = -hs; dv <= hs + 1e-6; dv += 0.75) grid.push([du, dv]);
+    const need = Math.ceil(grid.length * 0.7);
     /* 群れの中心：足元の外へ1.8〜22m離した線の上で、最初の画面のカメラから隠れずに見え、カメラの側にいちばん向いていて、まわりに群れが収まる所
        （五重塔は、まわりを囲む建物の外の道まで出る） */
     let anchor = null;
-    for (const off of [1.8, 3, 4.5, 6.5, 9, 12, 15, 18, 22, -1, 1.8, 3, 4.5]) {
-      if (off < 0) { needRoad = false; continue; }
+    for (const off0 of [1.8, 3, 4.5, 6.5, 9, 12, 15, 18, 22, -1, 1.8, 3, 4.5]) {
+      if (off0 < 0) { needRoad = false; continue; }
+      const off = off0 + (hs - 2.25);
       for (let i = 0; i < ring.length - 1; i++) {
         const [ax, ay] = ring[i], [bx, by] = ring[i + 1], L = Math.hypot(bx - ax, by - ay); if (L < 0.5) continue;
         const nx = (by - ay) / L * sg, ny = -(bx - ax) / L * sg;
@@ -3863,9 +4021,8 @@ function start(DATA, isAsakusa) {
           const x = ax + (bx - ax) * s / L + nx * off, y = ay + (by - ay) * s / L + ny * off;
           const sc = ((x - cx) * tx + (y - cy) * ty) / (Math.hypot(x - cx, y - cy) || 1) - off * 0.02;
           if ((anchor && sc <= anchor.sc) || !free(x, y)) continue;
-          /* 細い路地に入り込むと見えないので、まわり4.5m四方（0.75mおき49点）の7割が空いている広い所だけ */
-          let room = 0; for (let du = -2.25; du <= 2.25; du += 0.75) for (let dv = -2.25; dv <= 2.25; dv += 0.75) if (free(x + du, y + dv)) room++;
-          if (room < 34 || !seen(x, y)) continue;
+          let room = 0; for (const [du, dv] of grid) if (free(x + du, y + dv)) room++;
+          if (room < need || !seen(x, y)) continue;
           anchor = { x, y, sc, nx, ny };
         }
       }
@@ -3874,17 +4031,17 @@ function start(DATA, isAsakusa) {
     if (!anchor) return [];
     /* 群れ：中心のまわり0.75mおきの点を、中心に近い順に。建物の側を前にして、少しずらして並べる */
     const cand = [];
-    for (let du = -2.25; du <= 2.25; du += 0.75) for (let dv = -2.25; dv <= 2.25; dv += 0.75) {
+    for (const [du, dv] of grid) {
       const j = Math.sin((anchor.x + du) * 12.9898 + (anchor.y + dv) * 78.233) * 43758.5453, f = j - Math.floor(j);
       const x = anchor.x + du + (f - 0.5) * 0.25, y = anchor.y + dv + ((f * 7) % 1 - 0.5) * 0.25;
       if (free(x, y)) cand.push({ x, y, f, d: Math.hypot(du, dv) });
     }
     cand.sort((p, q) => p.d - q.d);
-    return cand.slice(0, WAIT_N).map(p => ({ x: p.x, y: p.y, face: Math.atan2(cy - p.y, cx - p.x) + (p.f - 0.5) * 0.4, ph: p.f * Math.PI * 2, s: 0.95 + p.f * 0.1, sp: 0.85 + p.f * 0.3 }));
+    return cand.slice(0, N).map(p => ({ x: p.x, y: p.y, face: Math.atan2(cy - p.y, cx - p.x) + (p.f - 0.5) * 0.4, ph: p.f * Math.PI * 2, s: 0.95 + p.f * 0.1, sp: 0.85 + p.f * 0.3 }));
   }
   /* 描く負担：初めは棟ごとに胴と頭を分けて、毎こま56人の向きを計算し直していたら、スマホ相当（CPU 1/4）の町の画面が約88→74FPSに落ちた。
      そこで、体の揺れは描く側（頂点の計算）で時刻から決め（毎こまの計算と送り直しをなくす）、胴は町会の色ごと、頭は全員で一つにまとめた（描く回数8→3）。
-     並べ直すのは、出す・隠す・寄っていく（担ぎ始め）が替わるときだけ */
+     段ごとに部品を分け、出ている段の部品だけを描く。並べ直すのは、出す・隠す・寄っていく（担ぎ始め）が替わるときだけ */
   const WAIT_T = { value: 0 };
   /* aWait：揺れの位相と速さ。左右にゆっくり（0.55回／秒）体を揺らし、少し前後に傾き、ときどき小さく弾む。足元を軸に回す */
   function waitSway(sh) {
@@ -3903,20 +4060,28 @@ function start(DATA, isAsakusa) {
     m.frustumCulled = false; m.visible = false; m.count = n; scene.add(m); waitMeshes.push(m);
     return m;
   }
-  function setupWaiting() {
+  /* 段 st の担ぎ手を用意する。1段目は町が出たときに、2〜4段目は町の画面が出てから少しずつ（置き場所を探す手間を分ける） */
+  let headMatW = null;
+  const waitBodyMats = new Map();
+  function setupWaiting(st) {
     const t0 = performance.now(), list = [];
     /* team は色そのもの（HANTEN には同じ色が何度も入っているので、番号ではなく色でまとめる） */
-    for (const r of reachGlow) { const spots = waitSpots(r.b); if (spots.length) list.push({ b: r.b, spots, team: HANTEN[teamOf(r.b)] }); }
+    for (const r of reachGlow) if (r.st === st) { const spots = waitSpots(r.b, WAIT_NS[st]); if (spots.length) list.push({ b: r.b, st, spots, team: HANTEN[teamOf(r.b)] }); }
+    waitCrews.ms = (waitCrews.ms || 0) + Math.round(performance.now() - t0);   /* 置き場所を探すのにかかった時間（確かめ用） */
     if (!list.length) return;
-    const headMat = bandMat.clone(); headMat.onBeforeCompile = waitSway;
-    const head = waitMesh(headGeo, headMat, list.reduce((a, w) => a + w.spots.length, 0));
+    if (!headMatW) { headMatW = bandMat.clone(); headMatW.onBeforeCompile = waitSway; }
+    const head = waitMesh(headGeo, headMatW, list.reduce((a, w) => a + w.spots.length, 0));
     const bodies = new Map();
     let hi = 0;
     for (const w of list) {
       let B = bodies.get(w.team);
       if (!B) {
-        const mat = hapMat.clone(); mat.map = mat.emissiveMap = hantenTex(w.team, '三社'); mat.onBeforeCompile = waitSway;
-        if (NIGHT) NT.glowMats.push({ m: mat, k: 0.25 });   /* 夜は担ぎ手と同じだけ半纏を光らせる */
+        let mat = waitBodyMats.get(w.team);
+        if (!mat) {
+          mat = hapMat.clone(); mat.map = mat.emissiveMap = hantenTex(w.team, '三社'); mat.onBeforeCompile = waitSway;
+          if (NIGHT) NT.glowMats.push({ m: mat, k: 0.25 });   /* 夜は担ぎ手と同じだけ半纏を光らせる */
+          waitBodyMats.set(w.team, mat);
+        }
         B = { mat, n: 0, ws: [] }; bodies.set(w.team, B);
       }
       w.bodyStart = B.n; B.n += w.spots.length; B.ws.push(w);
@@ -3932,7 +4097,6 @@ function start(DATA, isAsakusa) {
       w.head.geometry.attributes.aWait.setXY(w.headStart + i, p.ph, p.sp);
     });
     waitCrews.push(...list);
-    waitCrews.ms = Math.round(performance.now() - t0);   /* 置き場所を探すのにかかった時間（確かめ用） */
   }
   /* 棟 w の担ぎ手を並べる。e：建物へ寄っていく割合（0〜1）。hide なら大きさ0にして隠す */
   function waitPlace(w, e, hide) {
@@ -3948,15 +4112,15 @@ function start(DATA, isAsakusa) {
   function updateWaiting(t) {
     if (!waitCrews.length) return;
     WAIT_T.value = (t / 1000) % 3600;
-    const show = mode === 'pick' && !TS && !guideOff;
+    const show = mode === 'pick' && !TS;
     for (const w of waitCrews) {
-      /* 選んだ建物の担ぎ手は、運び出しの初め（担ぎ手が集まりきるまで）だけ、建物へ寄りながら残る */
+      /* 選んだ建物の担ぎ手は、運び出しの初め（担ぎ手が集まりきるまで）だけ、建物へ寄りながら残る（今の段の建物のときだけ） */
       let walk = -1;
-      if (mode === 'carry' && S.intro && S.b === w.b && !guideOff) {
+      if (mode === 'carry' && S.intro && S.b === w.b && w.st === stage) {
         const I = S.intro, el = performance.now() - I.t0, until = I.shrink + I.dur * 0.32;
         if (el < until) walk = Math.min(1, el / until);
       }
-      const st = walk >= 0 ? 'walk' : show && !flatState.get(w.b) ? 'show' : 'hide';
+      const st = walk >= 0 ? 'walk' : show && w.st === stage && !flatState.get(w.b) ? 'show' : 'hide';
       if (st === w.state && st !== 'walk') continue;
       w.state = st;
       waitPlace(w, walk > 0 ? walk * walk * (3 - 2 * walk) : 0, st === 'hide');
@@ -3967,7 +4131,7 @@ function start(DATA, isAsakusa) {
   function sizeTags() {
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1);
     /* 題字の画面の間は、札を一つも出さない（字は題字と「触ってはじめる」だけ） */
-    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && (mode === 'pick' || !!sp.userData.always); }
+    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && !HB.on && (mode === 'pick' || !!sp.userData.always); }
     /* つかえたときの札とボタン（上のまん中）に重なる札（「ゴール：浅草神社でお祓い」など）は、その間だけ隠す。
        前はボタンの間に札が半分隠れて挟まり、ごちゃついて見えた（直す係 第2回・2-3） */
     if (mode !== 'carry' || !document.body.classList.contains('stuck')) return;
@@ -4049,8 +4213,6 @@ function start(DATA, isAsakusa) {
     record();
     const b = S.b, w = S.weight;
     S.done = { phase: 'harai', t0: performance.now(), gl }; SND.setScene('harai');
-    /* 一度お祓いまで済んだら、町の画面に戻っても、光る4棟と待っている担ぎ手は出さない（このページを開いている間だけ。updateReach・updateWaiting） */
-    guideOff = true;
     const d = loadDone();
     // 記録は担いだ大きさで（同じ建物は、大きく担いだ方、同じ大きさなら道のりの短い方を残す）。数は、どの大きさで着いても1棟と数える
     const o = d[b.id], ton = Math.round(w.ton * 100) / 100;
@@ -4078,18 +4240,34 @@ function start(DATA, isAsakusa) {
     /* お祓い：少し静かに（5.9秒。最初は1.6秒、拍子木→一本締め→大麻の音の流れで8.0秒にした後、大麻を外して詰めた。音は SND の haraiSfx。10/23）
        待たせないように、「飛ばす ▶」・スペース・↑（進む）で魂振りへ進める（D.skipH）。その間カメラはゆっくり回る（camOrbit） */
     if (D.phase === 'harai') {
-      if (el > 5900 || D.skipH) { D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; $('skip').style.display = 'none'; SND.setScene('tamafuri'); }
+      if (el > 5900 || D.skipH) {
+        D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; $('skip').style.display = 'none'; SND.setScene('tamafuri');
+        /* お祓いが済んだ：今の段の光る建物なら、次の段へ（段取りの案内） */
+        stageDone(b);
+      }
       return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
     if (D.phase === 'tamafuri') {                    // 魂振り：大きく揺らす（2.4秒）
       const k = Math.sin(Math.min(1, el / 2400) * Math.PI);
       if (el > D.beat * 400) { D.beat++; SND.bigTaiko(); }
       if (el > 2400) {
-        D.phase = 'back'; D.t0 = now; $('doneTitle').textContent = '元の場所へ'; /* 本人（10/19）「町へ戻るは変。町じゃないやつもいる」 */ $('doneInfo').style.display = 'none'; SND.setScene('back');
-        D.rec = S.rec.slice().reverse(); D.T = D.rec.length ? D.rec[0].t : 0;
-        $('skip').style.display = 'block';
+        /* 難しい建物を実物大で運んできたときは、帰り道の前に浅草神社の上で花火（hanabiTier）。ほかは今までどおり帰り道へ */
+        const tier = hanabiTier(b);
+        /* 曲は先に帰り道の場面にしてから、その拍を拾って打ち上げの時刻を決める */
+        if (tier) SND.setScene('back');
+        if (tier && hanabiStart(tier, S.weight.ton)) {
+          D.phase = 'hanabi'; D.t0 = now; D.tier = tier;
+          /* 花火の間は、上の札（お祓いの数字）を消して空をあける */
+          $('done').classList.remove('on'); $('doneInfo').style.display = 'none';
+          $('skip').style.display = 'block';
+        } else toBack(now);
       }
       return { px: S.x, py: S.y, ori: S.head + S.rot + Math.sin(el / 90) * 0.12 * k, lift: 1, shake: k, bob: Math.abs(Math.sin(el / 120)) * 1.6 * k, roll: Math.sin(el / 150) * 0.12 * k };
+    }
+    /* 花火（8〜12秒）。「飛ばす ▶」・スペース・↑（進む）で帰り道へ（D.skipF） */
+    if (D.phase === 'hanabi') {
+      if (D.skipF || hanabiOver()) { hanabiStop(!!D.skipF); toBack(now); $('done').classList.add('on'); }
+      return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
     if (D.phase === 'back') {                        // 来た道を、記録の逆再生で1.5倍速
       const tt = D.T - (el * 1.5);
@@ -4139,6 +4317,13 @@ function start(DATA, isAsakusa) {
     }
     return null;
   }
+  /* 帰り道へ（魂振りのあと。花火があったときは花火のあと） */
+  function toBack(now) {
+    const D = S.done;
+    D.phase = 'back'; D.t0 = now; $('doneTitle').textContent = '元の場所へ'; /* 本人（10/19）「町へ戻るは変。町じゃないやつもいる」 */ $('doneInfo').style.display = 'none'; SND.setScene('back');
+    D.rec = S.rec.slice().reverse(); D.T = D.rec.length ? D.rec[0].t : 0;
+    $('skip').style.display = 'block';
+  }
   // 縮めて担いだ建物が、下ろしてから元の大きさに戻るまでの待ちと、戻る時間
   const GROW_WAIT = 300, GROW_MS = 900;
   function finishDone() {
@@ -4154,6 +4339,272 @@ function start(DATA, isAsakusa) {
     enterPick(); Object.assign(mapCam, HOME);
     opening = { t0: null, dur: 2400, fromPos: from.pos, fromLook: from.look };
     refreshDoneMarks();
+  }
+
+  // ---------- 花火（本人の決定 10/25）：難しい建物を実物大で浅草神社まで運び、お祓い（一本締め→魂振り）が済んだら、浅草神社の上の夜空に上げる ----------
+  /* 上げる条件（hanabiTier）：実物大（縮めていない）で着いたときだけ。夜の版だけ（昼の空では加算の光が見えない）。
+       ・4段目（挑戦）の光る建物は、必ず上げる
+       ・ほかの建物は、4段目と同じくらい重く難しいもの：難しさ（data/difficulty.js の★。実物大での難しさ）が★2なら重さ1,500トン以上
+         （4段目でいちばん軽いタワーマンション2,542トンの6割）、★3（かなり難しい）なら1,000トン以上。★1（楽に着ける）は重くても上げない（五重塔は約2,070トンあるが★1）
+         ★3だけを条件にすると、★3は「道のりが500m以上」だけでも付くので、実物大で着ける1,035棟の6割近く（584棟）の小さな家でも上がってしまった。
+         ★4・★5（実物大ではまず着けない）も条件にしなかった：雷門と仲見世の通り抜けを足した後に着けるようになった仲見世の小さな店6棟が、古い★5のまま残っているため
+       数え直しの結果で数えると、実物大で着ける1,035棟のうち上がるのは33棟（4段目の3棟を含む）。1・2段目の光る建物では上がらない。
+         3段目の本堂と二天門の北東のビルは重い★4・★5なので、もし実物大のまま着けたら上がる（半分に縮めて着けたときは上がらない）
+     大きさの段（重い建物ほど大きく・多く）：
+       小（2,000トン未満）：8秒ほど、7発。菊と牡丹
+       中（2,000〜2,500トン）：10秒ほど、12発ほど。千輪（小さな玉がまとまって咲く）と、最後に三つ同時
+       大（2,500トン以上。4段目の3棟はみなここ）：12秒ほど、17〜21発。大玉（芯入りの二重の菊）、スターマイン、しだれ柳（隅田川の花火大会の締めの形）。重いほどスターマインの発数が増える
+     見た目：粒は、提灯の光と同じ加算合成の点（Points ひとつ。描く回数は1）。粒の動きは、割れた時刻からの式（空気の抵抗と重さ）で描く側（頂点の計算）が決めるので、
+       毎こまの計算と送り直しはない（花火を始めるときに一度だけ全部の粒を送る）。尾は、同じ粒を少し前の時刻で描いて作る。
+       同時に出る粒は、尾も数えて多くて2,500ほど（スマホで重くしない）。
+     音と拍：打ち上げ（ヒュ〜）も割れる時（ドーン）も、曲（A1）の拍にそろえる（SND.fwGrid＝nextBeat）。見た目の時計は、耳に届いている音の時刻（SND.fwClock）
+     カメラ：花火の間は、浅草神社の北西（境内の広場）から、浅草神社と神輿ごしに南東（二天門の上、その先は隅田川の花火大会の第二会場の方）を見上げる所まで引く。
+       南西からも試したが、神輿（高い建物）が浅草神社をすっかり隠した。北西からだと、提灯の輪に囲まれた浅草神社が手前に、神輿がその奥に見える。
+       終わったら（飛ばしても）今と同じく帰り道へ */
+  const HB = { on: false, pts: null, mat: null, list: [], end: 0, T0: 0, clk: null, cam: null, flash: 0, bursts: [], sndQ: [] };
+  function hanabiTier(b) {
+    if (!NIGHT || !b || S.k < 0.999) return 0;
+    const st = DIFF[String(b.id).slice(5, 13)] || 0, ton = S.weight ? S.weight.ton : 0, chal = stageOf.get(b) === STAGE_LAST;
+    if (!(chal || (st >= 3 && ton >= 1000) || (st >= 2 && ton >= 1500))) return 0;
+    return chal || ton >= 2500 ? 3 : ton >= 2000 ? 2 : 1;
+  }
+  /* 色（和火の金・赤・緑・青・紫・銀・桃・橙）。[割れた時の色, 消える前の色] */
+  const FWC = {
+    kin: [0xffd890, 0xff9a3a], aka: [0xff6a50, 0xff2a1a], mido: [0x9aff8a, 0x3adf5a], ao: [0x8ac8ff, 0x3a7aff], mura: [0xe0a0ff, 0xa04aff],
+    gin: [0xffffff, 0xc8d8ff], momo: [0xffb0e0, 0xff5ab0], dai: [0xffc070, 0xff6a1a],
+  };
+  /* 打ち上げの順番（8分の何拍目に打ち上げるか、何拍で割れるか、玉の種類、横の位置 -1〜1、高さ m、半径 m、色）。重さ ton で発数を足す */
+  function hanabiPlan(tier, ton) {
+    const P = [];
+    const add = (e8, rise8, kind, x, h, r, c, c2) => P.push({ e8, rise8, kind, x, h, r, c, c2 });
+    if (tier === 1) {
+      add(0, 4, 'kiku', -0.2, 115, 40, 'kin', 'aka'); add(4, 4, 'botan', 0.35, 105, 34, 'aka');
+      add(8, 4, 'kiku', 0.05, 125, 42, 'gin', 'ao'); add(11, 4, 'botan', -0.45, 100, 32, 'mido');
+      add(14, 4, 'kiku', 0.4, 118, 40, 'kin', 'mido'); add(18, 4, 'botan', -0.3, 110, 34, 'ao'); add(18, 4, 'botan', 0.3, 112, 34, 'momo');
+    } else if (tier === 2) {
+      add(0, 4, 'kiku', 0, 130, 46, 'kin', 'aka'); add(3, 4, 'botan', -0.45, 112, 36, 'aka'); add(6, 4, 'kiku', 0.4, 125, 44, 'gin', 'mido');
+      add(8, 4, 'senrin', -0.1, 120, 30, 'momo'); add(11, 4, 'botan', 0.3, 108, 34, 'ao'); add(11, 4, 'botan', -0.3, 110, 34, 'mido');
+      add(14, 4, 'kiku', -0.4, 132, 46, 'kin', 'mura'); add(16, 4, 'senrin', 0.35, 118, 30, 'kin'); add(18, 4, 'kiku', 0.1, 128, 44, 'aka', 'kin');
+      add(21, 5, 'kiku', -0.45, 136, 48, 'gin', 'ao'); add(21, 5, 'kiku', 0.45, 136, 48, 'kin', 'aka'); add(22, 5, 'botan', 0, 150, 52, 'momo');
+    } else {
+      /* 大：はじめ（菊を3発）→大玉→スターマイン（8分ごとに低く小さく）→しだれ柳2発→千輪→締め（しだれ柳3発と大玉） */
+      add(0, 4, 'kiku', -0.35, 125, 44, 'kin', 'aka'); add(2, 4, 'kiku', 0.35, 128, 44, 'gin', 'ao'); add(4, 4, 'botan', 0, 118, 38, 'aka');
+      add(6, 6, 'dai', 0.05, 140, 76, 'dai', 'kin');
+      const sm = ['aka', 'mido', 'ao', 'kin', 'momo', 'mura', 'gin', 'aka', 'mido', 'kin'], nSm = Math.min(10, 6 + Math.floor(Math.max(0, ton - 2500) / 300));
+      for (let i = 0; i < nSm; i++) add(12 + i, 3, i % 3 === 2 ? 'kiku' : 'botan', ((i * 0.62) % 1.6) - 0.8, 78 + (i % 4) * 9, 22 + (i % 3) * 4, sm[i % sm.length], 'kin');
+      add(19, 6, 'yanagi', -0.5, 135, 54, 'kin'); add(20, 6, 'yanagi', 0.5, 135, 54, 'kin');
+      add(23, 4, 'senrin', 0, 125, 34, 'momo');
+      add(26, 6, 'yanagi', -0.7, 138, 58, 'kin'); add(26, 6, 'yanagi', 0.7, 138, 58, 'kin'); add(27, 6, 'yanagi', 0, 142, 60, 'kin');
+      add(26, 7, 'dai', 0, 150, 88, 'dai', 'gin');
+    }
+    return P;
+  }
+  /* 粒の描き方：割れた所 position・初めの速さ aVel・時刻 aTim（割れた時刻, 出る, 消える, 尾の遅れ）・色 aC1→aC2・aPar（空気の抵抗, 重さ, 大きさ m, 明るさ）・aFl（ちらつき） */
+  const HB_VS = [
+    'attribute vec3 aVel; attribute vec4 aTim; attribute vec3 aC1; attribute vec3 aC2; attribute vec4 aPar; attribute float aFl;',
+    'uniform float uT; uniform float uScale;',
+    'varying vec3 vC; varying float vA; varying float vK;',
+    'void main() {',
+    '  float age = uT - aTim.x - aTim.w;',
+    '  if (age < aTim.y || age > aTim.z) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vK = 0.0; vC = vec3(0.0); return; }',
+    '  float k = aPar.x, e = exp(-k * age);',
+    '  vec3 p = position + aVel * (1.0 - e) / k - vec3(0.0, aPar.y, 0.0) * (age / k - (1.0 - e) / (k * k));',
+    '  float q = (age - aTim.y) / max(0.001, aTim.z - aTim.y);',
+    '  vC = mix(aC1, aC2, smoothstep(0.2, 0.85, q));',
+    '  float born = aFl < 0.0 ? 1.0 : smoothstep(0.0, 0.22, age - aTim.y);',
+    '  float a = born * born * (1.0 - smoothstep(0.55, 1.0, q)) * aPar.w;',
+    '  if (aFl > 0.0) a *= mix(1.0, step(0.5, fract(sin(aFl * 91.7 + floor(age * 22.0) * 7.31) * 4375.85)), smoothstep(0.35, 0.6, q));',
+    '  vA = a; vK = aFl < 0.0 ? 0.0 : 1.0;',
+    '  vC = mix(vec3(1.0, 0.95, 0.85), vC, smoothstep(0.0, 0.25, age - aTim.y));',
+    '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+    '  gl_Position = projectionMatrix * mv;',
+    '  gl_PointSize = clamp(aPar.z * mix(1.0, 0.55, q) * mix(0.35, 1.0, born) * uScale / max(1.0, -mv.z), 1.0, 220.0);',
+    '}'].join('\n');
+  /* 粒の形：提灯の光と同じく、まん中が白っぽく、まわりへ色がにじむ丸 */
+  const HB_FS = [
+    'varying vec3 vC; varying float vA; varying float vK;',
+    'void main() {',
+    '  vec2 c = gl_PointCoord - 0.5; float d = length(c) * 2.0;',
+    '  if (d > 1.0) discard;',
+    '  float halo = exp(-d * d * 2.4) - 0.09, core = exp(-d * d * 18.0) * vK;',
+    '  gl_FragColor = vec4(mix(vC, vec3(1.0, 0.97, 0.9), core * 0.6) * (max(0.0, halo) + core * 1.5), vA);',
+    '}'].join('\n');
+  /* 一つの玉の粒を作る。o：割れた所（three の座標）、tb：割れた時刻（花火の時計） */
+  function hbShell(A, q, o, tb) {
+    const C1 = new THREE.Color(FWC[q.c][0]), C2 = new THREE.Color(FWC[q.c2 || q.c][1]);
+    const push = (pos, vel, t0, on, off, lag, c1, c2, k, g, size, br, fl) => {
+      A.pos.push(pos.x, pos.y, pos.z); A.vel.push(vel.x, vel.y, vel.z); A.tim.push(t0, on, off, lag);
+      A.c1.push(c1.r, c1.g, c1.b); A.c2.push(c2.r, c2.g, c2.b); A.par.push(k, g, size, br); A.fl.push(fl);
+    };
+    /* 球の上に、ほぼ均等に向きを散らす（フィボナッチ球に少しの揺らぎ） */
+    const sphere = (n, f) => { const out = []; for (let i = 0; i < n; i++) { const y = 1 - 2 * (i + 0.5) / n, rr = Math.sqrt(1 - y * y), th = i * 2.39996 + f; out.push(new THREE.Vector3(Math.cos(th) * rr, y, Math.sin(th) * rr)); } return out; };
+    const star = (n, R, k, g, life, size, trail, lagStep, c1, c2, br, flk, f) => {
+      for (const d of sphere(n, f || Math.random() * 6)) {
+        const v = d.clone().multiplyScalar(R * k * (0.92 + Math.random() * 0.16));
+        const fl = flk ? Math.random() * 10 + 0.1 : 0;
+        for (let j = 0; j < trail; j++) push(o, v, tb, 0, life * (0.9 + Math.random() * 0.2), j * lagStep, c1, c2, k, g, size * (1 - j / (trail + 1) * 0.75), br * (1 - j / (trail + 0.5)), fl);
+      }
+    };
+    /* 割れた瞬間の光：芯のない、柔らかく広い光を一瞬だけ（aFl を −1 にすると芯を描かない） */
+    const flash = (size, life, c) => push(o, new THREE.Vector3(0, 0.001, 0), tb, 0, life, 0, c, c, 1, 0, size, 0.35, -1);
+    const W = new THREE.Color(0xfff2d8);
+    if (q.kind === 'kiku') { star(110, q.r, 1.6, 6, 2.3, 3.4, 6, 0.035, C1, C2, 1, false); flash(q.r * 0.7, 0.1, W); }
+    else if (q.kind === 'botan') { star(100, q.r, 1.8, 5, 1.9, 4.0, 2, 0.02, C1, C2, 1.1, true); flash(q.r * 0.7, 0.1, W); }
+    else if (q.kind === 'senrin') {
+      /* 千輪：割れたあと小さな玉が散って、0.5秒ほどあとに一斉に小さく咲く */
+      for (let i = 0; i < 6; i++) {
+        const th = i / 6 * Math.PI * 2 + Math.random() * 0.4, sub = new THREE.Vector3(o.x + Math.cos(th) * q.r * 0.9, o.y + (Math.random() - 0.4) * q.r * 0.6, o.z + Math.sin(th) * q.r * 0.9);
+        const sv = new THREE.Vector3(0, 0, 0), tt = tb + 0.45 + Math.random() * 0.25;
+        for (const d of sphere(28, Math.random() * 6)) { const v = d.multiplyScalar(14 * 2.2); push(sub, v, tt, 0, 1.1, 0, C1, C2, 2.2, 4, 3.0, 1.1, Math.random() * 10 + 0.1); }
+        push(o, sub.clone().sub(o).multiplyScalar(2.2 / (1 - Math.exp(-2.2 * (tt - tb)))), tb, 0, tt - tb, 0, W, C1, 2.2, 0, 2.0, 0.8, 0);
+        push(sub, sv, tt, 0, 0.1, 0, W, W, 1, 0, 16, 0.6, -1);
+      }
+      flash(q.r * 1.0, 0.12, W);
+    } else if (q.kind === 'dai') {
+      /* 大玉：芯入りの二重の菊（外は金の尾、芯は別の色）。割れた光も大きく */
+      star(210, q.r, 0.95, 7, 3.4, 5.0, 6, 0.06, C1, C2, 1.15, false);
+      star(80, q.r * 0.45, 1.2, 5, 2.8, 4.2, 3, 0.04, new THREE.Color(FWC.gin[0]), new THREE.Color(FWC.ao[1]), 1, true);
+      flash(q.r * 0.9, 0.12, W);
+    } else if (q.kind === 'yanagi') {
+      /* しだれ柳：金の尾を長く引いて、ゆっくり垂れながら消える */
+      star(76, q.r * 0.75, 1.6, 22, 4.0, 3.0, 9, 0.12, C1, new THREE.Color(0xff8a2a), 0.85, true);
+      flash(q.r * 0.7, 0.1, W);
+    }
+  }
+  /* 打ち上げの玉（上がっていく光と短い尾）。o0：打ち上げる所、o：割れる所、tl→tb。
+     上でゆっくりになると尾の粒が一つに重なって白い丸に見えたので、減速は弱く（空気の抵抗0.3）、粒は小さく暗めにした */
+  function hbRise(A, o0, o, tl, tb) {
+    const T = Math.max(0.3, tb - tl), k = 0.3, v = o.clone().sub(o0).multiplyScalar(k / (1 - Math.exp(-k * T)));
+    const c = new THREE.Color(0xffb070), c2 = new THREE.Color(0xff8040);
+    /* 頭は少し大きく明るく、尾は細かく（0.025秒おきに10粒）つなげて線に見せる */
+    for (let j = 0; j < 10; j++) {
+      A.pos.push(o0.x, o0.y, o0.z); A.vel.push(v.x, v.y, v.z); A.tim.push(tl, 0, T, j * 0.025);
+      A.c1.push(c.r, c.g, c.b); A.c2.push(c2.r, c2.g, c2.b); A.par.push(k, 0, (j ? 1.3 : 2.0) * (1 - j * 0.07), (j ? 0.5 : 0.9) * (1 - j * 0.085)); A.fl.push(0);
+    }
+  }
+  /* 花火を始める。打ち上げの時刻を曲の拍に合わせて決め、粒を全部作って一度だけ送り、音をまとめて予約する。始められたら true */
+  function hanabiStart(tier, ton) {
+    const tm0 = performance.now();
+    hanabiStop(true);
+    const plan = hanabiPlan(tier, ton);
+    if (!plan.length) return false;
+    /* 時計：音が出ていれば耳に届いている音の時刻、出ていなければ performance.now() */
+    const ac = SND.fwClock();
+    HB.clk = ac === null ? null : 'audio';
+    const now = ac === null ? performance.now() / 1000 : ac;
+    /* 8分の格子を、曲から順に拾う（曲が無ければ 112BPM の8分） */
+    const e8s = [];
+    let t = (ac !== null && SND.fwGrid(now + 0.35, 2)) || now + 0.35;
+    const maxE = plan.reduce((m, q) => Math.max(m, q.e8 + q.rise8), 0) + 1;
+    for (let i = 0; i <= maxE; i++) {
+      e8s.push(t);
+      const nt = ac !== null ? SND.fwGrid(t + 0.01, 2) : null;
+      t = nt !== null && nt > t ? nt : t + 60 / 112 / 2;
+    }
+    HB.T0 = e8s[0];
+    /* 音の時計が止まったとき（スマホで音が中断されたときなど）は、performance.now() で続ける。そのための、始めたときの両方の時計 */
+    HB.a0 = now; HB.p0 = performance.now() / 1000;
+    /* 花火の真ん中：ゴール（浅草神社の前）から南東へ。カメラは北西から見上げる。横の向き（sx, sy）は画面の右 */
+    const g = goals[0], por = innerWidth < innerHeight;
+    const az = -55 * Math.PI / 180, ux = Math.cos(az), uy = Math.sin(az), sx = Math.sin(az), sy = -Math.cos(az);
+    const cxF = g.x + ux * 95, cyF = g.y + uy * 95, spread = por ? 55 : 120;
+    const A = { pos: [], vel: [], tim: [], c1: [], c2: [], par: [], fl: [] };
+    const snd = [];
+    HB.bursts = [];
+    let end = 0;
+    for (const q of plan) {
+      const tl = e8s[q.e8], tb = e8s[q.e8 + q.rise8];
+      const jx = (Math.random() - 0.5) * 16, jd = (Math.random() - 0.5) * 50;
+      const x = cxF + sx * (q.x * spread + jx) + ux * jd, y = cyF + sy * (q.x * spread + jx) + uy * jd;
+      const r = q.r * (por ? 0.8 : 1);
+      const o = V(x, y, q.h), o0 = V(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 6, 2);
+      hbRise(A, o0, o, tl - HB.T0, tb - HB.T0);
+      hbShell(A, Object.assign({}, q, { r }), o, tb - HB.T0);
+      const s = q.kind === 'dai' ? 1.5 : q.kind === 'yanagi' ? 1.1 : q.kind === 'senrin' ? 0.85 : 0.6 + 0.35 * Math.min(1, (q.r - 22) / 30);
+      const life = q.kind === 'yanagi' ? 3.8 : q.kind === 'dai' ? 3.2 : 2.4;
+      end = Math.max(end, tb - HB.T0 + life * 0.85);
+      /* 左右の向き（画面の右が＋）：横の位置から */
+      const pan = Math.max(-0.8, Math.min(0.8, q.x * 0.7));
+      snd.push({ launch: tl, burst: tb, s, pan, whistle: q.kind !== 'senrin' || Math.random() < 0.5, wk: q.kind === 'dai' ? 1 : 0.75, crk: q.kind === 'botan' ? 0.6 : q.kind === 'yanagi' ? 0.9 : q.kind === 'senrin' ? 1 : q.kind === 'dai' ? 1 : 0.7, len: q.kind === 'yanagi' ? 1.6 : 1 });
+      const col = new THREE.Color(FWC[q.c][0]);
+      HB.bursts.push({ t: tb - HB.T0, k: s, col });
+    }
+    HB.end = end;
+    const tm1 = performance.now();
+    /* 粒を一つの Points にまとめる */
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(A.pos, 3));
+    geo.setAttribute('aVel', new THREE.Float32BufferAttribute(A.vel, 3));
+    geo.setAttribute('aTim', new THREE.Float32BufferAttribute(A.tim, 4));
+    geo.setAttribute('aC1', new THREE.Float32BufferAttribute(A.c1, 3));
+    geo.setAttribute('aC2', new THREE.Float32BufferAttribute(A.c2, 3));
+    geo.setAttribute('aPar', new THREE.Float32BufferAttribute(A.par, 4));
+    geo.setAttribute('aFl', new THREE.Float32BufferAttribute(A.fl, 1));
+    hbMat();
+    const pts = new THREE.Points(geo, HB.mat);
+    pts.frustumCulled = false; pts.renderOrder = 4; pts.raycast = () => {};
+    scene.add(pts); HB.pts = pts; HB.n = A.fl.length;
+    HB.mat.uniforms.uT.value = -1;
+    /* カメラ：ゴールの北西から、花火の真ん中の上の方を見上げる（縦長の画面は少し遠くから） */
+    /* 北西の境内の上（高さ75m）から。手前に浅草神社と神輿、右に本堂、空の下の方に町。縦長の画面は少し遠く高く */
+    const D = por ? 330 : 260;
+    HB.cam = { pos: V(g.x - ux * D, g.y - uy * D, por ? 88 : 75), look: V(g.x + ux * 40, g.y + uy * 40, por ? 98 : 80) };
+    HB.on = true; HB.t0p = performance.now();
+    /* 照らす明かりの位置：浅草神社（ゴールの北30m）から、カメラの方へ22m、高さ18m */
+    HB.lampAt = V(g.x - ux * 22, g.y + 30 - uy * 22, 18);
+    document.body.classList.add('hanabi');
+    const tm2 = performance.now();
+    HB.sndQ = SND.fwPlay(snd) ? snd.slice().sort((a, b) => a.launch - b.launch) : [];
+    /* 確かめ用：始めるのにかかった時間（粒を作る・まとめる・音を予約する） */
+    HB.ms = [Math.round(tm1 - tm0), Math.round(tm2 - tm1), Math.round(performance.now() - tm2)];
+    return true;
+  }
+  function hbMat() {
+    if (!HB.mat) HB.mat = new THREE.ShaderMaterial({ uniforms: { uT: { value: -1 }, uScale: { value: 400 } }, vertexShader: HB_VS, fragmentShader: HB_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    return HB.mat;
+  }
+  /* 花火の描き方を、町が出たあと手のすいた時に一度だけ描いて作っておく（初めての花火のときに作ると、PCで0.3秒ほど止まった）。
+     粒は1つだけ、時計の外（出ない時刻）に置くので、画面には何も出ない */
+  function hanabiWarm() {
+    if (!NIGHT || HB.on) return;
+    const g = new THREE.BufferGeometry();
+    for (const [k, n] of [['position', 3], ['aVel', 3], ['aTim', 4], ['aC1', 3], ['aC2', 3], ['aPar', 4], ['aFl', 1]]) g.setAttribute(k, new THREE.Float32BufferAttribute(new Array(n).fill(0), n));
+    const p = new THREE.Points(g, hbMat()); p.frustumCulled = false; HB.mat.uniforms.uT.value = -1;
+    scene.add(p);
+    requestAnimationFrame(() => requestAnimationFrame(() => { scene.remove(p); g.dispose(); }));
+  }
+  /* いまの花火の時計（秒。始めた拍が0） */
+  function hbNow() {
+    if (HB.clk === 'audio') {
+      const a = SND.fwClock();
+      return a !== null ? a - HB.T0 : performance.now() / 1000 - HB.p0 + HB.a0 - HB.T0;
+    }
+    return performance.now() / 1000 - HB.T0;
+  }
+  /* 終わり：時計が最後の玉の消える時刻を過ぎたら。時計が進まなくなっても、始めてから（長さ＋4秒）で必ず終える */
+  function hanabiOver() { return !HB.on || hbNow() > HB.end || performance.now() - HB.t0p > (HB.end + 4) * 1000; }
+  function hanabiStop(fast) {
+    if (HB.pts) { scene.remove(HB.pts); HB.pts.geometry.dispose(); HB.pts = null; }
+    if (HB.on) SND.fwClose(fast);
+    HB.on = false; HB.flash = 0;
+    document.body.classList.remove('hanabi');
+  }
+  /* 毎こま：時計を進め、割れた光で町と空を少し照らす（夜の光の後に足す） */
+  function hanabiFrame() {
+    if (!HB.on || !HB.pts) return;
+    const t = hbNow();
+    /* 音は、打ち上げの0.6秒前になったら1発ずつ予約する */
+    while (HB.sndQ.length && HB.sndQ[0].launch - HB.T0 - t < 0.6) SND.fwOne(HB.sndQ.shift());
+    HB.mat.uniforms.uT.value = t;
+    /* 粒の大きさの係数：画面の高さ（描く画素）÷（2×tan(画角の半分)） */
+    HB.mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+    let f = 0; const c = new THREE.Color(0, 0, 0);
+    for (const B of HB.bursts) { const d = t - B.t; if (d < 0 || d > 0.6) continue; const w = B.k * Math.exp(-d / 0.14); f += w; c.r += B.col.r * w; c.g += B.col.g * w; c.b += B.col.b * w; }
+    HB.flash = Math.min(1, f);
+    if (f > 0.01) { hemi.intensity += 0.55 * HB.flash; hemi.color.lerp(c.multiplyScalar(1 / f), 0.5 * HB.flash); }
+    /* 神輿に付いて回る明かり（本物のライトはこれ一つ）を、花火の間は浅草神社のカメラ側の斜め上に移して、浅草神社と神輿の足元を照らす。
+       ライトを増やすと全部の材質の作り直しで止まるので、増やさない。割れた光でも少し明るくする */
+    if (NT.lamp && HB.lampAt) { NT.lamp.position.copy(HB.lampAt); NT.lamp.distance = 75; NT.lamp.intensity = 2.0 + 1.5 * HB.flash; NT.lamp.color.setHex(0xffb070); }
   }
 
   // ---------- 何をすればよいか：遊び方の札、ゴールまでの距離と矢印、次に押すものの合図 ----------
@@ -4885,13 +5336,18 @@ function start(DATA, isAsakusa) {
       if (!camFollow && !S.intro) { cx0 = camPan.x; cy0 = camPan.y; }   // 地図のようにドラッグで動かしている間は、神輿を追わない
       const back = V(cx0 + Math.cos(ca) * D * 0.8, cy0 + Math.sin(ca) * D * 0.8, D * 1.0 + vh * 0.25);
       const look = V(cx0 + Math.cos(S.head) * D * 0.15, cy0 + Math.sin(S.head) * D * 0.15, (vh + LIFT) * 0.55);
+      /* 花火の間は、浅草神社の南西から空を見上げる所へ、ゆっくり引く（HB.cam）。花火のあと帰り道に戻るときも、ゆっくり戻す */
+      const hbCam = S.done && S.done.phase === 'hanabi' && HB.cam;
+      if (hbCam) { back.copy(HB.cam.pos); look.copy(HB.cam.look); S.hbLeft = 0; }
+      else if (S.hbLeft === 0) S.hbLeft = t;
+      const slow = hbCam || (S.hbLeft && t - S.hbLeft < 2500);
       if (S.intro) {
         // 町の引きから、神輿の後ろへゆっくり寄る
         const q = Math.min(1, S.intro.p || 0), e = q * q * (3 - 2 * q);
         camPos.copy(S.intro.from.pos).lerp(back, e); camLook.copy(S.intro.from.look).lerp(look, e);
       } else {
         if (camSnap) { camPos.copy(back); camLook.copy(look); camSnap = false; }
-        const k = 1 - Math.pow(0.02, Math.min(0.5, (t - tPrev) / 1000));
+        const k = 1 - Math.pow(slow ? 0.25 : 0.02, Math.min(0.5, (t - tPrev) / 1000));
         camPos.lerp(back, k); camLook.lerp(look, k);
       }
       camera.position.copy(camPos); camera.lookAt(camLook);
@@ -4910,6 +5366,8 @@ function start(DATA, isAsakusa) {
     if (mode === 'carry' && t - lastMini > 200) { lastMini = t; drawMini(); }
     if (mode === 'carry' && t - lastGhost > 150) { lastGhost = t; camera.updateMatrixWorld(); updateGhosts(); }
     if (NIGHT) nightFrame(dt);
+    /* 花火の時計と、割れた光で照らす（夜の光を決めた後に足す） */
+    hanabiFrame();
     if (TS) titleLamp();
     renderer.render(scene, camera);
     // 雷門に近づいたら、左下の小窓に「門の前から見た提灯」を出す（畳まれるのが分かるように）
@@ -4929,7 +5387,10 @@ function start(DATA, isAsakusa) {
     if (document.body.classList.contains('gateOn') !== gateOn) document.body.classList.toggle('gateOn', gateOn);
     requestAnimationFrame(frame);
   }
-  setupWaiting();
+  /* 待つ担ぎ手：1段目は今すぐ。2〜4段目は町の画面が出てから、1段ずつ間をあけて用意する（置き場所を探す手間を分ける） */
+  setupWaiting(0);
+  [1, 2, 3].forEach((st, i) => setTimeout(() => setupWaiting(st), 1500 + i * 700));
+  setTimeout(hanabiWarm, 3600);
   enterPick();
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
@@ -4942,8 +5403,11 @@ function start(DATA, isAsakusa) {
     /* 題字の画面と「選んで感」の確かめ用 */
     title: () => TS ? { cut: TS.cut, cuts: CUTS.length, el: Math.round(performance.now() - TS.t0), ready: TS.ready, leaving: !!TS.leaving, demo: !!(TS.demo && TS.demo.root.visible) } : null,
     titleCut: i => { if (TS) titleCut(i, performance.now()); }, titleGo: () => titleGo(), titleEnd: () => titleEnd(false),
-    waiting: () => waitCrews.map(w => ({ id: w.b.id.slice(5, 13), n: w.spots.length, vis: w.state !== 'hide' && w.body.visible, x: +w.spots[0].x.toFixed(1), y: +w.spots[0].y.toFixed(1) })), waitMs: () => waitCrews.ms, guideOff: () => guideOff,
-    glow: () => reachGlow.map(r => ({ id: r.b.id.slice(5, 13), vis: r.g.visible, y: +r.g.position.y.toFixed(2) })) };
+    waiting: () => waitCrews.map(w => ({ id: w.b.id.slice(5, 13), st: w.st, n: w.spots.length, vis: w.state !== 'hide' && w.body.visible, x: +w.spots[0].x.toFixed(1), y: +w.spots[0].y.toFixed(1) })), waitMs: () => waitCrews.ms,
+    glow: () => reachGlow.map(r => ({ id: r.b.id.slice(5, 13), st: r.st, vis: r.g.visible, y: +r.g.position.y.toFixed(2) })),
+    /* 段取りの案内と花火の確かめ用 */
+    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, toBack, hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
+    hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }
 </script>
 </body>

@@ -2118,7 +2118,8 @@ function start(DATA, isAsakusa) {
      出す・隠すの判定が変わっても、変わったままで CREW_HOLD ミリ秒たってから替える（それより短い出入りは無視する） */
   const CREW_HOLD = 400;
   function fitCrew(px, py, ori, sp) {
-    const rot = S.rot || 0, key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2) + ',' + rot.toFixed(3);
+    /* rkSig：近くの人力車の位置（人力車が動けば、担ぎ手が立つ所も調べ直す） */
+    const rot = S.rot || 0, key = px.toFixed(2) + ',' + py.toFixed(2) + ',' + ori.toFixed(3) + ',' + sp.toFixed(2) + ',' + rot.toFixed(3) + rkSig;
     /* 替えるのを待っている担ぎ手がいる間は、止まっていても調べ続ける */
     if (S.fitKey === key && !S.crewWait) return;
     S.fitKey = key;
@@ -2134,9 +2135,12 @@ function start(DATA, isAsakusa) {
       S.crewRot = rot; tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1, 1, 1);
       for (let i = 0; i < n; i++) {
         const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
-        const m1 = crewBlocked(px + u * c - v * s, py + u * s + v * c) ? 0 : 1;
+        const wx = px + u * c - v * s, wy = py + u * s + v * c, rkb = rkCrewList.length > 0 && rkCrewBlock(wx, wy);
+        const m1 = rkb || crewBlocked(wx, wy) ? 0 : 1;
         if (fresh) { mask[i] = m1; continue; }
         if (m1 === mask[i]) { S.crewSince[i] = 0; continue; }
+        /* 人力車の所は待たずにすぐあける（担ぎ手が人力車に重ならない）。戻るときは今までどおり間を置く */
+        if (rkb) { mask[i] = 0; S.crewSince[i] = 0; changed = true; continue; }
         if (!S.crewSince[i]) S.crewSince[i] = now;
         if (now - S.crewSince[i] >= CREW_HOLD) { mask[i] = m1; S.crewSince[i] = 0; changed = true; }
         else wait++;
@@ -2156,7 +2160,8 @@ function start(DATA, isAsakusa) {
     const ends = new Map();
     for (const pm of poles.children) {
       const P = pm.userData.pole; if (!P) continue;
-      const free = t => { const u = P.ax === 'u' ? t : P.at, v = P.ax === 'u' ? P.at : t; return !crewBlocked(px + u * c - v * s, py + u * s + v * c); };
+      /* 人力車の所でも止める（逃げる途中の人力車に棒が刺さらないように） */
+      const free = t => { const u = P.ax === 'u' ? t : P.at, v = P.ax === 'u' ? P.at : t, wx = px + u * c - v * s, wy = py + u * s + v * c; return !crewBlocked(wx, wy) && !(rkCrewList.length > 0 && rkCrewBlock(wx, wy)); };
       let e0 = P.s0, e1 = P.s1;
       if (P.s0 === P.s1 && !free(P.s0)) { pm.visible = false; continue; }
       for (let t = P.s1 + 0.25; t <= P.a1 + 1e-6; t += 0.25) { if (!free(t)) break; e1 = t; }
@@ -2338,7 +2343,7 @@ function start(DATA, isAsakusa) {
     // 決めた大きさ（実物大・半分・神輿）に縮めて担ぐ。判定・重さ・担ぎ手は、はじめから縮めた大きさ。見た目だけ、運び出しの最初に縮んでいく
     const { cx, cy, a } = b.d;
     useShape(shapeFor(b, scaleOf(b, sizeMode)));
-    S.visK = 1; S.scaleAnim = null; S.slide = null;
+    S.visK = 1; S.scaleAnim = null; S.slide = null; S.vis = null;
     carryBody(b);
     const g = carryLook(b);
     scene.add(g); S.mesh = g;
@@ -3449,20 +3454,26 @@ function start(DATA, isAsakusa) {
         if (crowdSpots.length >= MAX_CROWD) break;
       }
     }
-    // 神輿の足元（＋少しのゆとり）に入る人は隠す
-    const ori = S.head + S.rot, c = Math.cos(ori), sn = Math.sin(ori), col = new THREE.Color();
+    crowdLayout();
+    let near = 0; for (const q of crowdSpots) if (Math.hypot(q.x - S.x, q.y - S.y) < 40) near++;
+    SND.setCrowd(near); SND.crowdLog();
+  }
+  /* 並べ直す：神輿の足元（＋少しのゆとり）に入る人と、人力車の所に立つ人は隠す（人力車が走るときは updateRickshaws から毎こま） */
+  const crowdCol = new THREE.Color();
+  function crowdLayout() {
+    if (!S.b || !S.dim) return;
+    const ori = S.head + S.rot, c = Math.cos(ori), sn = Math.sin(ori);
     const L2 = S.dim.L / 2 + 1.2, W2 = S.dim.W / 2 + 1.2;
     let n = 0;
     for (const p of crowdSpots) {
       const dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
       if (Math.abs(u) < L2 && Math.abs(v) < W2) continue;
+      if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
       tmpP.copy(V(p.x, p.y, 0)); tmpQ.setFromAxisAngle(upY, 0); tmpS.set(p.s, p.s, p.s);
       tmpM.compose(tmpP, tmpQ, tmpS); crowdBody.setMatrixAt(n, tmpM); crowdHead.setMatrixAt(n, tmpM);
-      crowdBody.setColorAt(n, col.setHex(p.c)); n++;
+      crowdBody.setColorAt(n, crowdCol.setHex(p.c)); n++;
     }
     crowdBody.count = crowdHead.count = n;
-    let near = 0; for (const q of crowdSpots) if (Math.hypot(q.x - S.x, q.y - S.y) < 40) near++;
-    SND.setCrowd(near); SND.crowdLog();
     crowdBody.instanceMatrix.needsUpdate = crowdHead.instanceMatrix.needsUpdate = true;
     if (crowdBody.instanceColor) crowdBody.instanceColor.needsUpdate = true;
   }
@@ -3521,7 +3532,7 @@ function start(DATA, isAsakusa) {
      全部の車を材質ごとに一つの InstancedMesh にまとめる（何台置いても、描く回数は車の6つと車夫の5つだけ）。
      車の座標：x＝前（梶棒の向き）、y＝上、z＝右。車軸は (0, RK_R, 0)。
      pose：'wait'＝客待ち（梶棒を地面に下ろして前に傾け、車夫は車の右に立って神輿の方を見る）、'ready'＝梶棒を持ち上げ、車夫が梶棒の間に立つ。
-     mode を 'running' にして path（道の上の点の列）を渡せば走らせられる（いまは使っていない） */
+     担いでいる建物が近づくと、車夫が梶棒を持ち上げて道に沿って逃げる（rkStep。10/25） */
   const RK_R = 0.52, RK_TILT = 0.36, RK_MAX = 24;
   /* 形をつなげて一つにする（位置と向きだけ。どれも頂点の番号なしの形にしてから渡す） */
   function mergeGeos(list) {
@@ -3540,7 +3551,8 @@ function start(DATA, isAsakusa) {
     for (const z of [-0.6, 0.6]) {
       put('lac', new THREE.TorusGeometry(0.49, 0.03, 5, 32), 0, RK_R, z);
       put('tire', new THREE.TorusGeometry(0.515, 0.021, 5, 32), 0, RK_R, z);
-      for (let i = 0; i < 16; i++) { const a = i * Math.PI * 2 / 16; box('spoke', Math.sin(a) * 0.265, RK_R + Math.cos(a) * 0.265, z, 0.018, 0.44, 0.022, 0, 0, -a); }
+      /* スポークだけは車軸を原点にして作り、走るときに車軸のまわりで回す（rkSpokeMatrix） */
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI * 2 / 16; box('spoke', Math.sin(a) * 0.265, Math.cos(a) * 0.265, z, 0.018, 0.44, 0.022, 0, 0, -a); }
       put('metal', new THREE.CylinderGeometry(0.06, 0.06, 0.17, 10), 0, RK_R, z, Math.PI / 2);
       put('lac', new THREE.CylinderGeometry(0.575, 0.575, 0.11, 14, 1, true, 0.55 * Math.PI, 0.85 * Math.PI), 0, RK_R, z * 1.01, Math.PI / 2);
     }
@@ -3587,35 +3599,316 @@ function start(DATA, isAsakusa) {
   };
   for (const k in DRV) { DRV[k].count = 0; DRV[k].frustumCulled = false; scene.add(DRV[k]); }
   const rickshaws = [];
-  const rkM = new THREE.Matrix4(), rkA = new THREE.Matrix4(), rkB = new THREE.Matrix4();
-  /* 車の行列：道の上の位置と向き。客待ちは車軸のまわりに前へ傾ける */
+  const rkM = new THREE.Matrix4(), rkA = new THREE.Matrix4(), rkB = new THREE.Matrix4(), rkS = new THREE.Matrix4(), rkZ = new THREE.Matrix4().makeScale(0, 0, 0);
+  /* 車の行列：道の上の位置と向き。客待ちは車軸のまわりに前へ傾ける（r.tilt：RK_TILT＝客待ち、0＝梶棒を持ち上げた形） */
   function rkCarMatrix(r, out) {
-    const p = V(r.x, r.y, 0);
-    out.makeRotationY(r.h).setPosition(p);
-    if (r.pose === 'wait') { rkA.makeTranslation(0, RK_R, 0); rkB.makeRotationZ(-RK_TILT); out.multiply(rkA).multiply(rkB); rkA.makeTranslation(0, -RK_R, 0); out.multiply(rkA); }
+    out.makeRotationY(r.h).setPosition(V(r.x, r.y, 0));
+    if (r.tilt > 1e-4) { rkA.makeTranslation(0, RK_R, 0); rkB.makeRotationZ(-r.tilt); out.multiply(rkA).multiply(rkB); rkA.makeTranslation(0, -RK_R, 0); out.multiply(rkA); }
     return out;
   }
+  /* スポーク：車の行列から車軸の高さへ上げ、走った道のりぶん回す */
+  function rkSpokeMatrix(r, car, out) { out.copy(car); rkA.makeTranslation(0, RK_R, 0); rkB.makeRotationZ(-r.spin); return out.multiply(rkA).multiply(rkB); }
+
+  /* ---------- 担いでいる建物から逃げる（本人 10/25「建物運び出すとき人力車とか潰していくのも（気になる）」） ----------
+     担いでいる建物（運び出しの最中も）の足元と担ぎ手の列に、これから通る所を足した範囲（RKT）に人力車がかかったら、
+     車夫が梶棒を持ち上げ、道に沿って建物から離れる方へ引いて走る（車輪が回る）。
+     画面の外に出たか、建物の陰に入ったら消す。消えた車は、元の場所も今の場所も見えず、担いでいる建物の通り道から離れているときに元の場所へ戻す。
+     運び出しは、通り道にかかる人力車が出るまで（最長3.5秒）道へ出るのを待つ（frame の S.intro）。担ぎ手は人力車の所をあける（fitCrew）。説明の字は出さない */
+  const RKT = { on: false, segs: [{}, {}], nseg: 0, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, ori: 0, c: 1, s: 0, hu: 0, hv: 0, bu: 0, bv: 0, top: 0, vx: 0, vy: 0, spd: 0, px: null, py: null, reach: 0 };
+  const RK_DEV = [0, 0.2, -0.2, 0.45, -0.45, 0.75, -0.75, 1.1, -1.1, 1.57, -1.57];
+  let rkFrameNo = 0, rkCamNo = -1, rkSig = '';
+  const rkCrewList = [], rkCrowdNear = [];
+  /* 毎こま：担いでいる建物の今の位置（前のこまの見た目の位置 S.vis）と、これから通る所 */
+  function rkThreat(dt) {
+    RKT.on = false;
+    if (!S.b || !S.dim || mode !== 'carry') { RKT.px = null; RKT.vx = RKT.vy = RKT.spd = 0; return; }
+    const I = S.intro, vs = S.vis;
+    const x = vs ? vs.x : I ? I.sx : S.x, y = vs ? vs.y : I ? I.sy : S.y, ori = vs ? vs.ori : I ? I.sori : S.head + S.rot, vk = vs ? vs.vk : 1;
+    if (RKT.px !== null && dt > 0) { const k = Math.min(1, dt * 5); RKT.vx += ((x - RKT.px) / dt - RKT.vx) * k; RKT.vy += ((y - RKT.py) / dt - RKT.vy) * k; }
+    RKT.px = x; RKT.py = y;
+    const L = Math.max(S.dim.L, S.b.d.L * vk), W = Math.max(S.dim.W, S.b.d.W * vk);
+    RKT.cx = x; RKT.cy = y; RKT.ori = ori; RKT.c = Math.cos(ori); RKT.s = Math.sin(ori);
+    /* 建物と台輪だけ（bu, bv）と、担ぎ手の列まで（hu, hv。列は足元から前後2.3m・左右1.7m） */
+    RKT.bu = L / 2 + 0.6; RKT.bv = W / 2 + 0.6; RKT.hu = L / 2 + 2.7; RKT.hv = W / 2 + 2.1;
+    RKT.top = LIFT + Math.max(S.dim.h, S.b.h * vk);
+    const hx = Math.cos(S.head), hy = Math.sin(S.head);
+    RKT.spd = Math.hypot(RKT.vx, RKT.vy);
+    /* 通り道は2本まで：{x0,y0}→{x1,y1}、向きは a0→a1（運び出しは、位置と向きが一緒に変わる） */
+    const seg = (k, x0, y0, x1, y1, a0, a1) => { const g = RKT.segs[k]; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.a0 = a0; g.da = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)); };
+    if (I) {
+      /* 運び出し：今の所から道の出発点まで（向きを回しながら）と、出発点の先10m */
+      const a1 = S.head + S.rot;
+      seg(0, x, y, S.x, S.y, ori, a1); seg(1, S.x, S.y, S.x + hx * 10, S.y + hy * 10, a1, a1); RKT.nseg = 2;
+      RKT.x0 = x; RKT.y0 = y; RKT.x1 = S.x + hx * 10; RKT.y1 = S.y + hy * 10;
+    } else {
+      /* 担いでいる間・帰り道：動いている向き（止まっていれば担ぐ向き）に、速さに合わせて先まで */
+      let dx = hx, dy = hy; if (RKT.spd > 1) { dx = RKT.vx / RKT.spd; dy = RKT.vy / RKT.spd; }
+      const ahead = 10 + RKT.spd * 1.6;
+      RKT.x0 = x - dx * 4; RKT.y0 = y - dy * 4; RKT.x1 = x + dx * ahead; RKT.y1 = y + dy * ahead;
+      seg(0, RKT.x0, RKT.y0, RKT.x1, RKT.y1, ori, ori); RKT.nseg = 1;
+    }
+    RKT.reach = Math.hypot(RKT.hu, RKT.hv) + Math.hypot(RKT.x1 - x, RKT.y1 - y) + 12;
+    RKT.on = true;
+  }
+  /* (x,y) が範囲（通り道に沿って2mおきに置いた、足元＋担ぎ手の列の箱）からどれだけ離れているか（中なら0）。
+     crew=false なら建物と台輪だけ。first：運び出しで道へ出るまでの1本目だけ */
+  function rkZone(x, y, crew, first) {
+    const hu = crew === false ? RKT.bu : RKT.hu, hv = crew === false ? RKT.bv : RKT.hv;
+    let best = Infinity;
+    for (let k = 0; k < (first ? 1 : RKT.nseg); k++) {
+      const g = RKT.segs[k], n = Math.max(1, Math.ceil(Math.hypot(g.x1 - g.x0, g.y1 - g.y0) / 2));
+      for (let i = 0; i <= n; i++) {
+        const f = i / n, a = g.a0 + g.da * f, c = Math.cos(a), s = Math.sin(a), dx = x - (g.x0 + (g.x1 - g.x0) * f), dy = y - (g.y0 + (g.y1 - g.y0) * f);
+        const u = Math.abs(dx * c + dy * s) - hu, v = Math.abs(-dx * s + dy * c) - hv, d = Math.hypot(Math.max(0, u), Math.max(0, v));
+        if (d < best) { best = d; if (d === 0) return 0; }
+      }
+    }
+    return best;
+  }
+  /* 車と車夫の足元の点（後ろ・真ん中・梶棒の先・車夫） */
+  function rkMinZone(r, first, x = r.x, y = r.y, h = r.h) {
+    const c = Math.cos(h), s = Math.sin(h);
+    let d = Math.min(rkZone(x - c * 0.85, y - s * 0.85, true, first), rkZone(x + c * 0.65, y + s * 0.65, true, first), rkZone(x + c * 2.1, y + s * 2.1, true, first));
+    if (r.dx !== undefined && x === r.x && y === r.y) d = Math.min(d, rkZone(r.dx, r.dy, true, first));
+    return d;
+  }
+  /* 運び出しで、道へ出る通り道にまだ人力車がかかっているか（frame の S.intro で、かかっている間は待つ） */
+  function rkBlocksIntro() {
+    if (!RKT.on || !S.intro) return false;
+    for (const r of rickshaws) if (!r.hidden && Math.hypot(r.x - RKT.cx, r.y - RKT.cy) < RKT.reach && rkMinZone(r, true) < 0.6) return true;
+    return false;
+  }
+  /* 走れる所：道の上で、建物・境内・仲見世・雷門の通り抜けにかからない（置き場所の決まりと同じ） */
+  const rkGX = raimonB ? raimonB.d.cx : 170, rkGY = raimonB ? raimonB.d.cy : -206;
+  const rkSeg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-9, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(px - ax - dx * t, py - ay - dy * t); };
+  const rkOk = (x, y) => { const i = idx(x, y); return i >= 0 && roadBase[i] === 1 && road[i] === 1 && !inKeidai(x, y) && rkSeg(x, y, rkGX, rkGY, 192, 62) > 12 && Math.hypot(x - rkGX, y - rkGY) > 14 && !bldAt(x, y, 0.5); };
+  /* 車が向き a で1m進めるか（車輪の幅と梶棒の先まで） */
+  const rkFree = (x, y, a) => { const c = Math.cos(a), s = Math.sin(a); return rkOk(x + c, y + s) && rkOk(x + c * 2.6, y + s * 2.6) && rkOk(x + c * 1.4 - s * 0.7, y + s * 1.4 + c * 0.7) && rkOk(x + c * 1.4 + s * 0.7, y + s * 1.4 - c * 0.7); };
+  /* 逃げ道：いくつかの向きへ、道に沿って1mずつ曲がりながら最長55m進めてみて、建物の範囲からいちばん離れて終わる道を選ぶ。
+     建物の下をくぐる道、初めのうちに建物へ近づく道、止まっているほかの人力車を通り抜ける道は選ばない */
+  function rkPlan(r) {
+    const d0 = Math.hypot(r.x - RKT.cx, r.y - RKT.cy), dirs = [r.h, r.h + Math.PI];
+    for (let k = 0; k < 8; k++) dirs.push(k * Math.PI / 4);
+    let best = null;
+    for (const a0 of dirs) {
+      const pts = [[r.x, r.y]];
+      let x = r.x, y = r.y, a = a0;
+      for (let st = 0; st < 55; st++) {
+        /* なるべくまっすぐ。少しずつ道の端（見物人が並ぶ所）から離れて道の中ほどへ寄る。まっすぐ進めないときだけ大きく曲がる */
+        let bs = -Infinity, bx = 0, by = 0, ba = 0;
+        for (let j = 0; j < RK_DEV.length; j++) {
+          if (j >= 3 && bs > -Infinity) break;
+          const dv = RK_DEV[j], na = a + dv, c = Math.cos(na), s = Math.sin(na);
+          if (!rkFree(x, y, na)) continue;
+          const sc = j < 3 ? -Math.abs(dv) * 0.8 + 1.5 * Math.min(1.8, run(x + c, y + s, na + Math.PI / 2, 6), run(x + c, y + s, na - Math.PI / 2, 6)) : 0;
+          if (sc > bs) { bs = sc; bx = x + c; by = y + s; ba = na; }
+          if (j >= 3) break;
+        }
+        if (bs === -Infinity) break;
+        x = bx; y = by; a = ba;
+        pts.push([x, y]);
+      }
+      if (pts.length < 5) continue;
+      /* 小さなぶれをならす（始まりと終わりはそのまま） */
+      for (let i = pts.length - 2; i >= 1; i--) pts[i] = [(pts[i - 1][0] + pts[i][0] * 2 + pts[i + 1][0]) / 4, (pts[i - 1][1] + pts[i][1] * 2 + pts[i + 1][1]) / 4];
+      let pen = 0;
+      for (let i = 1; i < Math.min(pts.length, 26); i++) {
+        const dx = pts[i][0] - RKT.cx, dy = pts[i][1] - RKT.cy;
+        if (Math.abs(dx * RKT.c + dy * RKT.s) < RKT.bu + 0.9 && Math.abs(-dx * RKT.s + dy * RKT.c) < RKT.bv + 0.9) { pen += 100; break; }
+        if (i < 12 && Math.hypot(dx, dy) < d0 - 1.5) { pen += 30; break; }
+      }
+      for (const o of rickshaws) {
+        if (o === r || o.hidden || o.mode === 'flee') continue;
+        const ox = o.x + Math.cos(o.h) * 0.65, oy = o.y + Math.sin(o.h) * 0.65;
+        for (let i = 1; i < Math.min(pts.length, 16); i++) if (Math.hypot(pts[i][0] - ox, pts[i][1] - oy) < 2.6) { pen += 25; break; }
+      }
+      const e = pts[pts.length - 1], turn = Math.abs(Math.atan2(Math.sin(a0 - r.h), Math.cos(a0 - r.h)));
+      const sc = Math.min(25, rkZone(e[0], e[1])) + pts.length * 0.15 - pen - turn * 1.2;
+      if (!best || sc > best.sc) best = { sc, pts };
+    }
+    return best && best.pts;
+  }
+  function rkGo(r, pts) {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    r.path = pts; r.cum = cum; r.s = 0; r.mode = 'flee'; r.away = true; r.stall = 0; r.pose = 'ready';
+  }
+  /* 道のり s の所の位置 */
+  function rkAt(r, s) {
+    const P = r.path, C = r.cum, L = C[C.length - 1];
+    if (s >= L) return P[P.length - 1];
+    let j = 1; while (j < C.length - 1 && C[j] < s) j++;
+    const f = (s - C[j - 1]) / Math.max(1e-6, C[j] - C[j - 1]);
+    return [P[j - 1][0] + (P[j][0] - P[j - 1][0]) * f, P[j - 1][1] + (P[j][1] - P[j - 1][1]) * f];
+  }
+  /* 見えているか：画面の中にあり、小さすぎず、カメラからの線が町の建物にも担いでいる建物にも遮られない点が一つでもあるか */
+  const rkFr = new THREE.Frustum(), rkPM = new THREE.Matrix4(), rkSph = new THREE.Sphere(new THREE.Vector3(), 2.4);
+  /* minPx：これより小さく映るものは見えないとみなす（町の画面へ引いていく途中は、動きに紛れるので少し大きくてよい） */
+  function rkSeen(x, y, h, minPx = 2.5) {
+    if (rkCamNo !== rkFrameNo) { rkCamNo = rkFrameNo; camera.updateMatrixWorld(); rkPM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); rkFr.setFromProjectionMatrix(rkPM); }
+    const c = Math.cos(h), s = Math.sin(h);
+    rkSph.center.copy(V(x + c * 0.65, y + s * 0.65, 1.0));
+    if (!rkFr.intersectsSphere(rkSph)) return false;
+    const d = camera.position.distanceTo(rkSph.center);
+    /* 長さ3.2mの車が、画面の上で2.5ドットより小さい */
+    if (3.2 / d * innerHeight / (2 * Math.tan(camera.fov * Math.PI / 360)) < minPx) return false;
+    for (const [u, z] of [[-0.8, 1.5], [0.65, 1.0], [2.1, 0.8], [0.65, 0.25], [1.72, 1.6]]) if (!rkBlocked(x + c * u, y + s * u, z)) return true;
+    return false;
+  }
+  function rkBlocked(x, y, z) {
+    const cp = camera.position, ex = cp.x, ey = -cp.z, ez = cp.y, dx = ex - x, dy = ey - y, dz = ez - z, len = Math.hypot(dx, dy, dz);
+    /* 町の建物：その点からカメラの方へ1mおきに90mまで */
+    const n = Math.min(90, Math.floor(len));
+    for (let i = 1; i <= n; i++) { const t = i / len; if (bldAt(x + dx * t, y + dy * t, z + dz * t)) return true; }
+    /* 担いでいる建物（足元の箱と高さ） */
+    if (RKT.on && S.vis) {
+      const ox = x - RKT.cx, oy = y - RKT.cy;
+      const p = [ox * RKT.c + oy * RKT.s, -ox * RKT.s + oy * RKT.c, z], q = [dx * RKT.c + dy * RKT.s, -dx * RKT.s + dy * RKT.c, dz];
+      const lo = [-(RKT.bu - 0.6), -(RKT.bv - 0.6), LIFT * 0.9], hi = [RKT.bu - 0.6, RKT.bv - 0.6, RKT.top];
+      let t0 = 0, t1 = 1;
+      for (let k = 0; k < 3 && t0 <= t1; k++) {
+        if (Math.abs(q[k]) < 1e-9) { if (p[k] < lo[k] || p[k] > hi[k]) t1 = -1; continue; }
+        let a = (lo[k] - p[k]) / q[k], b = (hi[k] - p[k]) / q[k]; if (a > b) { const w = a; a = b; b = w; }
+        t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+      }
+      if (t0 <= t1) return true;
+    }
+    return false;
+  }
+  function rkHide(r, now) { r.hidden = true; r.mode = 'gone'; r.v = 0; r.dirty = true; r.chk = now + 500; }
+  /* 元の場所へ戻してよいか：担いでいなければいつでも。担いでいる間は、元の場所が今の範囲からも、通ってきた道（帰り道で戻る道）からも離れているとき */
+  function rkHomeSafe(r) {
+    if (!S.b) return true;
+    if (S.intro) return false;
+    /* 元の場所に下ろし終えたあとは、もう動かない（下ろした建物と担ぎ手の所だけ避ける） */
+    if (S.done && S.done.phase === 'home' && S.done.landed) return !RKT.on || rkMinZone(r, false, r.x0, r.y0, r.h0) > 2;
+    const R = Math.hypot(RKT.hu, RKT.hv) + 8;
+    if (RKT.on && rkMinZone(r, false, r.x0, r.y0, r.h0) < 12) return false;
+    const pts = [];
+    if (S.site) pts.push([S.site.x, S.site.y]);
+    if (S.rec) for (const q of S.rec) pts.push([q.x, q.y]);
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[Math.min(pts.length - 1, i + 1)];
+      if (rkSeg(r.x0, r.y0, a[0], a[1], b[0], b[1]) < R) return false;
+    }
+    return true;
+  }
+  function rkTryHome(r) {
+    if (!r.away || !rkHomeSafe(r)) return;
+    const mp = opening ? 6 : 2.5;
+    if (!r.hidden && rkSeen(r.x, r.y, r.h, mp)) return;
+    if (rkSeen(r.x0, r.y0, r.h0, mp)) return;
+    r.x = r.x0; r.y = r.y0; r.h = r.h0; r.pose = r.pose0;
+    r.tilt = r.pose0 === 'wait' ? RK_TILT : 0; r.k = r.pose0 === 'wait' ? 0 : 1;
+    r.mode = 'parked'; r.hidden = false; r.away = false; r.v = 0; r.path = null; r.dirty = true;
+  }
+  /* 一台ぶんの動き */
+  function rkStep(r, dt, now) {
+    if (r.hidden) { if (now >= r.chk) { r.chk = now + 500; rkTryHome(r); } return; }
+    const near = RKT.on && Math.hypot(r.x - RKT.cx, r.y - RKT.cy) < RKT.reach;
+    if (r.mode === 'parked' || r.mode === 'stop') {
+      if (near && now >= (r.replan || 0) && rkMinZone(r) < 1.2) {
+        r.replan = now + 400;
+        const p = rkPlan(r); if (p) rkGo(r, p);
+      }
+      if (r.mode === 'stop' && !S.intro && now >= r.chk) {
+        r.chk = now + 300;
+        if (!rkSeen(r.x, r.y, r.h)) { rkHide(r, now); return; }
+      }
+      if (r.mode !== 'flee') return;
+    }
+    if (r.mode !== 'flee') return;
+    if (r.k < 1 || r.tilt > 0) {
+      /* 梶棒を持ち上げ、車夫が梶棒の間に入る（0.3秒） */
+      r.k = Math.min(1, r.k + dt / 0.3); r.tilt = Math.max(0, r.tilt - RK_TILT * dt / 0.3); r.dirty = true;
+    } else {
+      const vmax = 6.5 + Math.min(2.5, RKT.spd * 0.2);
+      r.v = Math.min(vmax, r.v + 7 * dt);
+      /* 前の車にはぶつからない */
+      const c = Math.cos(r.h), s = Math.sin(r.h);
+      for (const o of rickshaws) {
+        if (o === r || o.hidden) continue;
+        const ox = o.x - r.x, oy = o.y - r.y, al = ox * c + oy * s, la = Math.abs(-ox * s + oy * c);
+        if (al > 0 && al < 4.2 && la < 1.6) r.v = Math.min(r.v, o.mode === 'flee' ? o.v * 0.9 : 0);
+      }
+      const L = r.cum[r.cum.length - 1], tg = rkAt(r, r.s + 2.5), gx = tg[0] - r.x, gy = tg[1] - r.y;
+      let err = 0;
+      if (Math.hypot(gx, gy) > 0.3) {
+        const want = Math.atan2(gy, gx);
+        err = Math.atan2(Math.sin(want - r.h), Math.cos(want - r.h));
+        const turn = Math.sign(err) * Math.min(Math.abs(err), 5 * dt); r.h += turn; err -= turn;
+      }
+      r.s = Math.min(L, r.s + r.v * dt * Math.max(0, Math.cos(err)));
+      const p = rkAt(r, r.s), moved = Math.hypot(p[0] - r.x, p[1] - r.y);
+      r.x = p[0]; r.y = p[1]; r.spin += moved / RK_R; r.step += moved * 2.2; r.dirty = true;
+      if (r.v < 0.05) { r.stall += dt; if (r.stall > 1.2 && now >= (r.replan || 0)) { r.replan = now + 400; r.stall = 0; const q = rkPlan(r); if (q) rkGo(r, q); } } else r.stall = 0;
+      if (r.s >= L - 1e-3) { r.mode = 'stop'; r.v = 0; r.chk = now + 300; }
+    }
+    /* 画面の外か建物の陰に入ったら消す。逃げきれずに建物の真下に入ったときも、建物の陰なので消す。
+       運び出しの間は、カメラが町の引きから寄ってくる途中なので消さない（逃げるところを見せる） */
+    if (!S.intro && now >= r.chk) { r.chk = now + 120; if (!rkSeen(r.x, r.y, r.h)) { rkHide(r, now); return; } }
+    if (RKT.on) {
+      const dx = r.x + Math.cos(r.h) * 0.65 - RKT.cx, dy = r.y + Math.sin(r.h) * 0.65 - RKT.cy;
+      if (Math.abs(dx * RKT.c + dy * RKT.s) < RKT.bu - 0.3 && Math.abs(-dx * RKT.s + dy * RKT.c) < RKT.bv - 0.3) rkHide(r, now);
+    }
+  }
+  /* 担ぎ手・見物人が人力車の所に立たないように（fitCrew・crowdLayout から） */
+  function rkCrewBlock(x, y) { return rkCovers(x, y, rkCrewList); }
+  function rkCovers(x, y, list) {
+    for (const r of list) {
+      const dx = x - r.x, dy = y - r.y, c = Math.cos(r.h), s = Math.sin(r.h), u = dx * c + dy * s, v = -dx * s + dy * c;
+      if (u > -1.1 && u < 2.4 && Math.abs(v) < 0.9) return true;
+      if (Math.hypot(x - r.dx, y - r.dy) < 0.6) return true;
+    }
+    return false;
+  }
   function updateRickshaws(dt) {
-    let carDirty = false, hb = 0, hp = 0, hk = 0;
+    rkFrameNo++;
+    rkThreat(dt);
+    const now = performance.now();
+    let carDirty = false, hb = 0, hp = 0, hk = 0, sig = '';
+    rkCrewList.length = 0;
     for (let i = 0; i < rickshaws.length; i++) {
       const r = rickshaws[i];
-      if (r.mode === 'running' && r.path && r.path.length > 1) {
-        r.t = (r.t || 0) + r.speed * dt;
-        let left = r.t, j = 0;
-        while (j < r.path.length - 1) { const [ax, ay] = r.path[j], [bx, by] = r.path[j + 1], L = Math.hypot(bx - ax, by - ay); if (left <= L) { r.x = ax + (bx - ax) * left / L; r.y = ay + (by - ay) * left / L; r.h = Math.atan2(by - ay, bx - ax); break; } left -= L; j++; }
-        if (j >= r.path.length - 1) r.t = 0;
-        r.pose = 'ready'; r.dirty = true;
+      rkStep(r, dt, now);
+      if (r.hidden) {
+        if (r.dirty) { for (const k in RKM) RKM[k].setMatrixAt(i, rkZ); r.dirty = false; carDirty = true; }
+        DRV.body.setMatrixAt(i, rkZ); DRV.arm.setMatrixAt(i, rkZ);
+        continue;
       }
-      if (r.dirty || !r.placed) { rkCarMatrix(r, rkM); for (const k in RKM) RKM[k].setMatrixAt(i, rkM); r.dirty = false; r.placed = true; carDirty = true; }
-      /* 車夫：梶棒を持つときは梶棒の間で前を向く。客待ちは車の右（道の中の側）に立ち、神輿を担いでいれば神輿の方を見る */
-      const ready = r.pose === 'ready', lu = ready ? 1.72 : 1.15, lv = ready ? 0 : 1.05;
+      if (r.dirty || !r.placed) {
+        rkCarMatrix(r, rkM);
+        for (const k in RKM) if (k !== 'spoke') RKM[k].setMatrixAt(i, rkM);
+        RKM.spoke.setMatrixAt(i, rkSpokeMatrix(r, rkM, rkS));
+        r.dirty = false; r.placed = true; carDirty = true;
+      }
+      /* 車夫：梶棒を持つときは梶棒の間で前を向く。客待ちは車の右（道の中の側）に立ち、神輿を担いでいれば神輿の方を見る。r.k：0＝客待ち、1＝梶棒の間 */
+      const k = r.k, lu = 1.15 + 0.57 * k, lv = 1.05 * (1 - k);
       const c = Math.cos(r.h), s = Math.sin(r.h), wx = r.x + c * lu + s * lv, wy = r.y + s * lu - c * lv;
+      r.dx = wx; r.dy = wy;
       let face = r.h;
-      if (!ready && S.b) face = Math.atan2(S.y - wy, S.x - wx);
-      else if (!ready) face = r.h - 0.9;
-      rkM.makeRotationY(face).setPosition(V(wx, wy, 0));
+      if (k < 1) { const wf = S.b ? Math.atan2(S.y - wy, S.x - wx) : r.h - 0.9, d = Math.atan2(Math.sin(r.h - wf), Math.cos(r.h - wf)); face = wf + d * k; }
+      /* 走っているときは、少し前かがみで弾む */
+      const running = r.mode === 'flee' && r.v > 0.3;
+      rkM.makeRotationY(face);
+      if (running) { rkA.makeRotationZ(-0.14); rkM.multiply(rkA); }
+      rkM.setPosition(V(wx, wy, running ? Math.abs(Math.sin(r.step)) * 0.07 : 0));
       DRV.body.setMatrixAt(i, rkM); DRV.arm.setMatrixAt(i, rkM);
       if (r.kasa) { DRV.plain.setMatrixAt(hp++, rkM); DRV.kasa.setMatrixAt(hk++, rkM); } else DRV.band.setMatrixAt(hb++, rkM);
+      if (RKT.on && Math.hypot(r.x - RKT.cx, r.y - RKT.cy) < Math.hypot(RKT.hu, RKT.hv) * 2.9 + 6) { rkCrewList.push(r); sig += r.x.toFixed(1) + r.y.toFixed(1); }
+    }
+    rkSig = sig;
+    /* 見物人：近くの人力車が動いた・消えた・戻ったこまだけ並べ直す */
+    if (S.b && crowdSpots.length) {
+      let moved = false;
+      rkCrowdNear.length = 0;
+      for (const r of rickshaws) {
+        const nr = Math.hypot(r.x - S.x, r.y - S.y) < 80;
+        if (nr && (r.crowdX !== r.x || r.crowdY !== r.y || r.crowdHid !== r.hidden || r.crowdK !== r.k)) moved = true;
+        r.crowdX = r.x; r.crowdY = r.y; r.crowdHid = r.hidden; r.crowdK = r.k;
+        if (nr && !r.hidden) rkCrowdNear.push(r);
+      }
+      if (moved) crowdLayout();
     }
     const n = rickshaws.length;
     for (const k in RKM) { RKM[k].count = n; if (carDirty) RKM[k].instanceMatrix.needsUpdate = true; }
@@ -3660,7 +3953,8 @@ function start(DATA, isAsakusa) {
     const tooNear = (x, y, d) => rickshaws.some(r => Math.hypot(r.x - x, r.y - y) < d);
     const add = (x, y, h, place) => {
       const pose = idxN % 3 === 2 ? 'ready' : 'wait';
-      rickshaws.push({ x, y, h, pose, kasa: idxN % 2 === 0, mode: 'parked', path: null, speed: 3, place, dirty: true });
+      /* x0・y0・h0・pose0：元の場所（逃げたあと、見えない所で戻す） */
+      rickshaws.push({ x, y, h, pose, kasa: idxN % 2 === 0, place, dirty: true, x0: x, y0: y, h0: h, pose0: pose, tilt: pose === 'wait' ? RK_TILT : 0, k: pose === 'wait' ? 0 : 1, mode: 'parked', hidden: false, away: false, path: null, spin: 0, step: 0, v: 0, s: 0, chk: 0, stall: 0 });
       idxN++;
     };
     /* 歩道ぎわ（進む向きの左）へ寄せた位置。寄せきれなければ null */
@@ -5262,8 +5556,13 @@ function start(DATA, isAsakusa) {
       }
       if (S.intro) {
         // 運び出し：その場で縮む（I.shrink ミリ秒。実物大なら0）→浮く→担ぎ手が集まる→道へ運び出す
-        const I = S.intro, el = performance.now() - I.t0, p = Math.min(1, Math.max(0, el - I.shrink) / I.dur);
+        const I = S.intro, nowI = performance.now(), el = nowI - I.t0, p = Math.min(1, Math.max(0, el - I.shrink) / I.dur);
         const ez = q => q * q * (3 - 2 * q);
+        /* 道へ運び出す前に、通り道にかかる人力車が逃げ出るのを待つ（最長3.5秒。I.held だけ運び出しを遅らせる）。浮く・担ぎ手が集まる・カメラは待たない */
+        if (I.held === undefined) { I.held = 0; I.lastT = nowI; }
+        if (!I.moving && Math.min(1, Math.max(0, el - I.shrink - I.held) / I.dur) >= 0.3) { if (I.held < 3500 && rkBlocksIntro()) I.held += nowI - I.lastT; else I.moving = true; }
+        I.lastT = nowI;
+        const pm = Math.min(1, Math.max(0, el - I.shrink - I.held) / I.dur);
         /* はじめの35%はカメラが建物へ寄る間（大きさはそのまま）、残りで縮む */
         if (I.shrink) vk = 1 + (S.k - 1) * ez(Math.max(0, Math.min(1, (el - I.shrink * 0.35) / (I.shrink * 0.65))));
         /* 浮く */
@@ -5271,13 +5570,13 @@ function start(DATA, isAsakusa) {
         /* 担ぎ手が集まる */
         gather = ez(Math.min(1, p / 0.32));
         /* 道へ運び出す */
-        const m = ez(Math.max(0, (p - 0.3) / 0.7));
+        const m = ez(Math.max(0, (pm - 0.3) / 0.7));
         px = I.sx + (S.x - I.sx) * m; py = I.sy + (S.y - I.sy) * m;
         let da = (S.head + S.rot) - I.sori; da = Math.atan2(Math.sin(da), Math.cos(da));
         ori = I.sori + da * m;
         /* カメラ：縮むときは、縮む時間の前半で建物の前まで寄り、あとは見えている大きさに合わせて近づく。縮まないときは前のまま */
         I.px = px; I.py = py; I.p = I.shrink ? Math.min(1, el / (I.shrink * 0.5)) : p;
-        if (p >= 1) endIntro();
+        if (pm >= 1) endIntro();
       }
       if (DS && DS.visK !== undefined) vk = DS.visK;
       S.visK = vk;
@@ -5313,8 +5612,12 @@ function start(DATA, isAsakusa) {
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, 0, 'YXZ');
       if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
+      /* 見えている位置・向き・倍率と担ぎ手の広がり（人力車が次のこまで逃げる判定に使う） */
+      if (!S.vis) S.vis = {};
+      S.vis.x = px; S.vis.y = py; S.vis.ori = ori; S.vis.vk = vk; S.vis.sp = 1 + (1 - gather) * 1.8;
       /* 建物の中に入る担ぎ手は出さず、担ぎ棒は建物の手前で止める（見た目だけ。直す係 第1回・不具合1・4） */
-      if (S.crew && S.crew.visible) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
+      /* 運び出しの最初（担ぎ手がまだ見えないこま）も、担ぎ棒だけは人力車・建物の手前で止める */
+      if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -5416,7 +5719,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

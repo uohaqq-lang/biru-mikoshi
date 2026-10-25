@@ -3124,7 +3124,8 @@ function start(DATA, isAsakusa) {
       if (!ctx) return false;
       while (FW.crk.length < 3) FW.crk.push(fwCrackle(FW.crk.length));
       if (FW.bus) fwClose(true);
-      const bus = ctx.createGain(); bus.gain.value = 1; bus.connect(master);
+      /* 10/25 本人「花火もうちょいデカくてもいい（音）」：1 → 1.6（約 +4dB）。大きな山は出口の割れ止めが丸める */
+      const bus = ctx.createGain(); bus.gain.value = 1.6; bus.connect(master);
       /* 返り：低い所だけを、0.31秒と0.62秒あとに重ねる */
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
       const d1 = ctx.createDelay(1), d2 = ctx.createDelay(1), g1 = ctx.createGain(), g2 = ctx.createGain();
@@ -3172,8 +3173,8 @@ function start(DATA, isAsakusa) {
       src.start(t, Math.random()); src.stop(t + dur + 0.05);
       /* 腹に来る低い唸り */
       tone(t, 55 - 8 * Math.min(1, s - 0.6), 30, 0.7 + 0.5 * s, 'sine', 0.55 * k, dest, 0.01);
-      /* 大玉のときだけ、曲を少し下げてドーンを立てる */
-      if (s >= 1.3) duck(t, 0.5);
+      /* 中くらいより大きい玉では、曲を少し下げてドーンを立てる（前は大玉だけ） */
+      if (s >= 1.0) duck(t, 0.5);
     }
     /* パラパラ：割れて少しあとから。k は大きさ、len は長さ（柳は長い） */
     function fwCrk(t, k, pan, len) {

@@ -302,6 +302,17 @@
   #ttl ~ #top { z-index:96; }
   body.titling #top, body.titling #top * { pointer-events:none !important; }
   body.titling #title { background:none; box-shadow:none; }
+  /* 10/26 本人「画面の情報は少ないほうがよい」：左上の「ビル神輿」と、下のお祓いの記録（○棟・いちばん大きい建物）は出さない。
+     出典は地図の決まり（PLATEAU・地理院・OpenStreetMap）で消せないので、題字の画面では全部を出し、遊んでいる間は左下の小さな「出典」だけにする（押すと開く。遊び方にも全文） */
+  body[data-mode] #title { background:none; box-shadow:none; padding:0; }
+  body[data-mode] #title > b { display:none; }
+  #best { display:none !important; }
+  body[data-mode]:not(.titling):not(.srcOpen) #src { display:none !important; }
+  body.srcOpen #src { pointer-events:auto !important; cursor:pointer; z-index:60; }
+  #srcBtn { position:fixed; left:12px; bottom:14px; z-index:20; font-size:11px; padding:3px 8px; background:rgba(244,239,230,.85); color:var(--dim); display:none; }
+  body[data-mode]:not(.titling):not(.hanabi):not(.srcOpen) #srcBtn { display:block; }
+  body.sm #srcBtn { bottom:8px; }
+  #help .src { font-size:11px; color:var(--dim); line-height:1.5; margin-top:10px; }
   body.titling #title > b, body.titling #title > br, body.titling #howto { display:none; }
 </style>
 </head>
@@ -339,7 +350,8 @@
   <p>①町の建物をひとつ選んで担ぐ</p>
   <p>②「進む」を押すと進む。向きボタンで曲がる</p>
   <p>③浅草神社（赤い旗）まで運んでお祓い。つっかえたら「バック」で下がって向きを変える</p>
-  <button id="helpGo">はじめる</button></div></div>
+  <button id="helpGo">はじめる</button><div class="src" id="helpSrc"></div></div></div>
+<button id="srcBtn" title="出典を見る">出典</button>
 <div id="msg"></div>
 <div id="done"><div class="big" id="doneTitle">お祓い</div><div id="doneInfo"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
@@ -396,6 +408,10 @@ function start(DATA, isAsakusa) {
   $('src').textContent = '出典：' + (isAsakusa ? '3D都市モデル（Project PLATEAU）台東区（2025年度）（国土交通省）を加工して作成' : (DATA.meta.source || DATA.meta.name || ''));
   // 地面の航空写真の出典（スマホでは2行目に分ける）
   if (isAsakusa) { const g = document.createElement('span'); g.className = 'gsi'; g.innerHTML = '<span class="sl">／</span><span class="sm2">出典：</span>地理院タイル（全国最新写真（シームレス））を加工して作成' + (window.MIKOSHI_SHOPS ? '／© OpenStreetMap contributors（ODbL）' : ''); $('src').appendChild(g); }   // 店の情報（data/shops.js）は OpenStreetMap
+  /* 遊んでいる間の出典は左下の「出典」から開く（押すと開き、出典を押すと閉じる）。遊び方の画面にも同じ文 */
+  $('helpSrc').innerHTML = $('src').innerHTML;
+  $('srcBtn').onclick = e => { e.stopPropagation(); document.body.classList.add('srcOpen'); };
+  $('src').onclick = e => { e.stopPropagation(); document.body.classList.remove('srcOpen'); };
   // スマホ（幅600px未満か縦長）の印
   const isSm = () => innerWidth < 600 || innerHeight > innerWidth;
   const markSm = () => document.body.classList.toggle('sm', isSm());
@@ -2815,7 +2831,8 @@ function start(DATA, isAsakusa) {
     /* BGM「A1」の予約：約0.1秒ごとに「今＋0.3秒」まで（A1 の決まり）。選ぶ画面でも鳴らす（最初に触った後から） */
     function schedule() {
       if (!ctx || ctx.state !== 'running' || !bgm) return;
-      try { bgm.scheduleUntil(ctx.currentTime + 0.3); } catch (e) { bgm = null; return; }
+      /* 予約の途中で止まったら、曲を手放す前に消す（鳴っている笛などの発振器が止まらず、ピーと鳴り続けないように） */
+      try { bgm.scheduleUntil(ctx.currentTime + 0.3); } catch (e) { try { bgm.stop(ctx.currentTime); } catch (e2) { /* */ } bgm = null; return; }
       /* 確かめ用：曲の拍の頭の時刻（ctx の時刻）を記録する。__soundLog があるときだけ */
       if (window.__soundLog) for (const s of bgm.steps()) if (s.n > beatN && s.n % 4 === 0) { beatN = s.n; log('beat', { n: s.n, at: s.t }); }
     }
@@ -4027,6 +4044,94 @@ function start(DATA, isAsakusa) {
     }
     updateRickshaws(0);
   })();
+
+  // ---------- 隅田川の屋形船（本人 10/26「川に船とか浮かべてもかわいいかも」） ----------
+  /* 川の形のデータは無い（地面の航空写真に写っているだけ）ので、駒形橋・吾妻橋・東武の鉄橋の中ほどと、花火の第一会場（HB_AT）を結んだ線を川の中ほどとする。
+     屋形船：長さ約18m・幅約4.6m。障子の窓が灯り、屋根の縁に赤い提灯が並ぶ。水面には明かりの照り返し。何艘かは川をゆっくり行き来し、何艘かは岸に寄せて止まる（花火の会場の近くにも）。
+     見た目だけで、担ぐ判定・選ぶ当たりには入れない */
+  const RIVER = [[200, -610], [261, -525], [330, -420], [404, -323], [500, -213], [592, -103], [690, 10], [800, 135], [934, 286], [1010, 383]];
+  const RIVER_L = [0]; for (let i = 1; i < RIVER.length; i++) RIVER_L.push(RIVER_L[i - 1] + Math.hypot(RIVER[i][0] - RIVER[i - 1][0], RIVER[i][1] - RIVER[i - 1][1]));
+  function riverAt(s, off) {   /* 川の中ほどの線の上の距離 s（m）、左（上流に向かって左＝浅草の側）へ off m の所と、流れの向き */
+    s = Math.max(0, Math.min(RIVER_L[RIVER_L.length - 1], s));
+    let i = 1; while (i < RIVER_L.length - 1 && RIVER_L[i] < s) i++;
+    const [x0, y0] = RIVER[i - 1], [x1, y1] = RIVER[i], q = (s - RIVER_L[i - 1]) / (RIVER_L[i] - RIVER_L[i - 1]);
+    const L = Math.hypot(x1 - x0, y1 - y0), ux = (x1 - x0) / L, uy = (y1 - y0) / L;
+    return { x: x0 + (x1 - x0) * q - uy * off, y: y0 + (y1 - y0) * q + ux * off, a: Math.atan2(uy, ux) };
+  }
+  const boats = [];
+  (function buildBoats() {
+    if (!raimonB) return;   /* 浅草のデータのときだけ */
+    /* 障子の窓（横に長い1枚）：木の枠と、明かりの灯った障子 */
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 64; const c = cv.getContext('2d');
+    c.fillStyle = '#5a3a22'; c.fillRect(0, 0, 512, 64);
+    for (let k = 0; k < 10; k++) {
+      const x = 8 + k * 50.4; c.fillStyle = '#ffd99a'; c.fillRect(x, 12, 44, 40);
+      c.strokeStyle = '#8a6040'; c.lineWidth = 2;
+      for (let j = 1; j < 4; j++) { c.beginPath(); c.moveTo(x + j * 11, 12); c.lineTo(x + j * 11, 52); c.stroke(); }
+      c.beginPath(); c.moveTo(x, 32); c.lineTo(x + 44, 32); c.stroke();
+    }
+    const winTex = new THREE.CanvasTexture(cv); winTex.encoding = THREE.sRGBEncoding;
+    /* 水面の照り返し：真ん中が明るい暖かい色のぼかし */
+    const gv = document.createElement('canvas'); gv.width = gv.height = 128; const gc = gv.getContext('2d');
+    const gr = gc.createRadialGradient(64, 64, 4, 64, 64, 64); gr.addColorStop(0, 'rgba(255,180,90,0.9)'); gr.addColorStop(0.5, 'rgba(255,140,60,0.35)'); gr.addColorStop(1, 'rgba(255,120,40,0)');
+    gc.fillStyle = gr; gc.fillRect(0, 0, 128, 128);
+    const glowTex = new THREE.CanvasTexture(gv);
+    const hullMat = new THREE.MeshLambertMaterial({ color: 0x3a2a20 }), roofMat = new THREE.MeshLambertMaterial({ color: 0x2c2826 });
+    const winMat = new THREE.MeshLambertMaterial({ map: winTex, emissiveMap: winTex, emissive: 0xffffff, emissiveIntensity: NIGHT ? 0.75 : 0.25 });
+    const endMat = new THREE.MeshLambertMaterial({ color: 0x5a3a22 });
+    const glowMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: NIGHT ? 0.55 : 0.15 });
+    const lanMat = new THREE.MeshLambertMaterial({ color: 0xd8402a, emissive: 0xff5020, emissiveIntensity: NIGHT ? 0.95 : 0.3 });
+    const lanGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.5, 10);
+    /* 船ごと：s（川の線の上の位置）、off（左への寄り）、spd（m/秒。負は下流へ）、行き来する範囲 */
+    const PLAN = [
+      { s: 380, off: -18, spd: 1.3, s0: 240, s1: 720 },    /* 吾妻橋のあたりを行き来 */
+      { s: 560, off: 22, spd: -1.0, s0: 300, s1: 820 },
+      { s: 900, off: 12, spd: 1.1, s0: 700, s1: 1100 },    /* 東武の鉄橋の上流 */
+      { s: 470, off: 52, spd: 0 },                         /* 吾妻橋の北、浅草の側の岸に寄せて止まる */
+      { s: 492, off: 52, spd: 0 },
+      { s: 1180, off: -40, spd: 0 },                       /* 花火の会場の近くで、花火を待つ */
+      { s: 1205, off: -46, spd: 0 },
+      { s: 1240, off: 38, spd: 0 },
+    ];
+    const lanOf = [];
+    PLAN.forEach((p, i) => {
+      const g = new THREE.Group();
+      const hull = new THREE.Mesh(new THREE.BoxGeometry(18, 1.2, 4.6), hullMat); hull.position.y = 0.3; g.add(hull);
+      const bow = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 3.0), hullMat); bow.position.set(10.2, 0.55, 0); bow.rotation.z = 0.12; g.add(bow);
+      const cabinG = new THREE.BoxGeometry(14, 2.1, 4.0);
+      const cabin = new THREE.Mesh(cabinG, [endMat, endMat, roofMat, roofMat, winMat, winMat]); cabin.position.y = 0.9 + 1.05; g.add(cabin);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(15.2, 0.3, 4.8), roofMat); roof.position.y = 3.15; g.add(roof);
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(30, 14), glowMat); glow.rotation.x = -Math.PI / 2; glow.position.y = 0.06; g.add(glow);
+      for (const side of [-1, 1]) for (let k = 0; k < 9; k++) lanOf.push({ g, x: -6.8 + k * 1.7, z: side * 2.35, y: 2.75 });
+      scene.add(g);
+      boats.push(Object.assign({ g, ph: i * 1.7, a: null }, p));
+    });
+    /* 提灯は全部を1つの InstancedMesh に（何艘あっても描く回数は1回） */
+    const lan = new THREE.InstancedMesh(lanGeo, lanMat, lanOf.length); lan.frustumCulled = false; scene.add(lan);
+    boats.lan = lan; boats.lanOf = lanOf;
+  })();
+  const tmpLanM = new THREE.Matrix4(), tmpLanP = new THREE.Vector3();
+  function updateBoats(dt) {
+    if (!boats.length) return;
+    const t = performance.now() / 1000;
+    for (const b of boats) {
+      if (b.spd) {
+        b.s += b.spd * dt;
+        if (b.s > b.s1 && b.spd > 0 || b.s < b.s0 && b.spd < 0) b.spd = -b.spd;   /* 端まで来たら引き返す（向きはゆっくり回す） */
+      }
+      const r = riverAt(b.s, b.off), want = r.a + (b.spd < 0 ? Math.PI : 0);
+      if (b.a === null) b.a = want;
+      let d = want - b.a; d = Math.atan2(Math.sin(d), Math.cos(d)); b.a += d * Math.min(1, dt * 0.4);
+      b.g.position.copy(V(r.x, r.y, 0.06 * Math.sin(t * 1.2 + b.ph)));
+      b.g.rotation.set(0.012 * Math.sin(t * 0.9 + b.ph), b.a, 0, 'YXZ');
+    }
+    const lan = boats.lan;
+    boats.lanOf.forEach((l, i) => {
+      l.g.updateMatrixWorld(); tmpLanP.set(l.x, l.y + 0.05 * Math.sin(t * 2.1 + i), l.z).applyMatrix4(l.g.matrixWorld);
+      tmpLanM.makeTranslation(tmpLanP.x, tmpLanP.y, tmpLanP.z); lan.setMatrixAt(i, tmpLanM);
+    });
+    lan.instanceMatrix.needsUpdate = true;
+  }
 
   // ---------- 手前の建物を半透明にする ----------
   const ghostMats = new Map();
@@ -5723,7 +5828,7 @@ function start(DATA, isAsakusa) {
     updateGate(dt); sizeTags(); updateReach(t); updateWaiting(t); updPickHint(); rotStep(); updateNav(t); if (mode === 'carry') { tourStep(performance.now()); updateTourArrow(); } if (document.body.classList.contains('unfollow') === camFollow) document.body.classList.toggle('unfollow', !camFollow); holdStep(Math.min(0.2, (t - tPrev) / 1000));   // 押している間の進み方は、実際に経った時間で
     /* 押しても進めない時間を数え、本当につかえたときだけ選び直す・大きさを出す */
     stuckWatch(Math.min(0.2, (t - tPrev) / 1000));
-    updateRickshaws(dt);
+    updateRickshaws(dt); updateBoats(dt);
     if (!TT.started && photoOn && !opening) startTownTex();   // 町の写真は、空から降りてくる画面が終わってから裏で読む（最初の表示を遅くしない）
     const DS = S.done ? doneStep(performance.now()) : null;   // お祓いの後の流れ（片付けまで進める）
     if (S.b && S.mesh && S.mesh.visible !== false) {

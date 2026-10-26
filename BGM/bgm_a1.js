@@ -849,6 +849,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     }
     F.f = f; F.lvl = lvl;
   }
+  /* 笛を吹かない小節の頭：伸ばしたまま（rel の無い音で終わったまま）なら止める（どこかで止め忘れても、ピーが続かないように） */
+  function fueRest(T) { if (!F.fresh && F.end > T + 0.02) fueSilence(T); }
   function fueSilence(T) {
     hold(F.amp.gain, T); F.amp.gain.setTargetAtTime(0.0001, T, 0.03);
     hold(F.breath.gain, T); F.breath.gain.setTargetAtTime(0, T, 0.03);
@@ -1009,6 +1011,9 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     if (name === 'idle') {
       S.ib = -1;
       padLevel(t, PADV, 0.8);
+      /* 10/26 本人「いろんなもの触ってたら音がずっとピーってなってる」：担ぐ曲の笛を伸ばしている途中で選ぶ画面に戻ると（建物を選び直す、帰り道の後など）、
+         笛は1本の発振器で鳴らし続けて音量で切る作りなので、選ぶ画面の次の笛の小節（8小節に1度）まで同じ高さで鳴り続けていた。入るときに止める */
+      if (prev !== 'idle') fueSilence(t);
     } else if (name === 'carry') {
       /* 締太鼓の連打で入る。小節の残りが短いときは、もう1小節たたく。つかえた後は「上げ」から続ける */
       const rem = 16 - s;
@@ -1125,6 +1130,7 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       return;
     }
     if (sec === 'renda') {
+      if (s === 0) fueRest(t);
       rendaStep(t, s, sd, tt, s / 15, 16 - s);
       return;
     }
@@ -1177,6 +1183,7 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     /* 鈴：四分音符の位置で、半分ほど休む。ときどき1オクターブ上（A と同じ） */
     if (s % 4 === 0 && hrand(n, 3) < 0.55) bell(tt(0), BELL_NIGHT[Math.floor(n / 4) % 7] + (hrand(n, 4) < 0.2 ? 12 : 0), 0.75, 2.0);
     if (bar % 8 === 4 || bar % 8 === 5) fuePlay(PH.thA, (bar % 2) * 16 + s, tt(0.003), sd, 0.8, false, n);
+    else if (s === 0) fueRest(t);
   }
 
   /* つかえた：刻みは止めて、1小節に1度だけ締太鼓が小さく間を数える */
@@ -1214,6 +1221,7 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     const ph = bar % 16;
     if (ph < 4) fuePlay(ph < 2 ? PH.tdA : PH.tdB, (ph % 2) * 16 + s, tt(0.003), sd, 0.9, false, n);
     else if (ph >= 8 && ph < 12) fuePlay(ph < 10 ? PH.tdA : PH.tdB, (ph % 2) * 16 + s, tt(0.003), sd, 0.9, true, n);
+    else if (s === 0) fueRest(t);
   }
 
   /* ================= 7. 拍の時刻（ゲームが掛け声・足音・担ぎ手の弾みを曲にそろえるため） ================= */

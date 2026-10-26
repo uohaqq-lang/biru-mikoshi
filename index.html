@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>ビル神輿</title>
 <link rel="icon" href="data:,"><!-- 空のアイコン：ブラウザが favicon.ico を取りに行って404を出さないように（直す係 第2回・2-2） -->
-<!-- 題字の画面の書体（応募動画の「東京・浅草」と同じ Shippori Mincho B1 の太字）。使う字だけを取り寄せる（text=ビル神輿触ってはじめる）。読めなければ明朝で出す -->
+<!-- 題字の画面の書体（本人が選んだ W3、10/26）：題字は Zen Old Mincho の極太、判の「浅草」は Yuji Boku、「はじめる」は Shippori Mincho B1 の太字。使う字だけを取り寄せる（text=ビル神輿浅草はじめる）。読めなければ明朝で出す -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link id="ttlFont" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@800&display=block&text=%E3%83%93%E3%83%AB%E7%A5%9E%E8%BC%BF%E8%A7%A6%E3%81%A3%E3%81%A6%E3%81%AF%E3%81%98%E3%82%81%E3%82%8B">
+<link id="ttlFont" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@900&family=Yuji+Boku&family=Shippori+Mincho+B1:wght@800&display=block&text=%E3%83%93%E3%83%AB%E7%A5%9E%E8%BC%BF%E6%B5%85%E8%8D%89%E3%81%AF%E3%81%98%E3%82%81%E3%82%8B">
 <style>
   :root { --ink:#2b2420; --paper:#f4efe6; --red:#c8322a; --gold:#d9a521; --dim:#8a8079; }
   html,body { margin:0; height:100%; background:#d9d3c7; color:var(--ink); font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
@@ -279,9 +279,11 @@
   /* 画の切り替え（短く暗くして替える）と、触ったあとの暗転に使う幕。濃さは毎こま決める */
   #ttlVeil { position:absolute; inset:0; background:#03060f; opacity:0; pointer-events:none; }
   #ttlName, #ttlTap { position:relative; font-family:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:800; white-space:nowrap; line-height:1; }
-  #ttlName { margin-top:-14vh; font-size:min(19vw, 17vh, 168px); letter-spacing:.14em; padding-left:.14em;
-    background:linear-gradient(180deg, #fffaf0 0%, #f6ead0 55%, #e2c992 100%); -webkit-background-clip:text; background-clip:text; color:transparent;
-    filter:drop-shadow(0 2px 3px rgba(0,0,0,.55)) drop-shadow(0 0 18px rgba(0,0,0,.35)); opacity:0; transition:opacity 1.4s; }
+  /* 題字：極太の古い明朝を生成りの白で。右下に朱の判「浅草」（本人が見本から選んだ W3） */
+  #ttlName { margin-top:-14vh; font-family:"Zen Old Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; font-weight:900; font-size:min(19vw, 17vh, 168px); letter-spacing:.12em; padding-left:.12em;
+    color:#f7f1e3; text-shadow:0 2px 4px rgba(0,0,0,.8), 0 0 20px rgba(0,0,0,.55); opacity:0; transition:opacity 1.4s; }
+  #ttlSeal { position:absolute; right:-.42em; bottom:-.1em; writing-mode:vertical-rl; font-family:"Yuji Boku","Hiragino Mincho ProN","Yu Mincho",serif; font-weight:400; font-size:.2em; line-height:1; letter-spacing:.05em;
+    padding:.18em .1em; background:#c8321f; color:#fbefe0; border-radius:.08em; text-shadow:none; box-shadow:0 1px 3px rgba(0,0,0,.6); }
   #ttl.font #ttlName { opacity:1; }
   #ttlTap { margin-top:min(6vh, 52px); font-size:min(4.6vw, 2.6vh, 21px); letter-spacing:.42em; padding-left:.42em; color:#f3e7c8; text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 10px rgba(0,0,0,.8), 0 0 22px rgba(0,0,0,.6); opacity:0; }
   #ttl.ready.font #ttlTap { animation:ttlTap 2.8s ease-in-out infinite; }
@@ -306,7 +308,7 @@
 <body>
 <script>/* スマホの形（body.sm）を、重いデータを読む前に当てる（前は町が出るまで、PCの形のボタンが縦に折れて出ていた） */ if (innerWidth < 600 || innerHeight > innerWidth) document.body.classList.add('sm');</script>
 <div id="boot"></div>
-<div id="ttl"><div id="ttlSky"></div><div id="ttlShade"></div><div id="ttlName">ビル神輿</div><div id="ttlTap">はじめる</div><div id="ttlVeil"></div></div>
+<div id="ttl"><div id="ttlSky"></div><div id="ttlShade"></div><div id="ttlName">ビル神輿<span id="ttlSeal">浅草</span></div><div id="ttlTap">はじめる</div><div id="ttlVeil"></div></div>
 <script>
 /* 題字の画面の受け付け（町のデータを読む前から動かす）。触ったら、町が出ていれば go（start の中で入れる）、まだなら出たらすぐ始める（want）。
    字は書体が届いてから出す（届く前に別の書体で出て、あとで形が替わらないように）。3秒待っても届かなければ明朝で出す */
@@ -315,7 +317,7 @@
   if (new URLSearchParams(location.search).get('skipTitle') === '1') { el.remove(); return; }
   T.on = true; document.body.classList.add('titling');
   const show = () => el.classList.add('font');
-  const tryFont = () => { if (document.fonts && document.fonts.load) document.fonts.load('800 100px "Shippori Mincho B1"', 'ビル神輿').then(f => { if (f && f.length) show(); }, () => {}); };
+  const tryFont = () => { if (document.fonts && document.fonts.load) document.fonts.load('900 100px "Zen Old Mincho"', 'ビル神輿').then(f => { if (f && f.length) show(); }, () => {}); };
   tryFont(); document.getElementById('ttlFont').addEventListener('load', tryFont);
   setTimeout(show, 3000);
   const touch = () => { if (!T.on) return; if (T.go) T.go(); else T.want = true; };

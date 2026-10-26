@@ -814,8 +814,11 @@ function start(DATA, isAsakusa) {
     '商業施設': 'お店・商業ビル', '業務施設': '事務所ビル', '官公庁施設': '役所などの建物', '宿泊施設': 'ホテル・旅館', '文教厚生施設': '寺社・学校・病院などの建物',
     '供給処理施設': '電気・ガス・ごみ処理などの施設', '運輸倉庫施設': '倉庫・駅などの建物', '工場': '工場', '農林漁業用施設': '農業などの建物', '用途不明': '用途の分からない建物',
     '不明': '用途の分からない建物', 'その他': 'その他の建物' };
+  // PLATEAU では9階建てでも「店舗等併用住宅」のことがある（本人 10/26「こんなでかい建物が本当にパン屋？」）。4階以上の「家」は「ビル」と呼ぶ
+  const TALL_WORD = { '住宅': '住まいのビル', '店舗等併用住宅': 'お店の入ったビル', '作業所併用住宅': '作業場の入ったビル' };
+  const floorsOf = b => b.storeys || Math.max(1, Math.round(b.h / 3.5));
   // 建物ごとに確かめた言葉（usage_detail：お寺の建物・小学校・病院・診療所など。tools/usage_detail.py で付けた）があれば、それを先に使う
-  for (const b of blds) { b.usageRaw = b.usage; b.usage = b.usageDetail || USAGE_WORD[b.usage] || b.usage; }
+  for (const b of blds) { b.usageRaw = b.usage; b.usage = b.usageDetail || (floorsOf(b) >= 4 && TALL_WORD[b.usage]) || USAGE_WORD[b.usage] || b.usage; }
   // 「色の意味」の凡例は無くした（本人「もう夜だし写真も入ってるし色の意味いらない」10/16）。色分けは箱の色にだけ使う
   const bldMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
   function extrude(poly, h, ox = 0, oy = 0) {
@@ -1454,7 +1457,7 @@ function start(DATA, isAsakusa) {
     if (!L.length) return '';
     const shown = L.slice(0, 3).map(([n, k]) => `<span class="s1">${escH(cutName(n, sep === '<br>' ? 20 : 24))}（${escH(k)}）</span>`);   // 1軒の途中では折らない
     const more = L.length > 3 ? `<span class="more">${sep === '<br>' ? '<br>' : ' '}ほか${L.length - 3}軒</span>` : '';
-    return `<span class="shops">${shown.join(sep)}${more}</span>`;
+    return `<span class="shops"><span class="more">入っている店：</span>${sep}${shown.join(sep)}${more}</span>`;
   }
   // 札（選ぶとき）の店：1行に収まる分だけ（全角1字＝2で34まで）並べ、残りは「ほか○軒」
   function shopsLine(b) {
@@ -1462,10 +1465,11 @@ function start(DATA, isAsakusa) {
     const L = (SHOPS[String(b.id || '').slice(5, 13)] || []).filter(([n]) => !(Lm && (Lm.name.includes(n) || n.includes(Lm.name))));
     if (!L.length) return '';
     const wd = s => { let w = 0; for (const ch of s) w += ch.charCodeAt(0) < 0x2000 ? 1 : 2; return w; };
-    const shown = []; let used = 0;
-    for (const [n, k] of L) { const s = `${cutName(n, 16)}（${k}）`, w = wd(s) + (shown.length ? 2 : 0); if (shown.length && used + w > 34) break; shown.push(s); used += w; }
+    /* 頭に「入っている店：」（本人 10/26「こんなでかい建物が本当にパン屋？」。9階建ての1階の1軒が、建物そのもののように読めたため） */
+    const HEAD = '入っている店：', shown = []; let used = wd(HEAD);
+    for (const [n, k] of L) { const s = `${cutName(n, 16)}（${k}）`, w = wd(s) + (shown.length ? 2 : 0); if (shown.length && used + w > 48) break; shown.push(s); used += w; }
     const rest = L.length - shown.length;
-    return `<span class="shops one">${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}</span>`;
+    return `<span class="shops one"><span class="more">${HEAD}</span>${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}</span>`;
   }
   function setHover(b) {
     /* 札と黄色い光は町の画面だけ。乗せ替えの待ち（mouseHover の0.25秒）が担いだ後に来ても出さない（直す係 第1回で見つけた） */

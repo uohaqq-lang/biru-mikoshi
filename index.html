@@ -154,6 +154,45 @@
   #hold { right:24px; bottom:24px; width:120px; height:120px; padding:8px; background:var(--red); color:#fff; font-size:16px; line-height:1.35; }
   #back { right:158px; bottom:34px; width:70px; height:70px; padding:0; font-size:15px; }
   #hold.on { background:#8f2019; }
+  /* 10/26 本人「向きとバックと進むがそれぞれ別々のボタンだから見にくい。一つでできない？ジョイスティックみたいな感じで」：
+     右下の丸ひとつ（#stick）にまとめた。上へ倒すと進む・下へ倒すとバック・左右へ倒すと向きを変える（斜めなら進みながら曲がる）。前のボタンは隠すだけ（キーの操作と中の仕組みはそのまま） */
+  #hold, #back, #rot { display:none !important; }
+  #stick { position:fixed; right:24px; bottom:24px; width:140px; height:140px; border-radius:50%; background:rgba(244,239,230,.82); box-shadow:0 3px 10px rgba(0,0,0,.35); touch-action:none; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; cursor:grab; }
+  #stick .lb { position:absolute; font-size:11px; font-weight:700; color:var(--dim); line-height:1; pointer-events:none; white-space:nowrap; }
+  #stick .up { top:9px; left:50%; transform:translateX(-50%); color:var(--red); }
+  #stick .dn { bottom:9px; left:50%; transform:translateX(-50%); }
+  #stick .lf { left:8px; top:50%; transform:translateY(-50%); font-size:16px; }
+  #stick .rt { right:8px; top:50%; transform:translateY(-50%); font-size:16px; }
+  #knob { position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px; border-radius:50%; background:var(--red); box-shadow:0 2px 6px rgba(0,0,0,.4); pointer-events:none; transition:transform .12s; }
+  #stick.on #knob { transition:none; background:#8f2019; }
+  #stick.glow { animation:glow 1s ease-in-out infinite; }
+  body.calm1 #stick .dn, body.calm1 #stick .lf, body.calm1 #stick .rt { visibility:hidden; }   /* 運び出しの直後は「進む」だけ */
+  body.sm #stick { right:14px; bottom:40px; width:118px; height:118px; }
+  body.sm #knob { width:48px; height:48px; margin:-24px 0 0 -24px; }
+  /* 小さな地図：スマホは出さない（本人「いらない」）。PC（マウスの画面）だけ左上に丸く出す。神輿の進む向きがいつも上（カメラと同じ向き） */
+  #mini { display:none !important; top:12px; bottom:auto; left:12px; width:180px; height:180px; border-radius:50%; }
+  @media (pointer:fine) { html body[data-mode=carry]:not(.sm):not(.intro):not(.hanabi):not(.calm2) #mini { display:block !important; } }
+  /* PC（マウスの画面）は、ジョイスティックの代わりにキーボードと同じ並びの十字のキー（↑進む・←→向き・↓バック）。キーを押すと光る。マウスで押しても動く */
+  #keys { position:fixed; right:24px; bottom:24px; display:none; grid-template-columns:repeat(3, 62px); grid-template-rows:repeat(2, 62px); gap:6px; }
+  #keys .k { border-radius:12px; background:rgba(244,239,230,.92); box-shadow:0 2px 0 rgba(0,0,0,.25), 0 3px 10px rgba(0,0,0,.3); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    font-weight:700; color:var(--ink); cursor:pointer; touch-action:none; user-select:none; -webkit-user-select:none; padding:0; }
+  #keys .k b { font-size:22px; line-height:1; }
+  #keys .k small { font-size:10px; color:var(--dim); line-height:1; }
+  #keys .k.on { background:#e8dcc6; transform:translateY(2px); box-shadow:0 0 0 rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.3); }
+  #keys #kU { grid-column:2; grid-row:1; background:var(--red); color:#fff; }
+  #keys #kU small { color:rgba(255,255,255,.85); }
+  #keys #kU.on { background:#8f2019; }
+  #keys #kL { grid-column:1; grid-row:2; } #keys #kD { grid-column:2; grid-row:2; } #keys #kR { grid-column:3; grid-row:2; }
+  #keys.glow .k, #keys .k.glow { animation:glow 1s ease-in-out infinite; }
+  body.calm1 #keys #kL, body.calm1 #keys #kD, body.calm1 #keys #kR { visibility:hidden; }
+  @media (pointer:fine) { #stick { display:none !important; } #keys { display:grid; } #help .spOnly { display:none; } }
+  @media not all and (pointer:fine) { #help .pcOnly { display:none; } }
+  /* スマホを横に持ったとき（指で触る画面で横長）：両手持ちのゲームと同じく、ジョイスティックは左の親指で。「建物を選び直す」は右下へ。
+     縦持ち（片手。右の親指が多い）とPCは右のまま */
+  @media (pointer:coarse) and (orientation:landscape) {
+    html body #stick { right:auto; left:16px; }
+    html body #again:not(.big) { left:auto; right:16px; }
+  }
   #back.on { background:#d8cfc0; }
   #tour { top:auto !important; bottom:110px; }
   @media (max-width:600px) { #tour { bottom:250px; } }
@@ -309,9 +348,9 @@
   #best { display:none !important; }
   body[data-mode]:not(.titling):not(.srcOpen) #src { display:none !important; }
   body.srcOpen #src { pointer-events:auto !important; cursor:pointer; z-index:60; }
-  #srcBtn { position:fixed; left:12px; bottom:14px; z-index:20; font-size:11px; padding:3px 8px; background:rgba(244,239,230,.85); color:var(--dim); display:none; }
+  #srcBtn { position:fixed; left:50%; transform:translateX(-50%); bottom:3px; z-index:20; font-size:11px; padding:3px 8px; background:rgba(244,239,230,.85); color:var(--dim); display:none; }
   body[data-mode]:not(.titling):not(.hanabi):not(.srcOpen) #srcBtn { display:block; }
-  body.sm #srcBtn { bottom:8px; }
+  body.sm #srcBtn { bottom:3px; }
   #help .src { font-size:11px; color:var(--dim); line-height:1.5; margin-top:10px; }
   body.titling #title > b, body.titling #title > br, body.titling #howto { display:none; }
 </style>
@@ -348,8 +387,10 @@
 <div id="goalNav"><span id="goalArrow">➤</span><span id="goalText"></span></div>
 <div id="help"><div class="hb"><div class="ht">遊び方</div>
   <p>①町の建物をひとつ選んで担ぐ</p>
-  <p>②「進む」を押すと進む。向きボタンで曲がる</p>
-  <p>③浅草神社（赤い旗）まで運んでお祓い。つっかえたら「バック」で下がって向きを変える</p>
+  <p class="pcOnly">②↑（W）で進む。←→（A・D）で向きが変わる</p>
+  <p class="pcOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら↓（S）で下がって向きを変える</p>
+  <p class="spOnly">②右下の丸を上へ倒すと進む。左右へ倒すと向きが変わる</p>
+  <p class="spOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら丸を下へ倒して下がり、向きを変える</p>
   <button id="helpGo">はじめる</button><div class="src" id="helpSrc"></div></div></div>
 <button id="srcBtn" title="出典を見る">出典</button>
 <div id="msg"></div>
@@ -361,7 +402,9 @@
 <div id="sel"><div id="selInfo"></div><button id="carry">この建物を担ぐ</button></div>
 <div id="zoom"><button id="zIn" title="寄る（＋）">＋</button><button id="zOut" title="引く（−）">−</button><button id="recenter" title="神輿のところへ戻る">◎</button></div>
 <div id="rot"><button id="rL" title="押している間 左へ向きを変える（Q・←）">⟲ 向き</button><button id="rR" title="押している間 右へ向きを変える（E・→）">向き ⟳</button></div>
-<div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button></div>
+<div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button>
+  <div id="stick" title="上へ倒すと進む（↑）・下へ倒すとバック（↓）・左右へ倒すと向きを変える（← →）"><span class="lb up">進む</span><span class="lb dn">バック</span><span class="lb lf">⟲</span><span class="lb rt">⟳</span><div id="knob"></div></div>
+  <div id="keys"><button class="k" id="kU" title="進む（↑・W・スペース）"><b>↑</b><small>進む</small></button><button class="k" id="kL" title="左へ向きを変える（←・A）"><b>←</b><small>向き</small></button><button class="k" id="kD" title="バック（↓・S）"><b>↓</b><small>バック</small></button><button class="k" id="kR" title="右へ向きを変える（→・D）"><b>→</b><small>向き</small></button></div></div>
 <button id="again">建物を選び直す</button>
 <button id="skip">飛ばす ▶</button>
 
@@ -1466,26 +1509,40 @@ function start(DATA, isAsakusa) {
   const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   // 長い店名は詰める（全角1字＝2、半角1字＝1で数えて lim まで）
   const cutName = (s, lim) => { let w = 0, o = ''; for (const ch of s) { w += ch.charCodeAt(0) < 0x2000 ? 1 : 2; if (w > lim) return o + '…'; o += ch; } return o; };
-  // sep：札は「、」でつなぐ、info は1軒1行（'<br>'）。3軒まで出し、4軒以上は「ほか○軒」
-  function shopsText(b, sep) {
+  /* 店ではなく建物そのもの（お寺・交番・ホテル・商業ビルなど）は「入っている店：」を付けずに名前だけ出す（10/26「入っている店：六角堂（お寺）」が変だった） */
+  const FACILITY = new Set(['お寺', '神社', '交番・警察', '郵便局', '消防署', '役所', '区の施設', '幼稚園', '劇場', '資料館・博物館', '展示場', '観光案内所', '病院', '福祉施設', '商業ビル', '百貨店', 'ホテル', 'ゲストハウス', '宿']);
+  function shopsOf(b) {
     const Lm = lmOfBld.get(b);   // 名所の建物では、名所と同じ名前（浅草公会堂など）は繰り返さない
     const L = (SHOPS[String(b.id || '').slice(5, 13)] || []).filter(([n]) => !(Lm && (Lm.name.includes(n) || n.includes(Lm.name))));
-    if (!L.length) return '';
-    const shown = L.slice(0, 3).map(([n, k]) => `<span class="s1">${escH(cutName(n, sep === '<br>' ? 20 : 24))}（${escH(k)}）</span>`);   // 1軒の途中では折らない
-    const more = L.length > 3 ? `<span class="more">${sep === '<br>' ? '<br>' : ' '}ほか${L.length - 3}軒</span>` : '';
-    return `<span class="shops"><span class="more">入っている店：</span>${sep}${shown.join(sep)}${more}</span>`;
+    return { fac: L.filter(([, k]) => FACILITY.has(k)), shop: L.filter(([, k]) => !FACILITY.has(k)) };
   }
-  // 札（選ぶとき）の店：1行に収まる分だけ（全角1字＝2で34まで）並べ、残りは「ほか○軒」
+  // sep：札は「、」でつなぐ、info は1軒1行（'<br>'）。店は3軒まで出し、4軒以上は「ほか○軒」
+  function shopsText(b, sep) {
+    const { fac, shop } = shopsOf(b);
+    if (!fac.length && !shop.length) return '';
+    const one = ([n, k]) => `<span class="s1">${escH(cutName(n, sep === '<br>' ? 20 : 24))}（${escH(k)}）</span>`;   // 1軒の途中では折らない
+    const parts = fac.slice(0, 2).map(one);
+    if (shop.length) {
+      const more = shop.length > 3 ? `<span class="more">${sep === '<br>' ? '<br>' : ' '}ほか${shop.length - 3}軒</span>` : '';
+      parts.push(`<span class="more">入っている店：</span>${sep}${shop.slice(0, 3).map(one).join(sep)}${more}`);
+    }
+    return `<span class="shops">${parts.join(sep)}</span>`;
+  }
+  // 札（選ぶとき）の店：1行に収まる分だけ（全角1字＝2で48まで）並べ、残りは「ほか○軒」
   function shopsLine(b) {
-    const Lm = lmOfBld.get(b);
-    const L = (SHOPS[String(b.id || '').slice(5, 13)] || []).filter(([n]) => !(Lm && (Lm.name.includes(n) || n.includes(Lm.name))));
-    if (!L.length) return '';
+    const { fac, shop } = shopsOf(b);
+    if (!fac.length && !shop.length) return '';
     const wd = s => { let w = 0; for (const ch of s) w += ch.charCodeAt(0) < 0x2000 ? 1 : 2; return w; };
-    /* 頭に「入っている店：」（本人 10/26「こんなでかい建物が本当にパン屋？」。9階建ての1階の1軒が、建物そのもののように読めたため） */
-    const HEAD = '入っている店：', shown = []; let used = wd(HEAD);
-    for (const [n, k] of L) { const s = `${cutName(n, 16)}（${k}）`, w = wd(s) + (shown.length ? 2 : 0); if (shown.length && used + w > 48) break; shown.push(s); used += w; }
-    const rest = L.length - shown.length;
-    return `<span class="shops one"><span class="more">${HEAD}</span>${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}</span>`;
+    const facS = fac.slice(0, 2).map(([n, k]) => `${cutName(n, 16)}（${k}）`).join('、');
+    let used = wd(facS), out = escH(facS);
+    if (shop.length) {
+      /* 頭に「入っている店：」（本人 10/26「こんなでかい建物が本当にパン屋？」。9階建ての1階の1軒が、建物そのもののように読めたため） */
+      const HEAD = (facS ? '　' : '') + '入っている店：', shown = []; used += wd(HEAD);
+      for (const [n, k] of shop) { const s = `${cutName(n, 16)}（${k}）`, w = wd(s) + (shown.length ? 2 : 0); if (shown.length && used + w > 48) break; shown.push(s); used += w; }
+      const rest = shop.length - shown.length;
+      out += `<span class="more">${HEAD}</span>${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}`;
+    }
+    return `<span class="shops one">${out}</span>`;
   }
   function setHover(b) {
     /* 札と黄色い光は町の画面だけ。乗せ替えの待ち（mouseHover の0.25秒）が担いだ後に来ても出さない（直す係 第1回で見つけた） */
@@ -2704,7 +2761,10 @@ function start(DATA, isAsakusa) {
   const rotHold = { dir: 0, t0: 0, last: 0 };
   function startRot(dir) { rotHint(false); if (S.b && mode === 'carry') firstPush(); if (rotHold.dir === dir) return; rotHold.dir = dir; rotHold.t0 = performance.now(); rotHold.last = rotHold.t0; rotate(15 * dir); }
   function stopRot() { rotHold.dir = 0; }
+  let stickTurn = 0, stickTurnT = 0;   // ジョイスティックの左右（−1〜1。正が左回り）。倒している間、毎秒60°×倒し具合で回す
   function rotStep() {
+    if (stickTurn) { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) rotate(60 * dt * stickTurn, true); }
+    else stickTurnT = 0;
     if (!rotHold.dir) return;
     const now = performance.now();
     if (now - rotHold.t0 > 300) { const dt = Math.min(0.1, (now - rotHold.last) / 1000); if (!rotate(45 * dt * rotHold.dir, true)) { /* 当たったら止まる */ } }
@@ -3285,7 +3345,7 @@ function start(DATA, isAsakusa) {
     let html = '';
     /* バックでも向きでも動けない所では、「バック」の案内は出さない（押しても何も起きなかった。直す係 第3回・3-2）。
        そのときは大きさの3つと選び直すを、押してすぐ出す（stuckWatch） */
-    const bk = boxedIn() ? '' : '「バック」で下がって、向きを変える';
+    const bk = boxedIn() ? '' : matchMedia('(pointer:fine)').matches ? '↓（S）で下がって、向きを変える' : '丸を下へ倒して下がり、向きを変える';
     if (res.kind === 'width' && res.need > 0.05) {
       html = `幅でつっかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`;
     } else if (res.kind === 'width') {
@@ -3381,18 +3441,20 @@ function start(DATA, isAsakusa) {
   window.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
   $('zIn').onclick = () => zoomBy(0.8); $('zOut').onclick = () => zoomBy(1.25);
   $('recenter').onclick = () => { camFollow = true; };   // 現在地（神輿）に戻る
+  /* 動かすキー：矢印キーに、PCのゲームでふつうの W・A・S・D を足した（10/26 PCで動かしやすく）。Q・E も前のまま向き */
+  const KEY_U = ['ArrowUp', 'w', 'W'], KEY_D = ['ArrowDown', 's', 'S'], KEY_L = ['ArrowLeft', 'a', 'A', 'q', 'Q'], KEY_R = ['ArrowRight', 'd', 'D', 'e', 'E'];
   window.addEventListener('keydown', e => {
     if (e.key === '-' || e.key === '+' || e.key === ';' || e.key === '=') { zoomBy(e.key === '-' ? 1.25 : 0.8); return; }
     /* 町の画面（選び直した後も S.b は残る）では向きを変えない（直す係 第1回・不具合15） */
     if (!S.b || mode !== 'carry') return;
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') e.preventDefault();
-    if ((e.key === 'q' || e.key === 'Q' || e.key === 'ArrowLeft') && !e.repeat) startRot(1);
-    if ((e.key === 'e' || e.key === 'E' || e.key === 'ArrowRight') && !e.repeat) startRot(-1);
+    if (KEY_L.includes(e.key) && !e.repeat) startRot(1);
+    if (KEY_R.includes(e.key) && !e.repeat) startRot(-1);
   });
   // 押している間進む（秒速15m）。道は決めないので、交差点でも止まらない。止まるのはつかえたときだけ。
   // つかえた後も押し続けていれば、向きを変えたり下がったりした所で、また進んでみる。
   const HOLD_SPEED = 15, BACK_SPEED = 6;
-  const hold = { on: false, locked: false, lockAt: null, back: false };
+  const hold = { on: false, locked: false, lockAt: null, back: false, k: 1 };   // k：速さの割合（ジョイスティックの倒し具合。キーは1）
   const poseNow = () => ({ x: S.x, y: S.y, h: S.head });
   // 最初に押したら、選び直す・地図も出す（運び出しの直後は「押している間 進む」だけにしている）
   const firstPush = () => { if (S.intro) return; document.body.classList.remove('calm1', 'calm2'); };
@@ -3405,17 +3467,17 @@ function start(DATA, isAsakusa) {
   function holdStep(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') return;
     const sk = S.speedK || 1;   // 重い建物ほど少しゆっくり
-    if (hold.back && !hold.on) { move(-BACK_SPEED * sk * dt); return; }
+    if (hold.back && !hold.on) { move(-BACK_SPEED * sk * hold.k * dt); return; }
     if (!hold.on) return;
     if (hold.locked) {
       const p = hold.lockAt;
       /* 同じ所のままなら、試さない */
       if (Math.abs(S.x - p.x) + Math.abs(S.y - p.y) < 0.01 && Math.abs(S.head - p.h) < 1e-4) return;
-      S.quietBump = true; move(HOLD_SPEED * sk * dt); S.quietBump = false;
+      S.quietBump = true; move(HOLD_SPEED * sk * hold.k * dt); S.quietBump = false;
       if (S.stuck) { hold.lockAt = poseNow(); return; }
       hold.locked = false; $('hold').classList.add('on'); return;
     }
-    move(HOLD_SPEED * sk * dt);
+    move(HOLD_SPEED * sk * hold.k * dt);
     if (S.stuck) { hold.locked = true; hold.lockAt = poseNow(); $('hold').classList.remove('on'); }
   }
   const hb = $('hold');
@@ -3426,11 +3488,51 @@ function start(DATA, isAsakusa) {
   bb.addEventListener('pointerdown', e => { e.preventDefault(); bb.setPointerCapture(e.pointerId); startBack(); });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bb.addEventListener(ev, stopBack);
   bb.addEventListener('contextmenu', e => e.preventDefault());
+  /* ジョイスティック：丸の中心からのずれで、進む・バック・向きを決める（ボタンと同じ startHold・startBack・startRot を呼ぶ）。
+     ずれが半径の4割を超えた向きだけを入れる（斜めなら進む＋向き）。離すと真ん中に戻って全部止める */
+  /* 倒した量で速さと曲がり方が変わる（アナログ）。少し倒せばゆっくり、端まで倒せば今までの速さ（進む 秒速15m・バック 6m・向き 毎秒60°）。
+     真ん中の少しは遊び。向きは押した瞬間に15°回すボタンのやり方をやめ、倒している間なめらかに回す（rotStep の stickTurn） */
+  const stk = $('stick'), knob = $('knob'), ST = { id: null, fwd: false, back: false };
+  const ramp = (v, a) => Math.max(0, Math.min(1, (v - a) / (1 - a - 0.1)));
+  function stickSet(fk, bk, tr) {
+    if (document.body.classList.contains('calm1')) { bk = 0; tr = 0; }
+    const fwd = fk > 0, back = bk > 0 && !fwd;
+    if (fwd !== ST.fwd) { ST.fwd = fwd; fwd ? startHold() : stopHold(); }
+    if (back !== ST.back) { ST.back = back; back ? startBack() : stopBack(); }
+    hold.k = fwd ? fk : back ? bk : 1;
+    if (tr && !stickTurn) { rotHint(false); if (S.b && mode === 'carry') firstPush(); }
+    stickTurn = tr;
+  }
+  function stickMove(e) {
+    const r = stk.getBoundingClientRect(), R = r.width / 2 - knob.offsetWidth / 2;
+    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const L = Math.hypot(dx, dy); if (L > R) { dx *= R / L; dy *= R / L; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    const nx = dx / R, ny = dy / R;
+    stickSet(ramp(-ny, 0.2), ramp(ny, 0.2), -Math.sign(nx) * ramp(Math.abs(nx), 0.2));
+  }
+  function stickEnd() { ST.id = null; stk.classList.remove('on'); knob.style.transform = ''; stickSet(0, 0, 0); }
+  stk.addEventListener('pointerdown', e => { e.preventDefault(); ST.id = e.pointerId; stk.setPointerCapture(e.pointerId); stk.classList.add('on'); stickMove(e); });
+  stk.addEventListener('pointermove', e => { if (e.pointerId === ST.id) stickMove(e); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) stk.addEventListener(ev, e => { if (e.pointerId === ST.id) stickEnd(); });
+  stk.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('keydown', e => {
-    if (e.code === 'Space' || e.key === 'ArrowUp') { e.preventDefault(); if (!e.repeat) startHold(); }
-    if (e.key === 'ArrowDown') { e.preventDefault(); if (!e.repeat) startBack(); }
+    if (e.code === 'Space' || KEY_U.includes(e.key)) { e.preventDefault(); if (!e.repeat) startHold(); }
+    if (KEY_D.includes(e.key)) { e.preventDefault(); if (!e.repeat) startBack(); }
   });
-  window.addEventListener('keyup', e => { if (e.code === 'Space' || e.key === 'ArrowUp') stopHold(); if (e.key === 'ArrowDown') stopBack(); });
+  window.addEventListener('keyup', e => { if (e.code === 'Space' || KEY_U.includes(e.key)) stopHold(); if (KEY_D.includes(e.key)) stopBack(); });
+  /* 十字のキー：押したキーを光らせる。マウスで押している間も同じ動き */
+  const keyCap = { U: $('kU'), D: $('kD'), L: $('kL'), R: $('kR') };
+  const capOf = e => e.code === 'Space' || KEY_U.includes(e.key) ? 'U' : KEY_D.includes(e.key) ? 'D' : KEY_L.includes(e.key) ? 'L' : KEY_R.includes(e.key) ? 'R' : null;
+  window.addEventListener('keydown', e => { const c = capOf(e); if (c && S.b && mode === 'carry') keyCap[c].classList.add('on'); });
+  window.addEventListener('keyup', e => { const c = capOf(e); if (c) keyCap[c].classList.remove('on'); });
+  const capDo = { U: [startHold, stopHold], D: [startBack, stopBack], L: [() => startRot(1), stopRot], R: [() => startRot(-1), stopRot] };
+  for (const c of 'UDLR') {
+    const el = keyCap[c], [on, off] = capDo[c];
+    el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on'); on(); });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => { if (el.classList.contains('on')) { el.classList.remove('on'); off(); } });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
   window.addEventListener('blur', () => { stopHold(); stopBack(); stopRot(); });
   const muteLabel = () => { $('mute').textContent = SND.isMuted() ? '🔇 音なし' : '🔊 音あり'; };
   $('mute').onclick = () => { SND.unlock(); SND.setMute(!SND.isMuted()); muteLabel(); }; muteLabel();
@@ -3455,7 +3557,7 @@ function start(DATA, isAsakusa) {
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, stopRot);
     el.addEventListener('contextmenu', e => e.preventDefault());
   }
-  window.addEventListener('keyup', e => { if (['q', 'Q', 'e', 'E', 'ArrowLeft', 'ArrowRight'].includes(e.key)) stopRot(); });
+  window.addEventListener('keyup', e => { if (KEY_L.includes(e.key) || KEY_R.includes(e.key)) stopRot(); });
   $('again').onclick = () => {
     $('info').innerHTML = ''; goGoalReset(); document.body.classList.remove('intro', 'calm1', 'calm2'); S.intro = null; $('skip').style.display = 'none';
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none';
@@ -4209,42 +4311,47 @@ function start(DATA, isAsakusa) {
   })();
   const mini = $('mini'), mctx = mini.getContext('2d');
   let lastMini = 0;
+  /* 10/26：神輿の進む向きがいつも上（カメラは神輿の後ろから追うので、地図の上＝画面の奥）。丸い地図。ゴールが外なら縁に旗と向き */
   function drawMini() {
     if (!S.b) return;
-    const W = mini.width, half = 300; // 地図の半分の幅 = 300m
+    const W = mini.width, half = 260; // 地図の半分の幅 = 260m
     const k = W / (half * 2), cx = S.intro && S.intro.px !== undefined ? S.intro.px : S.x, cy = S.intro && S.intro.py !== undefined ? S.intro.py : S.y;
-    const toPx = (x, y) => [W / 2 + (x - cx) * k, W / 2 - (y - cy) * k];
+    const h = S.head, ch = Math.cos(h), sh = Math.sin(h), C = W / 2;
+    /* 地図の座標 → 画面（前＝上、右＝右） */
+    const toPx = (x, y) => { const dx = x - cx, dy = y - cy; return [C + (dx * sh - dy * ch) * k, C - (dx * ch + dy * sh) * k]; };
+    const toEdge = (px, py, m) => { const dx = px - C, dy = py - C, L = Math.hypot(dx, dy), R = C - m; return L > R ? [C + dx * R / L, C + dy * R / L, true] : [px, py, false]; };
+    mctx.save(); mctx.beginPath(); mctx.arc(C, C, C, 0, Math.PI * 2); mctx.clip();
     mctx.fillStyle = '#a9b39f'; mctx.fillRect(0, 0, W, W);
-    // 道（あらかじめ描いた絵から切り出す）
-    const sx = (cx - half - minX) / MINI_RES, sy = miniBase.height - (cy + half - minY) / MINI_RES;
+    // 道（あらかじめ描いた北が上の絵を、進む向きが上になるように回して貼る）
+    mctx.save(); mctx.translate(C, C); mctx.rotate(h - Math.PI / 2);
+    const sx = (cx - half * 1.5 - minX) / MINI_RES, sy = miniBase.height - (cy + half * 1.5 - minY) / MINI_RES, S3 = half * 3;
     mctx.imageSmoothingEnabled = false;
-    mctx.drawImage(miniBase, sx, sy, half * 2 / MINI_RES, half * 2 / MINI_RES, 0, 0, W, W);
+    mctx.drawImage(miniBase, sx, sy, S3 / MINI_RES, S3 / MINI_RES, -S3 / 2 * k, -S3 / 2 * k, S3 * k, S3 * k);
+    mctx.restore();
     // 通った道
     if (trailPts.length > 1) {
       mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 4; mctx.beginPath();
       trailPts.forEach((p, i) => { const [x, y] = toPx(p.x, -p.z); i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); });
       mctx.stroke();
     }
-    // ゴールへの方向（点線）
-    for (const g of goals) {
-      const [gx2, gy2] = toPx(g.x, g.y), [mx2, my2] = toPx(cx, cy);
-      mctx.save(); mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 3; mctx.setLineDash([8, 7]);
-      mctx.beginPath(); mctx.moveTo(mx2, my2); mctx.lineTo(Math.max(6, Math.min(W - 6, gx2)), Math.max(6, Math.min(W - 6, gy2))); mctx.stroke(); mctx.restore();
-    }
-    // ゴール（旗）
-    for (const g of goals) {
-      const [x, y] = toPx(g.x, g.y), q = Math.max(6, Math.min(W - 6, x)), r = Math.max(6, Math.min(W - 6, y));
-      mctx.fillStyle = '#2b2420'; mctx.fillRect(q - 1, r - 16, 3, 18);
-      mctx.fillStyle = '#e0b02a'; mctx.beginPath(); mctx.moveTo(q + 2, r - 16); mctx.lineTo(q + 16, r - 11); mctx.lineTo(q + 2, r - 6); mctx.fill();
-    }
     // 元の場所（持ち上げた跡）
     if (S.site) { const [x, y] = toPx(S.site.x, S.site.y); mctx.strokeStyle = '#2b2420'; mctx.lineWidth = 3; mctx.strokeRect(x - 7, y - 7, 14, 14); }
-    // 今いる所（向きの三角）
-    const h = S.head, [x, y] = toPx(cx, cy);
+    // ゴールへの方向（点線）とゴールの旗（地図の外なら縁に）
+    for (const g of goals) {
+      const [gx0, gy0] = toPx(g.x, g.y), [gx, gy] = toEdge(gx0, gy0, 14);
+      mctx.save(); mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 3; mctx.setLineDash([8, 7]);
+      mctx.beginPath(); mctx.moveTo(C, C); mctx.lineTo(gx, gy); mctx.stroke(); mctx.restore();
+      mctx.fillStyle = '#2b2420'; mctx.fillRect(gx - 1, gy - 16, 3, 18);
+      mctx.fillStyle = '#e0b02a'; mctx.beginPath(); mctx.moveTo(gx + 2, gy - 16); mctx.lineTo(gx + 16, gy - 11); mctx.lineTo(gx + 2, gy - 6); mctx.fill();
+    }
+    // 今いる所（いつも上を向いた三角）
     mctx.fillStyle = '#c8322a'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3; mctx.beginPath();
-    mctx.moveTo(x + Math.cos(h) * 14, y - Math.sin(h) * 14); mctx.lineTo(x + Math.cos(h + 2.5) * 10, y - Math.sin(h + 2.5) * 10); mctx.lineTo(x + Math.cos(h - 2.5) * 10, y - Math.sin(h - 2.5) * 10); mctx.closePath();
-    mctx.stroke(); mctx.fill();
-    mctx.fillStyle = '#2b2420'; mctx.font = 'bold 20px sans-serif'; mctx.fillText('北', W - 26, 24);
+    mctx.moveTo(C, C - 14); mctx.lineTo(C - 9, C + 9); mctx.lineTo(C + 9, C + 9); mctx.closePath(); mctx.stroke(); mctx.fill();
+    // 北（縁に小さく）
+    const [nx, ny] = toEdge(...toPx(cx, cy + half * 2), 16);
+    mctx.fillStyle = 'rgba(244,239,230,.9)'; mctx.beginPath(); mctx.arc(nx, ny, 13, 0, Math.PI * 2); mctx.fill();
+    mctx.fillStyle = '#2b2420'; mctx.font = 'bold 16px sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle'; mctx.fillText('北', nx, ny + 1);
+    mctx.restore();
   }
   // ゴール：浅草神社でお祓いを受ける。境内を広場にしたので、社殿の正面（南）のあいている所に置く。
   // 輪（半径8m）が、どの建物の足元にもかからない所（社殿の南、二天門の北西）。前は二天門の外の道（300, 150）だった。
@@ -5118,15 +5225,15 @@ function start(DATA, isAsakusa) {
     if (b.z > 1) { dx = -dx; dy = -dy; }   // カメラの後ろ
     $('goalArrow').style.transform = `rotate(${Math.atan2(dy * innerHeight, dx * innerWidth)}rad)`;
   }
+  /* ボタンをジョイスティック（#stick）にまとめたので、光らせるのもジョイスティック */
   function holdHint(on) {
-    if (on && !seen('mikoshi_hint_hold')) $('hold').classList.add('glow');
-    if (!on && $('hold').classList.contains('glow')) { $('hold').classList.remove('glow'); mark('mikoshi_hint_hold'); }
+    if (on && !seen('mikoshi_hint_hold')) { $('stick').classList.add('glow'); $('kU').classList.add('glow'); }
+    if (!on && $('stick').classList.contains('glow')) { $('stick').classList.remove('glow'); $('kU').classList.remove('glow'); mark('mikoshi_hint_hold'); }
   }
-  // 初めてつかえたとき、「向き」と「バック」を光らせる。どれかを押したら消える（二回目からは出さない）
+  // 初めてつかえたとき、ジョイスティックを光らせる（下へ倒すとバック・左右で向き）。倒したら消える（二回目からは出さない）
   function rotHint(on) {
-    const els = [$('rL'), $('rR'), $('back')];
-    if (on && !seen('mikoshi_hint_rot')) els.forEach(e => e.classList.add('glow'));
-    if (!on && $('rL').classList.contains('glow')) { els.forEach(e => e.classList.remove('glow')); mark('mikoshi_hint_rot'); }
+    if (on && !seen('mikoshi_hint_rot')) { $('stick').classList.add('glow'); $('keys').classList.add('glow'); }
+    if (!on && $('stick').classList.contains('glow')) { $('stick').classList.remove('glow'); $('keys').classList.remove('glow'); mark('mikoshi_hint_rot'); }
   }
 
   // ---------- 夜の版（?night=1 のときだけ。作者本人の案：暗いまま選んで担いで、帰り道で夜が明け、町と担いできた建物が写真の色で見えてくる） ----------

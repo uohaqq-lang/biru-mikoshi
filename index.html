@@ -2480,7 +2480,7 @@ function start(DATA, isAsakusa) {
     // 運び出し：その場で縮む（実物大なら縮まない）→浮く→担ぎ手が集まる→道へ運び出す。カメラは町の引きから神輿の後ろへ寄る。クリックで飛ばせる。
     const from = mode0 === 'pick' ? { pos: camera.position.clone(), look: V(mapCam.x, mapCam.y, 0) } : { pos: camera.position.clone(), look: camLook.clone() };
     S.intro = { t0: performance.now(), dur: how === 'site' ? 2600 : 3000, shrink: S.k < 0.999 ? SHRINK_MS : 0, sx: cx, sy: cy, sori: a, from };
-    $('skip').style.display = 'block';
+    /* 10/28 本人「建物選んでから建物に寄るまでに飛ばすはいらない」：運び出しの間は「飛ばす ▶」を出さない（画面に触れれば今までどおり終わる） */
   }
   function endIntro() {
     if (!S.intro) return;

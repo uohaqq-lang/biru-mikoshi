@@ -4243,8 +4243,10 @@ function start(DATA, isAsakusa) {
   const GHOST_HOLD = 1200;
   const ghostHit = new Map(); // 建物 → { n：続けて手前にあった回数, t：最後に手前にあった時刻 }
   function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); ghostHit.clear(); for (const sb of brSlabs) { sb.m.material = sb.mat; sb.hit = null; } }
+  /* 応募動画の撮影（?noGhost=1）では、手前の建物を半透明にしない（10/28 本人「動画では周りの建物が透けたり出てきたりするのを無くしてほしい」） */
+  const NO_GHOST = /[?&]noGhost=1/.test(location.search);
   function updateGhosts() {
-    if (!S.b) return;
+    if (!S.b || NO_GHOST) return;
     const want = new Set(), o = camera.position, d = new THREE.Vector3();
     const ori = S.head + S.rot, c = Math.cos(ori), sn = Math.sin(ori), L2 = S.dim.L / 2, W2 = S.dim.W / 2;
     const pts = [[0, 0], [L2, W2], [L2, -W2], [-L2, W2], [-L2, -W2]];

@@ -3333,8 +3333,8 @@ function start(DATA, isAsakusa) {
     if (!S.quietBump) S.shake = 1;
     if (!quiet && !S.quietBump && now - S.lastThud > 450) {
       thud(); S.lastThud = now;
-      /* 曲もドンと同じ時刻につかえた場面へ（ずっこけ）。また動き出したら担ぐ場面に戻す（毎こまの所） */
-      if (mode === 'carry' && !S.intro && !S.done && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = now; }
+      /* 10/28 本人「ちょっと壁に当たっただけで曲が止まる」：こすっただけなら曲は止めない（ドンの間だけ曲を下げる＝boom の duck）。
+         曲がつかえた場面（ずっこけ）に替わるのは、押しているのに0.6秒進めないとき（stuckWatch） */
     }
     if (!quiet && mode === 'carry') rotHint(true);
     // つかえた所の数は数える（赤い印は描かない。本人「いらない」）
@@ -3411,6 +3411,8 @@ function start(DATA, isAsakusa) {
     /* 担ぎ始めてすぐは出さない */
     if (performance.now() - (S.introEnd || 0) < 1500) return;
     S.noGo += dt;
+    /* 本当につかえたとき（押しているのに0.6秒進めない）だけ、曲もずっこけて止める。また動き出したら担ぐ場面に戻す（毎こまの所） */
+    if (S.noGo >= 0.6 && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = performance.now(); }
     /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す */
     if (S.noGo >= (boxedIn() ? 0 : hard ? 0.4 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
   }

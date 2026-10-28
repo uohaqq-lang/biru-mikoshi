@@ -4763,7 +4763,7 @@ function start(DATA, isAsakusa) {
     saveDone(d);
     if (NIGHT) reachArrive();   // 夜の版：明かりの届く範囲を、次に夜になるとき広げる
     $('doneTitle').textContent = 'お祓い';
-    $('doneInfo').innerHTML = `<b>${lmName(b)}</b>が${gl.name}で<span class="nw">お祓いを受けました</span><br><span class="nw">足元の面積 ${fmtSm(area1)}㎡</span> ／ <span class="nw">高さ ${f1(S.dim.h)}m</span><br><span class="nw">担ぎ手 ${fmt(w.people)}人</span> ／ <span class="nw">道のり ${fmt(S.dist)}m</span>`;
+    $('doneInfo').innerHTML = `<b>${lmName(b)}</b>が${gl.name}で<span class="nw">お祓いを受けました</span><br><span class="nw">担ぎ手 ${fmt(w.people)}人</span> ／ <span class="nw">道のり ${fmt(S.dist)}m</span>`;
     const el = $('done'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
     $('doneInfo').style.display = '';   // 数字は お祓い・魂振り の間だけ。帰り道からは題だけ
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; hideMsg();

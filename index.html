@@ -4242,11 +4242,23 @@ function start(DATA, isAsakusa) {
      手前から外れても1.2秒は半透明のままにする（高架の板も同じ。0.7秒では、外れて戻ってすぐまた当たる建物が残った） */
   const GHOST_HOLD = 1200;
   const ghostHit = new Map(); // 建物 → { n：続けて手前にあった回数, t：最後に手前にあった時刻 }
-  function clearGhosts() { for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); ghostHit.clear(); for (const sb of brSlabs) { sb.m.material = sb.mat; sb.hit = null; } }
-  /* 応募動画の撮影（?noGhost=1）では、手前の建物を半透明にしない（10/28 本人「動画では周りの建物が透けたり出てきたりするのを無くしてほしい」） */
-  const NO_GHOST = /[?&]noGhost=1/.test(location.search);
+  function clearGhosts(force) { if (ghostFixed && !force) return; for (const [b, m] of ghosts) { scene.remove(m); m.geometry.dispose(); setFlat(b, 0); } ghosts.clear(); ghostHit.clear(); for (const sb of brSlabs) { sb.m.material = sb.mat; sb.hit = null; } }
+  /* 応募動画の撮影用：半透明にする建物（id）と高架の板（番号）を外から決め、その間は自動で出し入れしない（null で自動に戻す）。
+     10/28 本人「動画では建物が消えたり出てきたりするのがバグに見える。消えるなら消える、消えないなら消えない」。
+     撮影の道具が、ショットの間に一度でも半透明になったものを先に調べ、ショットの頭から終わりまで半透明のままにする */
+  let ghostFixed = false;
+  function ghostFix(ids, slabs) {
+    ghostFixed = false; clearGhosts(true);
+    if (!ids) return 0;
+    ghostFixed = true;
+    const want = new Set(ids);
+    for (const b of blds) if (want.has(b.id) && b !== S.b) { const m = new THREE.Mesh(bldGeo(b, b.h), ghostMat(b.col)); m.renderOrder = 2; scene.add(m); ghosts.set(b, m); setFlat(b, 2); }
+    for (const i of slabs || []) { const sb = brSlabs[i]; if (!sb) continue; if (!sb.ghost) { sb.ghost = sb.mat.clone(); sb.ghost.transparent = true; sb.ghost.opacity = 0.22; sb.ghost.depthWrite = false; } sb.m.material = sb.ghost; }
+    return ghosts.size;
+  }
+  const slabGhosts = () => brSlabs.map((sb, i) => sb.m.material !== sb.mat ? i : -1).filter(i => i >= 0);
   function updateGhosts() {
-    if (!S.b || NO_GHOST) return;
+    if (!S.b || ghostFixed) return;
     const want = new Set(), o = camera.position, d = new THREE.Vector3();
     const ori = S.head + S.rot, c = Math.cos(ori), sn = Math.sin(ori), L2 = S.dim.L / 2, W2 = S.dim.W / 2;
     const pts = [[0, 0], [L2, W2], [L2, -W2], [-L2, W2], [-L2, -W2]];
@@ -6122,7 +6134,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, kei: () => ({ on: KEI.on, lan: KEI.n || 0, k: KEI.on ? +KEI.gm.uniforms.uK.value.toFixed(3) : 0, haze: KEI.on ? +KEI.hm.uniforms.uK.value.toFixed(3) : 0 }), keiOff: v => { KEI.off = !!v; }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

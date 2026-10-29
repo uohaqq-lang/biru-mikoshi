@@ -149,6 +149,11 @@
   #tour.slim .tt { display:none; }
   #tour .tt { display:block; max-height:0; opacity:0; overflow:hidden; transition:max-height .6s, opacity .6s; }
   #tour.read .tt { max-height:16em; opacity:1; }
+  /* 説明を消す×（札は押せないので、×だけ押せるようにする。出ている間だけ） */
+  #tour { padding-right:34px; }
+  #tour .tx { position:absolute; top:3px; right:4px; width:28px; height:28px; padding:0; background:none; box-shadow:none; font-size:18px; line-height:28px; color:var(--dim); }
+  #tour.on .tx { pointer-events:auto; }
+  #tour .tx::after { content:''; position:absolute; inset:-8px; }
   @media (max-width:600px) { #tour { top:auto; bottom:240px; font-size:12px; } #guide { max-width:52vw; font-size:11px; } }
   #hold, #back { position:fixed; border-radius:50%; font-weight:700; touch-action:none; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; box-shadow:0 3px 10px rgba(0,0,0,.35); }
   #hold { right:24px; bottom:24px; width:120px; height:120px; padding:8px; background:var(--red); color:#fff; font-size:16px; line-height:1.35; }
@@ -202,9 +207,11 @@
     body.gateOn:not(.sm) #tour { left:max(50%, calc(452px + min(280px, 50vw - 330px))); }
     body.gateOn:not(.sm) #tour:not(.slim) { width:min(560px, calc(100vw - 660px)); box-sizing:border-box; }
   }
-  #again { position:fixed; left:12px; bottom:14px; display:none; font-size:13px; padding:8px 12px; }
-  /* 幅や高さでつかえたときは、選び直すボタンを大きく、つかえた札のすぐ下に出す */
-  #again.big { left:50%; bottom:auto; top:178px; transform:translateX(-50%); font-size:18px; font-weight:700; padding:12px 24px; background:var(--red); color:#fff; box-shadow:0 2px 10px rgba(0,0,0,.35); }
+  /* 「やり直す」（町に戻って建物を選び直す）。10/29 本人「選び直すボタンも薄くしてでかくてもいい。やり直す感じの文言じゃないとわかりづらいかも」
+     → 字を大きく、地を薄く（向こうの町が透ける） */
+  #again { position:fixed; left:12px; bottom:14px; display:none; font-size:16px; font-weight:700; padding:10px 18px; background:rgba(244,239,230,.62); color:var(--ink); }
+  /* 幅や高さでつかえたときは、やり直すボタンを大きく、つかえた札のすぐ下に出す */
+  #again.big { left:50%; bottom:auto; top:178px; transform:translateX(-50%); font-size:20px; font-weight:700; padding:12px 30px; background:rgba(194,38,30,.78); color:#fff; box-shadow:0 2px 10px rgba(0,0,0,.35); }
   @media (max-width:600px) { #again.big { top:196px; font-size:16px; padding:11px 20px; } }
   @media (max-width:600px) {
     #title { max-width:58vw; font-size:12px; }
@@ -286,7 +293,7 @@
   /* 向きの二つは左の親指、進む・バックは右の親指（同時に押して、進みながら曲がれる） */
   body.sm #rot { left:12px; right:auto; bottom:40px; gap:10px; }
   body.sm #rot button { width:74px; height:62px; font-size:15px; font-weight:700; }
-  body.sm #again { font-size:12px; padding:7px 10px; bottom:116px; }
+  body.sm #again { font-size:14px; padding:8px 14px; bottom:116px; }
   body.sm #skip { bottom:140px; }   /* 左下のお祓いの記録の札と重ならない高さ */
   body.sm #zoom button { width:38px; height:38px; font-size:18px; }
   /* スマホ：小さいボタンは、見た目はそのままで、指で押せる範囲（::after）だけを広げて高さ44px前後にする。
@@ -405,7 +412,7 @@
 <div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button>
   <div id="stick" title="上へ倒すと進む（↑）・下へ倒すとバック（↓）・左右へ倒すと向きを変える（← →）"><span class="lb up">進む</span><span class="lb dn">バック</span><span class="lb lf">⟲</span><span class="lb rt">⟳</span><div id="knob"></div></div>
   <div id="keys"><button class="k" id="kU" title="進む（↑・W・スペース）"><b>↑</b><small>進む</small></button><button class="k" id="kL" title="左へ向きを変える（←・A）"><b>←</b><small>向き</small></button><button class="k" id="kD" title="バック（↓・S）"><b>↓</b><small>バック</small></button><button class="k" id="kR" title="右へ向きを変える（→・D）"><b>→</b><small>向き</small></button></div></div>
-<button id="again">建物を選び直す</button>
+<button id="again">やり直す</button>
 <button id="skip">飛ばす ▶</button>
 
 <script src="lib/three.min.js"></script>
@@ -2658,8 +2665,11 @@ function start(DATA, isAsakusa) {
   function tourPick() {
     // 担いでいる名所そのもの（「ゴールに向かおう！」が消えてから）を先に。ほかは近い順
     if (S.myL && !S.toured.has(S.myL) && performance.now() - (S.introEnd || 0) > 3800) return S.myL;
+    /* 雷門の前では雷門を先に出し、向かいの浅草文化観光センターの説明は出さない（10/29 本人「雷門目の前にあるのに観光センターの説明入る」） */
+    const gateL = lmByKind.gate, nearGate = gateL && lmDistance(gateL) <= 40;
+    if (nearGate && !S.toured.has(gateL)) return gateL;
     let best = null, bd = 40;
-    for (const L of LANDMARKS) { if (S.toured.has(L) || L === S.myL) continue; const d = lmDistance(L); if (d <= bd) { bd = d; best = L; } }
+    for (const L of LANDMARKS) { if (S.toured.has(L) || L === S.myL || (nearGate && L.name === '浅草文化観光センター')) continue; const d = lmDistance(L); if (d <= bd) { bd = d; best = L; } }
     return best;
   }
   function tourStep(now) {
@@ -2685,7 +2695,9 @@ function start(DATA, isAsakusa) {
     if (now < tour.wait || document.body.classList.contains('goWait')) return;
     const L = tourPick(); if (!L) return;
     tour.L = L; tour.shownAt = 0;
-    el.innerHTML = `<span id="tourArrow" class="tarr">➤</span><b>${L.name}</b><span class="tt">${L.text}</span>`;
+    /* 右上の×で、その説明を消せる（10/29 本人「説明邪魔だったら消せるようにも」） */
+    el.innerHTML = `<button class="tx" title="説明を消す">×</button><span id="tourArrow" class="tarr">➤</span><b>${L.name}</b><span class="tt">${L.text}</span>`;
+    el.querySelector('.tx').onclick = e => { e.stopPropagation(); S.toured.add(L); tourReset(); tour.wait = performance.now() + 900; };
     el.classList.remove('read'); el.classList.add('on', 'slim');
     showTourHL(L);   // どこの説明か分かるように、その名所を光らせて名前の札を立てる
   }
@@ -3397,8 +3409,10 @@ function start(DATA, isAsakusa) {
     S.noGo += dt;
     /* 本当につかえたとき（押しているのに0.6秒進めない）だけ、曲もずっこけて止める。また動き出したら担ぐ場面に戻す（毎こまの所） */
     if (S.noGo >= 0.6 && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = performance.now(); }
-    /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す */
-    if (S.noGo >= (boxedIn() ? 0 : hard ? 0.4 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
+    /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す。
+       雷門の前（門から30m以内）でつかえたときも、すぐ出す（10/29 本人「雷門のところ通ってみたい人多そう。雷門にあたって通れない時は小さくできるように」） */
+    const atGate = gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 30;
+    if (S.noGo >= (boxedIn() || atGate ? 0 : hard ? 0.4 : 2.5) && !document.body.classList.contains('stuck')) stuckUI(S.stuck);
   }
   function showInfo() {
     if (!S.b) { $('info').innerHTML = ''; return; }
@@ -3631,8 +3645,11 @@ function start(DATA, isAsakusa) {
     box(bw, ceil, bd, -(gap + bw) / 2, 0, ver); box(bw, ceil, bd, (gap + bw) / 2, 0, ver);
     box(gap + bw * 2 + 0.6, 1.6, bd + 0.4, 0, ceil, ver);                       // 上の梁
     box(Math.min(d.L, gap + bw * 2 + 4), 0.6, Math.min(d.W, bd + 3.5), 0, ceil + 1.6, dark); // 軒
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1, 1, 4, 1), dark);       // 寄棟の屋根（四角すいを平たく）
-    roof.rotation.y = Math.PI / 4; roof.scale.set((gap + bw * 2 + 3) * 0.72, top - (ceil + 2.2), (bd + 3) * 0.72);
+    /* 寄棟の屋根（四角すいを平たく）。形のほうを45°回して辺を門にそろえてから伸ばす。
+       前はメッシュを45°回していて、伸ばす向きと辺がずれ、屋根がひし形にねじれて門が傾いて見えた（10/29 本人「雷門傾いてるように見える」） */
+    const roofGeo = new THREE.CylinderGeometry(0.5, 1, 1, 4, 1); roofGeo.rotateY(Math.PI / 4);
+    const roof = new THREE.Mesh(roofGeo, dark);
+    roof.scale.set((gap + bw * 2 + 3) * Math.SQRT1_2, top - (ceil + 2.2), (bd + 3) * Math.SQRT1_2);
     roof.position.set(0, ceil + 2.2 + (top - ceil - 2.2) / 2, 0); g.add(roof);
     // 大提灯：直径3.3m・高さ3.9m。上の端を軸にして縦に縮める。
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;

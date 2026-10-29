@@ -64,9 +64,9 @@
   #carry { background:var(--red); color:#fff; font-weight:700; }
   #view.picking { cursor:grab; }
   #view.picking.over { cursor:pointer; }
-  /* 大きさ（実物大・半分・神輿）：最初の画面の右下に小さく。説明の文は付けない（本人「ゲームは雰囲気で説明できるように」）。id は前の難しさのまま */
+  /* 大きさ（実物大・半分・神輿）：つかえたときだけ出す。説明の文は付けない（本人「ゲームは雰囲気で説明できるように」）。id は前の難しさのまま
+     10/29 本人「とにかく最初は原寸大の建物を運び出して。それで動かなかったらサイズ変更できるように。最初に右下のボタンいらない」→ 町の画面では出さない */
   #diffSel { position:fixed; right:12px; bottom:14px; display:none; background:rgba(244,239,230,.82); border-radius:9px; padding:3px; box-shadow:0 1px 4px rgba(0,0,0,.25); }
-  body[data-mode=pick] #diffSel { display:flex; }
   #diffSel button { background:none; box-shadow:none; font-size:12px; padding:4px 10px; border-radius:7px; color:var(--dim); }
   #diffSel button.on { background:var(--paper); color:var(--red); font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,.22); }
   body.sm #diffSel { right:10px; bottom:30px; flex-direction:column; }   /* スマホは縦に積む（左下のお祓いの数の帯と横に並ぶと重なるため） */
@@ -5188,15 +5188,13 @@ function start(DATA, isAsakusa) {
   function showHelp() { $('help').classList.add('on'); }
   $('helpGo').onclick = () => { $('help').classList.remove('on'); mark('mikoshi_help_seen'); };
   $('helpBtn').onclick = () => showHelp();
-  // 町の画面の一行の案内（マウスなら「クリック」）。一度担いだら出さない。
-  // 後ろの文で、ゴールまで行ける建物が少ないこと（浅草神社に建物を運び込むのは、もともと無理なこと）を先に言っておく
+  // 町の画面の一行の案内（マウスなら「クリック」）。
   const finePtr = !!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches);
-  // 後ろの文は「実物大のまま担ぐ」ときの話なので、実物大のときだけ出す（半分・神輿なら、たいていは出られる）
   // 本人（10/17）「見たときに何をすればよいか分かりにくい。建物を選んで！みたいなの出てもいい」→ 選ぶ画面では毎回、大きく出す
-  // 実物大の数え：★5（近くの道に置けない）が2,669棟中1,396棟（tools/difficulty.py。10/15 高さを写真付きの形にそろえて出し直し）
-  const renderPickHint = () => { $('pickHint').innerHTML = `<b>建物を選んで！</b>` + (sizeMode === 'full' ? '<small>半分近くの建物は、そのままでは道に出られません</small>' : ''); };
+  // 10/29 本人「建物を選んで！の下の、半分近くは…の文章いらない」→ 一行だけにした
+  const renderPickHint = () => { $('pickHint').innerHTML = `<b>建物を選んで！</b>`; };
   renderPickHint();
-  // 大きさの3つのボタン（最初の画面の右下・つかえたとき）。選んだら覚える。札が出ていれば、星の有り無しを替えて出し直す。
+  // 大きさの3つのボタン（つかえたとき）。選んだら覚える。札が出ていれば、星の有り無しを替えて出し直す。
   // 担いでいる途中なら、その場で縮む（大きくするとまわりにめり込むときは替えず、ボタンの帯が首を振る）
   function setSize(m) {
     if (!SIZES.includes(m)) return false;

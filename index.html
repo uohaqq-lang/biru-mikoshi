@@ -338,8 +338,17 @@
   #ttlSeal { position:absolute; right:-.42em; bottom:-.1em; writing-mode:vertical-rl; font-family:"Yuji Boku","Hiragino Mincho ProN","Yu Mincho",serif; font-weight:400; font-size:.2em; line-height:1; letter-spacing:.05em;
     padding:.18em .1em; background:#c8321f; color:#fbefe0; border-radius:.08em; text-shadow:none; box-shadow:0 1px 3px rgba(0,0,0,.6); }
   #ttl.font #ttlName { opacity:1; }
-  #ttlTap { margin-top:min(6vh, 52px); font-size:min(4.6vw, 2.6vh, 21px); letter-spacing:.42em; padding-left:.42em; color:#f3e7c8; text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 10px rgba(0,0,0,.8), 0 0 22px rgba(0,0,0,.6); opacity:0; }
-  #ttl.ready.font #ttlTap { animation:ttlTap 2.8s ease-in-out infinite; }
+  #ttlSlot { position:relative; margin-top:min(6vh, 52px); }
+  #ttlTap { font-size:min(4.6vw, 2.6vh, 21px); letter-spacing:.42em; padding-left:.42em; color:#f3e7c8; text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 10px rgba(0,0,0,.8), 0 0 22px rgba(0,0,0,.6); opacity:0; }
+  #ttl.ready.font.snd #ttlTap { animation:ttlTap 2.8s ease-in-out infinite; }
+  /* 音を鳴らす前の太鼓の印（10/30 本人「始める前の画面で既に音楽が欲しい」）。ブラウザは一度触るまで音を出させないので、「はじめる」の前にこれを押してもらう。
+     押すと入り太鼓が鳴り出し、印は打たれたように膨らんで消え、「はじめる」に替わる。印は「はじめる」と同じ所に重ねる（題字の位置が動かないように） */
+  #ttlDrum { position:absolute; left:50%; top:50%; width:min(17vw, 9vh, 76px); aspect-ratio:1; transform:translate(-50%, -50%); opacity:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,.8)); transition:opacity .4s; }
+  #ttlDrum svg { display:block; width:100%; height:100%; }
+  #ttl.font:not(.snd) #ttlDrum { opacity:1; animation:ttlDrum 1.02s ease-out infinite; }
+  #ttl.snd #ttlDrum { opacity:0; transform:translate(-50%, -50%) scale(1.5); transition:opacity .45s ease-out, transform .45s ease-out; }
+  /* 鼓動のように、拍ごとに小さく打つ（選ぶ画面の曲と同じ118拍/分の、2拍に1度） */
+  @keyframes ttlDrum { 0% { transform:translate(-50%, -50%) scale(1.08); } 22%, 100% { transform:translate(-50%, -50%) scale(1); } }
   /* いちばん薄い時でも読めるように（10/23 上空の明るい町の画の上で、薄い時に読めなかった） */
   @keyframes ttlTap { 0%, 100% { opacity:.68; } 50% { opacity:1; } }
   #ttl.go #ttlName, #ttl.go #ttlTap { opacity:0 !important; animation:none; transition:opacity .35s; }
@@ -372,7 +381,7 @@
 <body>
 <script>/* スマホの形（body.sm）を、重いデータを読む前に当てる（前は町が出るまで、PCの形のボタンが縦に折れて出ていた） */ if (innerWidth < 600 || innerHeight > innerWidth) document.body.classList.add('sm');</script>
 <div id="boot"></div>
-<div id="ttl"><div id="ttlSky"></div><div id="ttlShade"></div><div id="ttlName">ビル神輿<span id="ttlSeal">浅草</span></div><div id="ttlTap">はじめる</div><div id="ttlVeil"></div></div>
+<div id="ttl"><div id="ttlSky"></div><div id="ttlShade"></div><div id="ttlName">ビル神輿<span id="ttlSeal">浅草</span></div><div id="ttlSlot"><div id="ttlTap">はじめる</div><div id="ttlDrum"><svg viewBox="-50 -50 100 100" aria-hidden="true"><circle r="47" fill="#4a2a17"/><g id="ttlByo" fill="#e7d39b"></g><circle r="36" fill="#efe3c4"/><g fill="#c8321f"><path id="ttlTomoe" d="M0 0A14 14 0 0 0 0-28A7 7 0 0 0 0-14A7 7 0 0 1 0 0Z"/><use href="#ttlTomoe" transform="rotate(120)"/><use href="#ttlTomoe" transform="rotate(240)"/></g></svg></div></div><div id="ttlVeil"></div></div>
 <script>
 /* 題字の画面の受け付け（町のデータを読む前から動かす）。触ったら、町が出ていれば go（start の中で入れる）、まだなら出たらすぐ始める（want）。
    字は書体が届いてから出す（届く前に別の書体で出て、あとで形が替わらないように）。3秒待っても届かなければ明朝で出す */
@@ -384,7 +393,42 @@
   const tryFont = () => { if (document.fonts && document.fonts.load) document.fonts.load('900 100px "Zen Old Mincho"', 'ビル神輿').then(f => { if (f && f.length) show(); }, () => {}); };
   tryFont(); document.getElementById('ttlFont').addEventListener('load', tryFont);
   setTimeout(show, 3000);
-  const touch = () => { if (!T.on) return; if (T.go) T.go(); else T.want = true; };
+  /* 題字の画面から曲を鳴らす（10/30 本人「始める前の画面で既に音楽が欲しい」）。最初の一押しは太鼓の印で、音を鳴らし始めるだけ（snd が立つと「はじめる」に替わる）。
+     ブラウザが最初から音を出させてくれるときは、印を出さずにすぐ鳴らす。消音にしてあるとき・音が作れないときは、今までどおり「はじめる」だけ。
+     ctx はここで作り、触った時に resume する（触った処理の中でないと鳴らせないため）。曲の部品（BGM/bgm_a1.js）は後から読むので、届いてから EA.play で鳴らす。
+     町の画面の音（SND）は、ここの ctx と曲をそのまま引き継ぐ（SND の init） */
+  { const g = document.getElementById('ttlByo'); let s = ''; for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; s += '<circle r="2.4" cx="' + (Math.cos(a) * 41.5).toFixed(1) + '" cy="' + (Math.sin(a) * 41.5).toFixed(1) + '"/>'; } g.innerHTML = s; }
+  const sndOK = () => { T.snd = true; el.classList.add('snd'); };
+  let muted = false; try { muted = localStorage.getItem('mikoshi_mute') === '1'; } catch (e) { /* 覚えられない環境 */ }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let EA = null;
+  if (!muted && AC) try { EA = window.__earlyAudio = { ctx: new AC(), bgm: null, bus: null, timer: 0, on: false, done: false }; } catch (e) { EA = null; }
+  if (!EA) sndOK();
+  else {
+    EA.play = () => {
+      if (!EA.on || EA.bgm || EA.done || !(window.MIKOSHI_BGM && window.MIKOSHI_BGM.a1)) return;
+      const c = EA.ctx;
+      /* 音の大きさは町の画面と同じ（曲の大きさ1 × 全体0.9） */
+      try { EA.bus = c.createGain(); EA.out = c.createGain(); EA.out.gain.value = 0.9; EA.bus.connect(EA.out).connect(c.destination);
+        EA.bgm = window.MIKOSHI_BGM.a1(c, EA.bus); EA.bgm.setScene('iri', c.currentTime); } catch (e) { EA.bgm = null; return; }
+      EA.timer = setInterval(() => {
+        if (c.state !== 'running' || !EA.bgm) return;
+        /* 町のデータを読んで作る間は重い処理で何秒か止まるので、4秒先まで予約しておく（曲が途切れないように）。町が出たら（題字の画面の ready）0.3秒先に戻す。
+           残りの予約は「はじめる」→空から降りる（2.6秒）の間に鳴り終わるので、建物を選んだときの曲の切り替えは遅れない */
+        try { EA.bgm.scheduleUntil(c.currentTime + (EA.ahead || 4)); } catch (e) { try { EA.bgm.stop(c.currentTime); } catch (e2) { /* */ } EA.bgm = null; clearInterval(EA.timer); }
+      }, 90);
+      const prep = () => { if (EA.done || !EA.bgm) return; try { if (EA.bgm.prepare && EA.bgm.prepare(0.1)) setTimeout(prep, 30); } catch (e) { /* 鳴らす時に作る */ } };
+      setTimeout(prep, 30);
+    };
+    /* 曲を作る手間は、印が膨らむ動きを先に出してから */
+    EA.start = () => { if (EA.on) return; EA.on = true; sndOK(); setTimeout(EA.play, 60); };
+    if (EA.ctx.state === 'running') EA.start();
+  }
+  const touch = () => {
+    if (!T.on) return;
+    if (!T.snd) { try { EA.ctx.resume(); } catch (e) { /* */ } EA.start(); return; }
+    if (T.go) T.go(); else T.want = true;
+  };
   el.addEventListener('pointerdown', touch);
   addEventListener('keydown', e => { if (!e.repeat) touch(); });
 })();
@@ -426,6 +470,7 @@
 <script src="data/kakegoe.js"></script><!-- 担いで進む間の掛け声（10/23 候補1「大勢の棒読み」に替えた。前の版は data/kakegoe_旧.js） -->
 <script src="data/kakegoe_miyadashi.js"></script><!-- 魂振りの掛け声「オイサ、ハッ」（候補5） -->
 <script src="BGM/bgm_a1.js"></script><!-- BGM「A1」（Web Audio でその場で作る曲。書き出しの BGM/render.html も同じファイルを読む）。無ければ曲なしで動く -->
+<script>/* 題字の画面で、曲の部品が届く前に太鼓の印を押していたら、ここで鳴らし始める */ if (window.__earlyAudio && window.__earlyAudio.play) window.__earlyAudio.play();</script>
 <script src="data/difficulty.js"></script><!-- 建物ごとの難しさ（tools/difficulty.py が書く）。無くても動く -->
 <script src="remodel.js"></script><!-- 作り直した名所（雷門・本堂・浅草神社）の形。無ければ今までの形 -->
 <script src="data/shops.js"></script><!-- 建物ごとの店（OpenStreetMap。tools/osm_shops.py が書く）。無くても動く -->
@@ -2836,7 +2881,9 @@ function start(DATA, isAsakusa) {
     }
     function init() {
       if (ctx) return;
-      try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+      /* 題字の画面で作った ctx があれば、それを使う（曲は下で引き継ぐ） */
+      const EA = window.__earlyAudio;
+      try { ctx = EA ? EA.ctx : new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
       master = ctx.createGain(); master.gain.value = muted ? 0 : 0.9;
       // 割れ止め：0.8までは素通し、それを超えた所だけ丸めて1を超えないようにする（重い建物のドンと寺社の鐘が重なったときなど。10/19 録って確かめた）
       { const pre = ctx.createGain(), ws = ctx.createWaveShaper(), N = 4097, c = new Float32Array(N);
@@ -2862,7 +2909,16 @@ function start(DATA, isAsakusa) {
          太鼓の音や残響を作る手間があるので、最初に触った処理とは分けて0.2秒後に作る（スマホ相当で、最初の一押しの処理が 841ms → 1,136ms に延びたため） */
       setTimeout(() => {
         try {
-          if (window.MIKOSHI_BGM && window.MIKOSHI_BGM.a1) {
+          if (EA && EA.bgm) {
+            /* 題字の画面から鳴っている曲を、そのまま引き継ぐ（予約は SND の schedule に替え、出口を master に付け替える。場面は曲の中で入り太鼓から選ぶ画面へ移る） */
+            clearInterval(EA.timer); EA.done = true;
+            bgm = EA.bgm; bgmBus = EA.bus; bgmBus.disconnect(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(master); EA.out.disconnect();
+            bgm.setScene(scene, ctx.currentTime);
+            bgm.setIntensity(inten, ctx.currentTime);
+            const prep = () => { try { if (bgm && bgm.prepare && bgm.prepare(0.1)) setTimeout(prep, 30); } catch (e) { /* */ } };
+            setTimeout(prep, 30);
+          } else if (window.MIKOSHI_BGM && window.MIKOSHI_BGM.a1) {
+            if (EA) EA.done = true;
             bgmBus = ctx.createGain(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(master);
             bgm = window.MIKOSHI_BGM.a1(ctx, bgmBus);
             bgm.setScene(scene, ctx.currentTime);
@@ -6095,6 +6151,7 @@ function start(DATA, isAsakusa) {
     if (!TS.ready) {
       /* 町が出た最初のこま：夜空の色を消して画を見せ始め、触れるようにする（読み込みの間に触っていたら、すぐ始める） */
       TS.ready = true; $('ttl').classList.add('ready'); TTL.go = titleGo; TS.veil = $('ttlVeil');
+      if (window.__earlyAudio) window.__earlyAudio.ahead = 0.3;
       if (TTL.want) titleGo();
     }
     if (TS.cut < 0 || now - TS.t0 >= CUTS[TS.cut].dur) titleCut((TS.cut + 1) % CUTS.length, now);
@@ -6118,7 +6175,8 @@ function start(DATA, isAsakusa) {
   function titleGo() {
     if (!TS || TS.leaving) return;
     /* 押した所から太鼓だけの「入り太鼓」（約8秒）。打ち終えると曲のほうで選ぶ画面の曲に移る（10/29 本人「和太鼓だけとかも良い」） */
-    SND.setScene('iri');
+    /* 10/30 題字の画面の太鼓の印で、もう曲が鳴っていれば、打ち直さずにそのまま続ける */
+    if (!(window.__earlyAudio && window.__earlyAudio.on)) SND.setScene('iri');
     SND.unlock();
     TS.leaving = performance.now(); $('ttl').classList.add('go');
   }

@@ -420,6 +420,7 @@
 <script src="data/kakegoe_miyadashi.js"></script><!-- 魂振りの掛け声「オイサ、ハッ」（候補5） -->
 <script src="BGM/bgm_a1.js"></script><!-- BGM「A1」（Web Audio でその場で作る曲。書き出しの BGM/render.html も同じファイルを読む）。無ければ曲なしで動く -->
 <script src="data/difficulty.js"></script><!-- 建物ごとの難しさ（tools/difficulty.py が書く）。無くても動く -->
+<script src="remodel.js"></script><!-- 作り直した名所（雷門・本堂・浅草神社）の形。無ければ今までの形 -->
 <script src="data/shops.js"></script><!-- 建物ごとの店（OpenStreetMap。tools/osm_shops.py が書く）。無くても動く -->
 
 <script>
@@ -981,11 +982,17 @@ function start(DATA, isAsakusa) {
   // ---------- 名所の写真付きの形（data/landmark_tex.js があれば。PLATEAU の LOD2 とテクスチャ） ----------
   // pos は x=東・y=北・z=地面からの高さ。xf で Three の座標に直す（町：そのまま、神輿：建物の真ん中を原点に回す）
   const TEX = window.MIKOSHI_TEX || {};
+  /* 作り直した名所（remodel.js）：PLATEAU の写真付きの形の代わりに、実物の資料から組んだ形を同じ入れ物で出す（見た目だけ。判定・重さは箱のまま）
+     10/29 本人「浅草寺と浅草神社は作り直してカッコよくしても良いんじゃないか。ちゃんと実物を参考にして」 */
+  if (isAsakusa && window.MIKOSHI_REMODEL && new URLSearchParams(location.search).get('remodel') !== '0') {
+    for (const [id, f] of Object.entries(window.MIKOSHI_REMODEL.builds)) { try { TEX[id] = f(); } catch (e) { console.warn('作り直した名所を作れなかった', id, e); } }
+  }
   const texMats = new Map(); // 建物 → [写真の材質, 写真の無い面の材質]
   function texMatsOf(b) {
     let m = texMats.get(b); if (m) return m;
     const t = TEX[b.id];
-    const map = new THREE.TextureLoader().load('data:image/jpeg;base64,' + t.img);
+    const map = t.canvas ? new THREE.CanvasTexture(t.canvas) : new THREE.TextureLoader().load('data:image/jpeg;base64,' + t.img);
+    if (t.canvas) { map.generateMipmaps = false; map.minFilter = THREE.LinearFilter; }   /* 色見本の絵：縮小のぼかしで隣の色が混ざらないように */
     map.encoding = THREE.sRGBEncoding; map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     m = [new THREE.MeshLambertMaterial({ map, side: THREE.DoubleSide }), new THREE.MeshLambertMaterial({ color: b.col, side: THREE.DoubleSide })];
     if (NIGHT) { keiLight(m[0]); keiLight(m[1]); }   /* 夜の版：境内の明かりで下から照らす */
@@ -3642,6 +3649,9 @@ function start(DATA, isAsakusa) {
     const ver = new THREE.MeshLambertMaterial({ color: 0xc23a2b }), dark = new THREE.MeshLambertMaterial({ color: 0x3a3532 });
     const box = (w, h, dp, x, y, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, dp), mat); m.position.set(x, y + h / 2, 0); g.add(m); return m; };
     const gap = 5.4, bw = 3.9, bd = 8.1, ceil = 6.3, top = 12.6;
+    /* 10/29 本人「雷門傾いてるように見える」「実物を参考にして作り直して」→ remodel.js の雷門（写真と浅草寺公式の寸法から組んだ形）があれば、箱と屋根はそちらに替える */
+    const RM = new URLSearchParams(location.search).get('remodel') !== '0' && window.MIKOSHI_REMODEL;   /* ?remodel=0 で前の形（見比べ用） */
+    if (!RM) {
     box(bw, ceil, bd, -(gap + bw) / 2, 0, ver); box(bw, ceil, bd, (gap + bw) / 2, 0, ver);
     box(gap + bw * 2 + 0.6, 1.6, bd + 0.4, 0, ceil, ver);                       // 上の梁
     box(Math.min(d.L, gap + bw * 2 + 4), 0.6, Math.min(d.W, bd + 3.5), 0, ceil + 1.6, dark); // 軒
@@ -3651,18 +3661,25 @@ function start(DATA, isAsakusa) {
     const roof = new THREE.Mesh(roofGeo, dark);
     roof.scale.set((gap + bw * 2 + 3) * Math.SQRT1_2, top - (ceil + 2.2), (bd + 3) * Math.SQRT1_2);
     roof.position.set(0, ceil + 2.2 + (top - ceil - 2.2) / 2, 0); g.add(roof);
+    }
     // 大提灯：直径3.3m・高さ3.9m。上の端を軸にして縦に縮める。
-    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 256;
+    // 表は「雷門」、裏は「風雷神門」（浅草寺公式・国交省の解説）。胴は上下がすぼまった形、底は金の金具（写真）
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
     const cx2 = cv.getContext('2d');
-    cx2.fillStyle = '#c8261e'; cx2.fillRect(0, 0, 512, 256);
-    cx2.fillStyle = '#1a1412'; cx2.font = 'bold 92px "Hiragino Mincho ProN","Noto Serif JP",serif'; cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
-    for (const xx of [128, 384]) { cx2.fillText('雷', xx, 78); cx2.fillText('門', xx, 182); }
+    const lg = cx2.createLinearGradient(0, 0, 0, 512); lg.addColorStop(0, '#9e1a14'); lg.addColorStop(0.5, '#cf2a1f'); lg.addColorStop(1, '#9e1a14');
+    cx2.fillStyle = lg; cx2.fillRect(0, 0, 1024, 512);
+    cx2.strokeStyle = 'rgba(60,10,8,.35)'; cx2.lineWidth = 2; for (let yy = 14; yy < 512; yy += 22) { cx2.beginPath(); cx2.moveTo(0, yy); cx2.lineTo(1024, yy); cx2.stroke(); }   // 竹ひごの筋
+    cx2.fillStyle = '#16100e'; cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
+    cx2.font = 'bold 190px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; cx2.fillText('雷', 256, 140); cx2.fillText('門', 256, 370);
+    cx2.font = 'bold 92px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; ['風', '雷', '神', '門'].forEach((ch, i) => cx2.fillText(ch, 768, 96 + i * 106));
     const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
     const LH = 3.9, LR = 1.65;
     const pivot = new THREE.Group(); pivot.position.set(0, ceil, 0); g.add(pivot);
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(LR * 0.92, LR * 0.92, LH * 0.84, 24, 1, true), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
-    body.rotation.y = Math.PI / 2; body.position.y = -LH / 2; pivot.add(body);
-    for (const yy of [-0.25, -LH + 0.25]) { const ring = new THREE.Mesh(new THREE.CylinderGeometry(LR * 0.7, LR * 0.7, 0.5, 24), dark); ring.position.y = yy; pivot.add(ring); }
+    const lpts = []; for (let i = 0; i <= 12; i++) { const t = i / 12; lpts.push(new THREE.Vector2(LR * (0.78 + 0.22 * Math.sin(Math.PI * t)), LH * 0.84 * (t - 0.5))); }
+    const body = new THREE.Mesh(new THREE.LatheGeometry(lpts, 32), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+    body.position.y = -LH / 2; pivot.add(body);
+    const brass = new THREE.MeshLambertMaterial({ color: 0xb48a3c });
+    for (const [yy, mat, rr] of [[-0.25, dark, 0.8], [-LH + 0.25, brass, 0.82]]) { const ring = new THREE.Mesh(new THREE.CylinderGeometry(LR * rr, LR * rr, 0.5, 24), mat); ring.position.y = yy; pivot.add(ring); }
     gate.lantern = pivot;
     // 門の前の道の上の点（提灯を見上げる所）：短い辺の向きの、道のある側へ
     const nx = Math.cos(d.a + Math.PI / 2), ny = Math.sin(d.a + Math.PI / 2);
@@ -3672,6 +3689,19 @@ function start(DATA, isAsakusa) {
     /* 雷門通り（南）の側を先に探す。仲見世の側は、南に見つからないときだけ */
     for (const sg of ny < 0 ? [1, -1] : [-1, 1]) { for (let k = 24; k >= 10; k -= 1) { const x = d.cx + nx * sg * k, y = d.cy + ny * sg * k; if (onRoad(x, y) && !bldAt(x, y, 0.5) && clearLine(x, y)) { best = { x, y, k }; break; } } if (best) break; }
     gate.front = best || { x: d.cx + nx * 15, y: d.cy + ny * 15 };
+    if (RM) {
+      /* 門の正面（雷門通りの側）を -y にして置く。右（風神の側）は、正面から門を見たときの右 */
+      const fs = (gate.front.x - d.cx) * nx + (gate.front.y - d.cy) * ny >= 0 ? 1 : -1, fx = nx * fs, fy = ny * fs;
+      /* 提灯の絵の「雷門」（u=0.25、形の +x の側）を正面へ。組の -z が向き a+90°（nx, ny）にあたる */
+      body.rotation.y = fs > 0 ? Math.PI / 2 : -Math.PI / 2;
+      const m = RM.buildRaimon(), pos = RM.place({ P: m.pos }, d.cx, d.cy, Math.atan2(fx, -fy));
+      const p3 = new Float32Array(pos.length); for (let i = 0; i < pos.length; i += 3) { p3[i] = pos[i]; p3[i + 1] = pos[i + 2]; p3[i + 2] = -pos[i + 1]; }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(p3, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(m.uv, 2)); geo.computeVertexNormals();
+      const map = new THREE.CanvasTexture(m.canvas); map.encoding = THREE.sRGBEncoding; map.generateMipmaps = false; map.minFilter = THREE.LinearFilter;
+      const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map, side: THREE.DoubleSide }));
+      if (NIGHT) keiLight(mesh.material);
+      scene.add(mesh); lmMeshes.raimon.push(mesh); gate.mesh = mesh;
+    }
     scene.add(g); lmMeshes.raimon.push(g); lmPolys.raimon.push(raimonB.polys[0]);
   })();
   function updateGate(dt) {

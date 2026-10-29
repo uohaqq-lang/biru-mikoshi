@@ -3023,7 +3023,8 @@ function start(DATA, isAsakusa) {
       }
     }
     function setCrowd(n) {
-      crowdN = n; const v = scene === 'idle' ? 0 : Math.min(1, n / 140) * 0.5 * crowdMul;
+      /* 入り太鼓（iri）は選ぶ画面の前置きなので、選ぶ画面と同じくざわめきを出さない */
+      crowdN = n; const v = scene === 'idle' || scene === 'iri' ? 0 : Math.min(1, n / 140) * 0.5 * crowdMul;
       if (ctx) bus.crowd.gain.setTargetAtTime(v, ctx.currentTime, 0.4);
     }
     function crowdLog() { log('crowd', { n: crowdN }); }
@@ -3183,7 +3184,7 @@ function start(DATA, isAsakusa) {
       s.start(Math.max(t, ctx.currentTime));
     }
     /* 見物のざわめきの大きさを、場面に合わせて何倍かにする */
-    function crowdTo(mul, t, tau) { crowdMul = mul; if (scene !== 'idle') bus.crowd.gain.setTargetAtTime(Math.min(1, crowdN / 140) * 0.5 * mul, t, tau); }
+    function crowdTo(mul, t, tau) { crowdMul = mul; if (scene !== 'idle' && scene !== 'iri') bus.crowd.gain.setTargetAtTime(Math.min(1, crowdN / 140) * 0.5 * mul, t, tau); }
     function cerStop() { if (cerRun) { cerRun.gain.setTargetAtTime(0, ctx.currentTime, 0.08); cerRun = null; } crowdMul = 1; }
     /* お祓い（5.9秒。ゲームの doneStep と合わせる）。間合いは実際の速さに合わせた（拍子木は0.8秒あけ、一本締めは「いよーっ」の間のあと約3秒）。
        10/23 大麻を外して 8.0 → 5.9秒にした。一本締めの最後（5.12秒）から担ぎ上げの拍子木（5.9秒）まで、0.78秒の間 */
@@ -5962,6 +5963,8 @@ function start(DATA, isAsakusa) {
   /* 触った：音を鳴らし始め、字を消して暗くする（0.38秒後に titleEnd） */
   function titleGo() {
     if (!TS || TS.leaving) return;
+    /* 押した所から太鼓だけの「入り太鼓」（約8秒）。打ち終えると曲のほうで選ぶ画面の曲に移る（10/29 本人「和太鼓だけとかも良い」） */
+    SND.setScene('iri');
     SND.unlock();
     TS.leaving = performance.now(); $('ttl').classList.add('go');
   }

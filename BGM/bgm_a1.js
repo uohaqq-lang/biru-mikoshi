@@ -18,6 +18,8 @@
     大胴の低い所は、ゲームの足音（拍の頭で鳴る 40〜75Hz）を埋めないよう、担ぐ場面では拍の頭ごとに引き（拍の 40 ミリ秒前から 85 ミリ秒後まで −26dB）、38Hz を削った。
     10/23 夜、本人の「もうちょい大太鼓の音をでかくして」で大胴だけ +3.5dB。山は大胴だけの割れ止めで丸め、ほかの音の大きさは変えていない。
   ・音源ファイルは使わない。乱数は種を固定したハッシュで、書き出すたびに同じ音になる。
+  ・10/29 入り太鼓（iri）を足した：題字の「はじめる」を押した所から、太鼓と鉦だけで4小節（約8秒）。打ち終えると自分で選ぶ画面（idle）に移る。
+    大きさは書き出しで測って最初の8秒が −15.6 LUFS（選ぶ画面は −19.1、担ぐ場面は −18.3）。始まりの合図なので、ほかより少し大きい。
 */
 window.MIKOSHI_BGM = window.MIKOSHI_BGM || {};
 window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
@@ -38,7 +40,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const SWING = 0.08;
 
   /* 場面ごとのテンポ。担ぐ場面は段ごとに上下する（SEC_BPM）。お祓いの間は音が無いので、魂振りの速さへ先に寄せておく */
-  const BPM = { idle: 118, carry: 126, stuck: 126, harai: 144, tamafuri: 144, back: 104 };
+  /* 入り太鼓（iri）は選ぶ画面と同じ速さにして、そのまま選ぶ画面の曲へつなぐ */
+  const BPM = { iri: 118, idle: 118, carry: 126, stuck: 126, harai: 144, tamafuri: 144, back: 104 };
 
   /*
     場面ごとの層の音量（0〜1）。
@@ -50,8 +53,10 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     前の値 carry：pad 0.34・pluck 0.32・bass 0.5・plp 1000・od 0.85／tamafuri：pad 0.5・bass 0.65／back：pad 0.6・pluck 0.36
     10/23 夜：大胴の音を +3.5dB 上げた（OD_G）。魂振りは前から一番大きい場面で、出口の割れ止めが強く効いたので、魂振りの od は 1 → 0.8（魂振りでの上げ幅は約 +1.6dB）
   */
+  /* 10/29 入り太鼓（iri）：太鼓と鉦だけ。近くで打つ音にして（dlp を開く）、夜の空気と残響を少し */
   const MIX = {
-    idle:     { pad: 0.72, pluck: 0.6,  bell: 0.72, bass: 0,    shime: 0.5,  od: 0.52, kane: 0.46, fue: 0.72, sho: 0,   air: 0.72, rev: 0.6,  dlp: 1300,  plp: 750 },
+    iri:      { pad: 0,    pluck: 0,    bell: 0,    bass: 0,    shime: 1.7,  od: 1.1,  kane: 0.7,  fue: 0,    sho: 0,   air: 0.3,  rev: 0.5,  dlp: 12000, plp: 700 },
+    idle:   { pad: 0.72, pluck: 0.6,  bell: 0.72, bass: 0,    shime: 0.5,  od: 0.52, kane: 0.46, fue: 0.72, sho: 0,   air: 0.72, rev: 0.6,  dlp: 1300,  plp: 750 },
     carry:    { pad: 0.2,  pluck: 0.14, bell: 0,    bass: 0.32, shime: 0.9,  od: 1.05, kane: 0.62, fue: 1,    sho: 0,   air: 0,    rev: 0.26, dlp: 12000, plp: 800 },
     stuck:    { pad: 0.4,  pluck: 0,    bell: 0,    bass: 0,    shime: 0.5,  od: 0,    kane: 0,    fue: 0.8,  sho: 0,   air: 0.35, rev: 0.55, dlp: 6000,  plp: 700 },
     harai:    { pad: 0.32, pluck: 0,    bell: 0,    bass: 0,    shime: 0,    od: 0,    kane: 0,    fue: 0,    sho: 0.7, air: 0.3,  rev: 0.6,  dlp: 6000,  plp: 600 },
@@ -111,6 +116,23 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     /* 投げ合い：前半は笛が投げ（太鼓は控える）、後半は太鼓が返す */
     nage:  { s1: 'X...x...XxxxXxXx', s2: '......o.xXxXxXxX', od: '........D..dD.D.', kn: 'C...C...CkCkCkCk' }
   };
+  /*
+    入り太鼓（10/29 本人「最初のゲームを始めるところでも何かしらの音が鳴っててもいい。和太鼓だけとかも良い」）。
+    題字の「はじめる」を押した所から4小節（約8秒）。
+      0 小節目：「ドーン」「ドーン」と大胴で呼び、締太鼓の「テケ」
+      1 小節目：「ドン・ドン・ドドドン」
+      2 小節目：締太鼓の連打（rendaStep。後ろほど強く、終わりは32分）
+      3 小節目：「ドン！」と全部で一打ち、あとは残響
+    4 小節目の頭から、選ぶ画面の曲（idle）になる
+  */
+  const IRI = [
+    { s1: 'X...............', s2: 'X...........o.x.', od: 'D.......D.......', kn: 'C...............' },
+    { s1: 'X...x...X...x.x.', s2: '..o...o...o...o.', od: 'D...D...D.D.D...', kn: 'C.......C.......' },
+    null,
+    { s1: 'X...............', s2: 'X...............', od: 'D...............', kn: 'C...............' }
+  ];
+  const IRI_OD = [1.1, 0.95, 0, 1.25];
+
   /* 2人目の締太鼓の型を2つずらした変奏（奇数周目に使う） */
   for (const k in PAT) { const s = PAT[k].s2; PAT[k].alt2 = s.slice(14) + s.slice(0, 14); }
   const SHV = { X: 1, x: 0.7, o: 0.38 };
@@ -270,7 +292,7 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     ほかの場面が前と同じ大きさになるよう、場面ごとに戻す（書き出しで測って決めた）。
     10/23 夜、大胴を低くして MASTER を 0.356 → 0.325 にしたので、測り直して決め直した（前は 選ぶ 2.63・つかえた 2.25・お祓い 2.66・魂振り 1.02・帰り道 1.355）
   */
-  const SCENE_G = { idle: 2.785, carry: 1, stuck: 2.465, harai: 2.915, tamafuri: 0.942, back: 1.435 };
+  const SCENE_G = { iri: 0.85, idle: 2.785, carry: 1, stuck: 2.465, harai: 2.915, tamafuri: 0.942, back: 1.435 };
   const sceneG = G(SCENE_G.idle);
   sum.connect(hp); hp.connect(carve); carve.connect(sceneG); sceneG.connect(master); master.connect(pre); pre.connect(shaper); shaper.connect(dest);
 
@@ -961,7 +983,7 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const S = {
     scene: 'idle', x: 0.5, bpm: BPM.idle, bpmT: BPM.idle, dlyBpm: BPM.idle,
     n: 0, next: null, q: [], qx: [], started: false, applied: false, stopAt: Infinity, sceneT: 0,
-    fb: -1, cyc: 0, lead: 0, leadTotal: 1, resumeTo: 0, ib: -1, bb: -1, fueNeed: false
+    fb: -1, cyc: 0, lead: 0, leadTotal: 1, resumeTo: 0, ib: -1, bb: -1, fueNeed: false, ir: -1, iriDone: true
   };
 
   function layerGain(sc, name, x) {
@@ -1008,7 +1030,10 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       /* つかえた後の予約（パッドの戻り）を消してから、新しい場面の大きさにする */
       for (const v of padV) { hold(v.o.detune, t); v.o.detune.setValueAtTime(v.det, t); }
     }
-    if (name === 'idle') {
+    if (name === 'iri') {
+      S.ir = -1; S.iriDone = false;
+      fueSilence(t);
+    } else if (name === 'idle') {
       S.ib = -1;
       padLevel(t, PADV, 0.8);
       /* 10/26 本人「いろんなもの触ってたら音がずっとピーってなってる」：担ぐ曲の笛を伸ばしている途中で選ぶ画面に戻ると（建物を選び直す、帰り道の後など）、
@@ -1050,6 +1075,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       const e = S.q[0];
       /* 拍の頭にそろえる（つかえたときだけ待たない） */
       if (e.name !== 'stuck' && s % 4 !== 0) break;
+      /* 入り太鼓の途中に「選ぶ画面」が来ても、入り太鼓を最後まで打ってから移る（担ぐ・ほかの場面はすぐ移る） */
+      if (e.name === 'idle' && S.scene === 'iri' && !S.iriDone) break;
       S.q.shift();
       /* つかえたときは、指定の時刻そのもので止める（16分の頭まで待つと、ぶつかった「ドン」に曲が重なる） */
       if (e.name === 'stuck' && e.name !== S.scene) applyScene('stuck', Math.max(e.t, ctx.currentTime), s);
@@ -1186,6 +1213,25 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     else if (s === 0) fueRest(t);
   }
 
+  /* 入り太鼓（IRI の4小節）。打ち終えたら、待っている「選ぶ画面」を捨てて自分で選ぶ画面に移る */
+  function stepIri(t, n, s, sd, tt) {
+    if (s === 0) S.ir++;
+    const bar = S.ir;
+    if (bar >= IRI.length) {
+      S.iriDone = true;
+      S.q = S.q.filter(function (e) { return e.name !== 'idle'; });
+      applyScene('idle', t, s);
+      stepIdle(t, n, s, sd, tt);
+      return;
+    }
+    if (bar === 2) { rendaStep(t, s, sd, tt, s / 15, 16 - s); return; }
+    const pv = IRI[bar], c1 = pv.s1.charAt(s), c2 = pv.s2.charAt(s), co = pv.od.charAt(s), ck = pv.kn.charAt(s);
+    if (c1 !== '.') shimeHit(tt(0), SHV[c1], 0);
+    if (c2 !== '.') shimeHit(tt(0.006), SHV[c2], 1);
+    if (co !== '.') odaiko(tt(0.004), IRI_OD[bar] * (s === 0 ? 1 : 0.85), 'don');
+    if (ck !== '.') kaneHit(tt(0.009), bar === 3 ? 1 : 0.7, true);
+  }
+
   /* つかえた：刻みは止めて、1小節に1度だけ締太鼓が小さく間を数える */
   function stepStuck(t, n, s) {
     if (s === 0 && t - S.sceneT > 1.2) shimeHit(t, 0.25, 1);
@@ -1311,7 +1357,8 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     const sc = S.scene;
     /* 担ぐ場面：拍の頭（足音が鳴る所）で大胴の低い所を一瞬引く */
     if (sc === 'carry' && s % 4 === 0) duckLow(t);
-    if (sc === 'idle') stepIdle(t, n, s, sd, tt);
+    if (sc === 'iri') stepIri(t, n, s, sd, tt);
+    else if (sc === 'idle') stepIdle(t, n, s, sd, tt);
     else if (sc === 'carry') stepCarry(t, n, s, sd, tt);
     else if (sc === 'stuck') stepStuck(t, n, s);
     else if (sc === 'tamafuri') stepTama(t, n, s, sd, tt);

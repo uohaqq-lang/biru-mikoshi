@@ -1576,8 +1576,11 @@ function start(DATA, isAsakusa) {
     const b = marchHit(r.origin, r.direction, lmDist, b => !selectable(b));
     return b || lm;
   }
-  function enterPick() {
+  /* fresh：担ぎ終えた・選び直すで町に戻るとき。大きさは毎回、実物大に戻す
+     （10/29 本人「一回建物小さくすると次の建物も必ず小さくなってる。それよくない」）。開いた最初は ?size= のまま */
+  function enterPick(fresh) {
     mode = 'pick'; document.body.dataset.mode = mode; SND.setScene('idle');
+    if (fresh) setSize(SIZE_DEFAULT);
     $('guide').style.display = 'none'; tourReset();
     if (S.b) { mapCam.x = S.x; mapCam.y = S.y; mapCam.dist = Math.min(mapCam.dist, 300); }
     clearGhosts();
@@ -3558,7 +3561,7 @@ function start(DATA, isAsakusa) {
   $('again').onclick = () => {
     $('info').innerHTML = ''; goGoalReset(); document.body.classList.remove('intro', 'calm1', 'calm2'); S.intro = null; $('skip').style.display = 'none';
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none';
-    hideMsg(); enterPick();
+    hideMsg(); enterPick(true);
     /* 担いでいた建物は、担ぎ手ごと片付けて元の場所へ戻す（お祓いの後の finishDone と同じ片付け方）。
        前は次の建物を選ぶまで、道の上に担ぎ手ごと残り、元の場所は空いた跡のままだった（直す係 第2回・2-4） */
     if (S.b) {
@@ -4888,7 +4891,7 @@ function start(DATA, isAsakusa) {
     trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
     S.b = null; $('info').innerHTML = '';
     crowdBody.count = crowdHead.count = 0;
-    enterPick(); Object.assign(mapCam, HOME);
+    enterPick(true); Object.assign(mapCam, HOME);
     opening = { t0: null, dur: 2400, fromPos: from.pos, fromLook: from.look };
     refreshDoneMarks();
   }

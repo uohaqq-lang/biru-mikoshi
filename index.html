@@ -8,6 +8,7 @@
 <!-- 題字の画面の書体（本人が選んだ W3、10/26）：題字は Zen Old Mincho の極太、判の「浅草」は Yuji Boku、「はじめる」は Shippori Mincho B1 の太字。使う字だけを取り寄せる（text=ビル神輿浅草はじめる）。読めなければ明朝で出す -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link id="ttlFont" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@900&family=Yuji+Boku&family=Shippori+Mincho+B1:wght@800&display=block&text=%E3%83%93%E3%83%AB%E7%A5%9E%E8%BC%BF%E6%B5%85%E8%8D%89%E3%81%AF%E3%81%98%E3%82%81%E3%82%8B">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yuji+Boku&display=swap&text=%E6%A8%AA%E7%B6%B1%E5%A4%A7%E9%96%A2%E8%84%87%E5%B0%8F%E7%B5%90%E5%89%8D%E9%A0%AD%E5%8D%81%E4%B8%A1%E7%95%AA%E4%BB%98">
 <style>
   :root { --ink:#2b2420; --paper:#f4efe6; --red:#c8322a; --gold:#d9a521; --dim:#8a8079; }
   html,body { margin:0; height:100%; background:#d9d3c7; color:var(--ink); font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
@@ -110,6 +111,12 @@
   #done.on { opacity:1; }
   #done .big { font-size:30px; font-weight:800; color:var(--red); letter-spacing:.25em; margin-bottom:4px; }
   #doneInfo { font-size:14px; line-height:1.75; }
+  /* 番付（10/29 本人が選んだ案7）：着いて1秒後に、札の右肩へ判を押すように出す。字は筆の字（Yuji Boku。使う字だけ読む） */
+  #doneRank { position:absolute; right:-64px; top:-10px; writing-mode:vertical-rl; font-family:"Yuji Boku","Hiragino Mincho ProN","Yu Mincho",serif; font-size:40px; line-height:1;
+    color:#fff; background:var(--red); border:3px solid var(--gold); border-radius:6px; padding:10px 7px; letter-spacing:.06em; box-shadow:0 3px 10px rgba(0,0,0,.35);
+    transform:scale(0) rotate(-8deg); opacity:0; transition:transform .32s cubic-bezier(.3,1.7,.5,1), opacity .15s; }
+  #doneRank.on { transform:scale(1) rotate(-8deg); opacity:1; }
+  #doneRank small { display:block; font-size:.36em; letter-spacing:.2em; margin-bottom:6px; opacity:.92; }
   #best { left:12px; bottom:14px; background:rgba(244,239,230,.9); border-radius:8px; padding:5px 9px; font-size:12px; line-height:1.5; display:none; max-width:70vw; }
   /* お祓いを受けた建物の数は、町の画面でいつも出す（0棟でも）。いちばん大きい建物は、受けたことがあるときだけ */
   body[data-mode=pick] #best { display:block; }
@@ -123,7 +130,7 @@
   #sel .diff .st { color:var(--gold); letter-spacing:.06em; font-size:14px; }
   #sel .diff.d4 .st, #sel .diff.d5 .st { color:var(--red); }
   /* スマホのお祓い・魂振りの札は、左上の地図の下に出す。前は下から170pxで、神輿（画面の下から約330〜380px）と揺れる担ぎ手を覆った（直す係 第1回・不具合13） */
-  @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; } #done .big { font-size:24px; } }
+  @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; } #done .big { font-size:24px; } #doneRank { right:-12px; top:-42px; font-size:28px; padding:8px 5px; } }
   #mute, #photoBtn { font-size:12px; padding:5px 10px; }
   #photoBtn.off { color:var(--dim); }
   #photoBtn { display:none !important; }   /* 本人「写真ありいらない」：写真はいつも出すので、切り替えは見せない */
@@ -401,7 +408,7 @@
   <button id="helpGo">はじめる</button><div class="src" id="helpSrc"></div></div></div>
 <button id="srcBtn" title="出典を見る">出典</button>
 <div id="msg"></div>
-<div id="done"><div class="big" id="doneTitle">お祓い</div><div id="doneInfo"></div></div>
+<div id="done"><div class="big" id="doneTitle">お祓い</div><div id="doneInfo"></div><div id="doneRank"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
 <div id="hint"></div>
 <div id="pickHint"></div>
@@ -2467,7 +2474,7 @@ function start(DATA, isAsakusa) {
     // 足元を、建物の長い辺が「横向き（進む向きと直角）」になるように置く。担ぐ向きは進む向きと同じ。
     // 決めた大きさ（実物大・半分・神輿）に縮めて担ぐ。判定・重さ・担ぎ手は、はじめから縮めた大きさ。見た目だけ、運び出しの最初に縮んでいく
     const { cx, cy, a } = b.d;
-    joinReset();   /* 飛び入りの行列は、担ぐ建物ごとに0人から */
+    joinReset(); S.bumps = 0;   /* 飛び入りの行列と、つかえた回数（番付に使う）は、担ぐ建物ごとに0から */
     useShape(shapeFor(b, scaleOf(b, sizeMode)));
     S.visK = 1; S.scaleAnim = null; S.slide = null; S.vis = null;
     carryBody(b);
@@ -3435,7 +3442,7 @@ function start(DATA, isAsakusa) {
     if (performance.now() - (S.introEnd || 0) < 1500) return;
     S.noGo += dt;
     /* 本当につかえたとき（押しているのに0.6秒進めない）だけ、曲もずっこけて止める。また動き出したら担ぐ場面に戻す（毎こまの所） */
-    if (S.noGo >= 0.6 && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = performance.now(); }
+    if (S.noGo >= 0.6 && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = performance.now(); S.bumps = (S.bumps || 0) + 1; }
     /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す。
        雷門の前（門から30m以内）でつかえたときも、すぐ出す（10/29 本人「雷門のところ通ってみたい人多そう。雷門にあたって通れない時は小さくできるように」） */
     const atGate = gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 30;
@@ -4918,6 +4925,13 @@ function start(DATA, isAsakusa) {
     if (!S.b || S.done || S.intro) return;
     for (const gl of goals) if (Math.hypot(S.x - gl.x, S.y - gl.y) <= gl.r) { arrive(gl); return; }
   }
+  /* 番付（10/29 本人が選んだ案7）：担いだ重さ（0〜4点）・飛び入りの人数（0〜3点）・実物大（1点）・一度もつかえなかった（1点）を足して、
+     7点以上 横綱、5〜6 大関、4 関脇、3 小結、1〜2 前頭、0 十両（ほめるのが役目なので甘めに）。重さは担いだ大きさの重さ（縮めたら軽い） */
+  function rankOf() {
+    const ton = S.weight ? S.weight.ton : 0, n = JN.n;
+    const p = (ton >= 2500 ? 4 : ton >= 1000 ? 3 : ton >= 300 ? 2 : ton >= 30 ? 1 : 0) + (n >= 40 ? 3 : n >= 20 ? 2 : n >= 8 ? 1 : 0) + (S.k >= 0.999 ? 1 : 0) + (S.bumps ? 0 : 1);
+    return p >= 7 ? '横綱' : p >= 5 ? '大関' : p >= 4 ? '関脇' : p >= 3 ? '小結' : p >= 1 ? '前頭' : '十両';
+  }
   function arrive(gl) {
     record();
     const b = S.b, w = S.weight;
@@ -4932,6 +4946,7 @@ function start(DATA, isAsakusa) {
     if (NIGHT) reachArrive();   // 夜の版：明かりの届く範囲を、次に夜になるとき広げる
     $('doneTitle').textContent = 'お祓い';
     $('doneInfo').innerHTML = `<b>${lmName(b)}</b>が${gl.name}で<span class="nw">お祓いを受けました</span><br><span class="nw">担ぎ手 ${fmt(w.people + JN.n)}人${JN.n ? `（飛び入り ${fmt(JN.n)}人）` : ''}</span> ／ <span class="nw">道のり ${fmt(S.dist)}m</span>`;
+    $('doneRank').classList.remove('on'); $('doneRank').innerHTML = '<small>番付</small>' + rankOf();
     const el = $('done'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
     $('doneInfo').style.display = '';   // 数字は お祓い・魂振り の間だけ。帰り道からは題だけ
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; hideMsg();
@@ -4951,6 +4966,8 @@ function start(DATA, isAsakusa) {
     if (D.phase === 'harai') {
       if (el > 5900) {
         D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; $('skip').style.display = 'none'; SND.setScene('tamafuri');
+        /* 魂振りの最初の大太鼓と一緒に、番付の判を押す。帰り道の札にも残す（花火の間は札ごと隠れる） */
+        $('doneRank').classList.add('on');
         /* お祓いが済んだ：今の段の光る建物なら、次の段へ（段取りの案内） */
         stageDone(b);
       }
@@ -5039,7 +5056,7 @@ function start(DATA, isAsakusa) {
     if (S.mesh) { scene.remove(S.mesh); S.mesh = null; }
     if (S.crew) { scene.remove(S.crew); S.crew = null; }
     if (S.shadow) { scene.remove(S.shadow); S.shadow = null; }
-    const el = $('done'); el.classList.remove('on'); setTimeout(() => { el.style.display = 'none'; }, 500);
+    const el = $('done'); el.classList.remove('on'); setTimeout(() => { el.style.display = 'none'; $('doneRank').classList.remove('on'); }, 500);
     trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
     S.b = null; $('info').innerHTML = '';
     crowdBody.count = crowdHead.count = 0; joinReset();

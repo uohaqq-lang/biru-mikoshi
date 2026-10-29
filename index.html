@@ -5798,8 +5798,15 @@ function start(DATA, isAsakusa) {
 
   // ---------- 描く ----------
   let camSnap = true;
-  const gateCam = new THREE.PerspectiveCamera(40, 1.5, 0.5, 400);
-  if (gate.lantern) { gateCam.position.copy(V(gate.front.x, gate.front.y, 3.2)); gateCam.lookAt(V(gate.x, gate.y, 5.2)); }
+  /* 提灯の小窓のカメラは、門の裏（仲見世の側）から門ごしに南を見る。近づく神輿と、たたまれていく提灯（裏の「風雷神門」）が一緒に映る。
+     前は門の前（雷門通り）から見ていて、近づく神輿と神輿の提灯の光がカメラの目の前をふさぎ、ほぼ何も見えなかった（10/29 本人） */
+  const gateCam = new THREE.PerspectiveCamera(46, 1.5, 0.5, 400);
+  if (gate.lantern) {
+    const fl = Math.hypot(gate.front.x - gate.x, gate.front.y - gate.y) || 1;
+    gate.fx = (gate.front.x - gate.x) / fl; gate.fy = (gate.front.y - gate.y) / fl;
+    let k = 11; while (k > 7 && !(onRoad(gate.x - gate.fx * k, gate.y - gate.fy * k) && !bldAt(gate.x - gate.fx * k, gate.y - gate.fy * k, 0.5))) k -= 0.5;
+    gateCam.position.copy(V(gate.x - gate.fx * k, gate.y - gate.fy * k, 2.4)); gateCam.lookAt(V(gate.x + gate.fx * 4, gate.y + gate.fy * 4, 4.3));
+  }
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
   // 最初は出発点のまわりを、引きで斜め上から
   const home = anchor || { x: 0, y: 0 };
@@ -6143,8 +6150,10 @@ function start(DATA, isAsakusa) {
     renderer.render(scene, camera);
     // 雷門に近づいたら、左下の小窓に「門の前から見た提灯」を出す（畳まれるのが分かるように）
     const gd = gate.lantern && S.b && mode === 'carry' ? Math.hypot(S.x - gate.x, S.y - gate.y) : Infinity;
+    /* 門を抜けて（門の中心から裏へ3m）からは出さない（小窓のカメラは門の裏にあるので、神輿がカメラに近づいてふさぐ） */
+    const passed = gd < Infinity && (S.x - gate.x) * gate.fx + (S.y - gate.y) * gate.fy < -3;
     const box = $('gateBox');
-    if (gd < 90 && !peek) {
+    if (gd < 90 && !passed && !peek) {
       const r = box.getBoundingClientRect();
       if (box.style.display !== 'block') box.style.display = 'block';
       gateCam.aspect = r.width / r.height; gateCam.updateProjectionMatrix();

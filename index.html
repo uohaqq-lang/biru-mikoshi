@@ -2241,8 +2241,9 @@ function start(DATA, isAsakusa) {
       const mask = fresh ? new Uint8Array(n) : S.crewMask.slice();
       if (fresh || !S.crewSince || S.crewSince.length !== n) S.crewSince = new Float64Array(n);
       /* 担ぎ手は進む向き（神輿の向きから S.rot を戻した向き）を向く。半纏の背中の大紋が後ろから見えるように */
-      let changed = fresh || S.crewRot !== rot, wait = 0;
-      S.crewRot = rot; tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1, 1, 1);
+      let changed = fresh || S.crewRot !== rot || S.crewSp !== sp, wait = 0;
+      /* 集まる・散るときは担ぎ手の組ごと横に sp 倍に広げるので、一人ずつは 1/sp に戻す（前は人まで横に太って見えた。10/29 本人「離散するときにでかくなる」） */
+      S.crewRot = rot; S.crewSp = sp; tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1 / sp, 1, 1 / sp);
       for (let i = 0; i < n; i++) {
         const u = uv[2 * i] * sp, v = uv[2 * i + 1] * sp;
         const wx = px + u * c - v * s, wy = py + u * s + v * c, rkb = rkCrewList.length > 0 && rkCrewBlock(wx, wy);
@@ -3338,26 +3339,11 @@ function start(DATA, isAsakusa) {
     // つかえた所の数は数える（赤い印は描かない。本人「いらない」）
     if ((res.kind === 'width' || res.kind === 'height') && !pins.some(p => Math.hypot(p.position.x - S.x, -p.position.z - S.y) < 4)) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.3, 16), pinMat); p.position.copy(V(S.x, S.y, 0.2)); pins.push(p); }
     // 半分・神輿：文字の札は出さない（本人「文章で説明しようとするな」）。止まる・鳴る・揺れるだけ。選び直す・大きさの3つは、押しても進めない時間で出す（stuckWatch）
-    // 実物大だけ、前の「難しい」と同じく、つかえたわけ（道幅と神輿の幅など）を札で出す
+    // 実物大だけ、札を出す
     if (sizeMode !== 'full') { $('msg').style.display = 'none'; return; }
-    let html = '';
-    /* バックでも向きでも動けない所では、「バック」の案内は出さない（押しても何も起きなかった。直す係 第3回・3-2）。
-       そのときは大きさの3つと選び直すを、押してすぐ出す（stuckWatch） */
-    const bk = boxedIn() ? '' : matchMedia('(pointer:fine)').matches ? '↓（S）で下がって、向きを変える' : '丸を下へ倒して下がり、向きを変える';
-    if (res.kind === 'width' && res.need > 0.05) {
-      html = `幅でつっかえた<small>道幅 ${f1(res.avail)}m ／ 神輿の幅 ${f1(res.wide)}m → あと ${f1(res.need)}m</small>`;
-    } else if (res.kind === 'width') {
-      /* 幅は足りているのに角が当たった：道幅の数字は理由にならない（「道幅28m／神輿の幅16m」で進めず、意味が通らなかった）。
-         角が当たった物で、ほかのつかえ方と同じ札にする。その場で回せないことが多いので、先に下がる */
-      html = (cornerHitsBld(res) ? '建物に当たった' : '道の外に出る') + (bk ? `<small>${bk}</small>` : '');
-    } else if (res.kind === 'height') {
-      html = `高さでつっかえた<small>${gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 15 ? '雷門の提灯の下' : '桁下'} ${f1(res.clear)}m ／ 神輿の高さ ${f1(S.dim.h)}m → あと ${f1(res.need)}m</small>`;
-    } else if (res.kind === 'block') {
-      html = `建物に当たった<small>境内の建物は通れない。${bk}</small>`;
-    } else {
-      html = '道の外に出る' + (bk ? `<small>${bk}</small>` : '');
-    }
-    const m = $('msg'); m.innerHTML = html; m.style.display = 'block';
+    /* 札は「つっかえた」だけ。何でつかえたか（幅・高さ・建物・道の外）と、道幅や桁下に対する神輿の大きさの数字は出さない
+       （10/29 本人「何でつっかえたのかはいらない。つっかえただけで良い。道幅に対しての神輿の大きさの情報もいらない」） */
+    const m = $('msg'); m.innerHTML = 'つっかえた'; m.style.display = 'block';
   }
   function hideMsg() { $('msg').style.display = 'none'; $('again').classList.remove('big'); document.body.classList.remove('stuck'); for (const el of $('diffSel').children) el.classList.remove('no'); }
   // 本当につかえたときは、「建物を選び直す」を大きくし、その下に大きさの3つのボタン（実物大・半分・神輿）を出す。
@@ -4856,11 +4842,9 @@ function start(DATA, isAsakusa) {
         }
       }
       if (D.landed && grow) {
-        // 担ぎ手が散りはじめてから、0.9秒で元の大きさへ。戻りきったら町の形に替える
-        const g = Math.max(0, Math.min(1, (now - D.landT - GROW_WAIT) / GROW_MS));
-        visK = S.k + (1 - S.k) * g * g * (3 - 2 * g);
-        if (g > 0) { if (S.mesh.userData.poles) S.mesh.userData.poles.visible = false; if (S.shadow) S.shadow.visible = false; }
-        if (g >= 1 && !D.placed) { D.placed = true; D.placeT = now; liftOut(b, false); S.mesh.visible = false; }
+        /* 担ぎ手が散りきってから、縮めた神輿を消して、元の大きさの建物をそのまま置く。
+           前は0.9秒かけて大きくしていた（10/29 本人「担ぎ手が離散するときにでかくなる。あれもどうにかできない？」） */
+        if (now - D.landT > GROW_WAIT && !D.placed) { D.placed = true; D.placeT = now; liftOut(b, false); S.mesh.visible = false; if (S.shadow) S.shadow.visible = false; }
       }
       // 担ぎ手が散って、カメラが引いて、最初の画面へ
       if (D.landed && (grow ? D.placed && now - D.placeT > 300 : now - D.landT > 500)) {
@@ -4879,8 +4863,8 @@ function start(DATA, isAsakusa) {
     D.rec = S.rec.slice().reverse(); D.T = D.rec.length ? D.rec[0].t : 0;
     $('skip').style.display = 'block';
   }
-  // 縮めて担いだ建物が、下ろしてから元の大きさに戻るまでの待ちと、戻る時間
-  const GROW_WAIT = 300, GROW_MS = 900;
+  // 縮めて担いだ建物を下ろしてから、元の大きさの建物に替えるまでの待ち（担ぎ手が散る0.5秒の後）
+  const GROW_WAIT = 550;
   function finishDone() {
     const from = { pos: camera.position.clone(), look: camLook.clone() };
     S.done = null; S.rec = null;

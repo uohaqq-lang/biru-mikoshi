@@ -480,6 +480,7 @@
   <p class="pcOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら↓（S）で下がって向きを変える</p>
   <p class="spOnly">②右下の丸を上へ倒すと進む。左右へ倒すと向きが変わる</p>
   <p class="spOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら丸を下へ倒して下がり、向きを変える</p>
+  <p>④人が集まったら立ち止まる。近くの大きな建物に担ぎ替えられる</p>
   <button id="helpGo">はじめる</button><div class="src" id="helpSrc"></div></div></div>
 <button id="srcBtn" title="出典を見る">出典</button>
 <div id="msg"></div>
@@ -3518,17 +3519,26 @@ function start(DATA, isAsakusa) {
     function cerStop() { if (cerRun) { cerRun.gain.setTargetAtTime(0, ctx.currentTime, 0.08); cerRun = null; } crowdMul = 1; }
     /* お祓い（5.9秒。ゲームの doneStep と合わせる）。間合いは実際の速さに合わせた（拍子木は0.8秒あけ、一本締めは「いよーっ」の間のあと約3秒）。
        10/23 大麻を外して 8.0 → 5.9秒にした。一本締めの最後（5.12秒）から担ぎ上げの拍子木（5.9秒）まで、0.78秒の間 */
+    let haraiFast = false;
+    function setHaraiFast(v) { haraiFast = !!v; }
     function haraiSfx(t) {
       cerPrepare(true);
       if (!cerIn) return;
       if (cerRun) cerRun.gain.setTargetAtTime(0, t, 0.05);
       cerRun = ctx.createGain(); cerRun.connect(cerIn);
       crowdTo(0.35, t, 0.6);
+      /* 10/30 本人「お祓いを2回目から少しだけ短く（3秒ほど）」：2回目からは拍子木1つ、一本締めを詰めて（1打0.2秒・組の間0.62秒）約3秒に。並び（3・3・3・1）は崩さない */
+      let c = 0;
+      if (haraiFast) {
+        cerPlay(pick(CB.ki), t + 0.35, 0.7, -0.15);
+        for (const g of [0.9, 1.52, 2.14]) for (const d of [0, 0.2, 0.4]) cerPlay(CB.clap[c++ % CB.clap.length], t + g + d - 0.1, d > 0.3 ? 0.68 : 0.58, 0);
+        cerPlay(pick(CB.clap), t + 2.76 - 0.1, 0.75, 0);
+        return;
+      }
       /* 拍子木を2つ（カーン、カーン）。着いたときのドンが引いてから */
       cerPlay(pick(CB.ki), t + 0.5, 0.7, -0.15);
       cerPlay(pick(CB.ki), t + 1.3, 0.7, -0.15);
       /* 1.3〜2.0秒は「いよーっ」の間（声は入れない）。一本締め：シャン・シャン・シャン（休み）を3回、最後にシャン。1打0.26秒 */
-      let c = 0;
       for (const g of [2.0, 3.04, 4.08]) for (const d of [0, 0.26, 0.52]) cerPlay(CB.clap[c++ % CB.clap.length], t + g + d - 0.1, d > 0.5 ? 0.68 : 0.58, 0);
       cerPlay(pick(CB.clap), t + 5.12 - 0.1, 0.75, 0);
     }
@@ -3669,7 +3679,7 @@ function start(DATA, isAsakusa) {
       if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
+    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, bigTaiko, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW }; } };
   })();
 
@@ -5461,10 +5471,13 @@ function start(DATA, isAsakusa) {
     const p = joinScore();
     return p >= 70 ? '横綱' : p >= 45 ? '大関' : p >= 28 ? '関脇' : p >= 16 ? '小結' : p >= 6 ? '前頭' : '十両';
   }
+  let arriveN = 0;
   function arrive(gl) {
     record();
     const b = S.b, w = S.weight;
-    S.done = { phase: 'harai', t0: performance.now(), gl }; SND.setScene('harai');
+    /* 2回目から、お祓いは約3秒・花火は6秒で切り上げる（fast。10/30 本人） */
+    const fast = arriveN++ > 0;
+    S.done = { phase: 'harai', t0: performance.now(), gl, fast }; SND.setHaraiFast(fast); SND.setScene('harai');
     const d = loadDone();
     // 記録は担いだ大きさで（同じ建物は、大きく担いだ方、同じ大きさなら道のりの短い方を残す）。数は、どの大きさで着いても1棟と数える
     const o = d[b.id], ton = Math.round(w.ton * 100) / 100;
@@ -5509,7 +5522,7 @@ function start(DATA, isAsakusa) {
     /* お祓い：少し静かに（5.9秒。最初は1.6秒、拍子木→一本締め→大麻の音の流れで8.0秒にした後、大麻を外して詰めた。音は SND の haraiSfx。10/23）
        飛ばせない（10/25 本人「お祓いは飛ばすことできなくて良い」。前は「飛ばす ▶」・スペース・↑で魂振りへ進めた）。その間カメラはゆっくり回る（camOrbit） */
     if (D.phase === 'harai') {
-      if (el > 5900) {
+      if (el > (D.fast ? 3000 : 5900)) {
         D.phase = 'tamafuri'; D.t0 = now; $('doneTitle').textContent = '魂振り'; D.beat = 0; $('skip').style.display = 'none'; SND.setScene('tamafuri');
         /* 魂振りの最初の大太鼓と一緒に、番付の判を押す。帰り道の札にも残す（花火の間は札ごと隠れる） */
         $('doneRank').classList.add('on');
@@ -5537,7 +5550,9 @@ function start(DATA, isAsakusa) {
     }
     /* 花火（8〜12秒）。「飛ばす ▶」・スペース・↑（進む）で帰り道へ（D.skipF） */
     if (D.phase === 'hanabi') {
-      if (D.skipF || hanabiOver()) { hanabiStop(!!D.skipF); toBack(now); $('done').classList.add('on'); }
+      /* 2回目からは6秒で切り上げる（飛ばしたときと同じ止め方） */
+      const cut = D.fast && now - D.t0 > 6000;
+      if (D.skipF || cut || hanabiOver()) { hanabiStop(!!D.skipF || cut); toBack(now); $('done').classList.add('on'); }
       return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
     if (D.phase === 'back') {                        // 来た道を、記録の逆再生で1.5倍速
@@ -5587,10 +5602,12 @@ function start(DATA, isAsakusa) {
     return null;
   }
   /* 帰り道へ（魂振りのあと。花火があったときは花火のあと） */
+  let backSeen = 0;
   function toBack(now) {
     const D = S.done;
-    /* 担ぎ替えたとき：来た道は戻らず、すぐ収まりに（来た道の途中で建物が替わっているため。桜井さん「帰り道は行きより面白くない」） */
-    if (S.stack && S.stack.length) {
+    /* 担ぎ替えたとき・2回目からの運び：来た道は戻らず、すぐ収まりに（来た道の途中で建物が替わっているため。桜井さん「帰り道は行きより面白くない」。
+       10/30 5回運ぶと毎回同じ帰り道（400mの道で10秒以上）を見ることになった。来た道を戻るのは、開いて最初の1回だけ） */
+    if ((S.stack && S.stack.length) || backSeen++) {
       D.phase = 'home'; D.t0 = now; D.from = { x: S.x, y: S.y, ori: S.head + S.rot };
       $('doneTitle').textContent = '元の場所へ'; $('doneInfo').style.display = 'none'; SND.setScene('back'); $('skip').style.display = 'none';
       return;

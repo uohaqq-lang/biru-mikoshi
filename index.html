@@ -466,6 +466,19 @@
   };
   el.addEventListener('pointerdown', touch);
   addEventListener('keydown', e => { if (!e.repeat) touch(); });
+  /* 10/30 本人「一回ブラウザを閉じたら音がつかなくなる？」（iPhone の Safari）：ほかのアプリへ移る・タブを閉じて戻ると、ctx が 'suspended' か 'interrupted'（iPhone だけの状態）で止まったままになる。
+     触るたび（iPhone は指を離した時でないと鳴らせないことがあるので touchend・click も）と、見えるようになった時・戻ってきた時（bfcache から戻る pageshow も）に、
+     動いていなければ resume する。曲は ctx の時計で予約しているので、時計が動けば続きから鳴る。町の画面の音（SND）も同じ ctx を引き継ぎ、同じ手当てをする */
+  window.__wakeAudio = c => { if (!c || c.state === 'running' || c.state === 'closed') return; try { const p = c.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* */ } };
+  /* iPhone のマナーモード（横のスイッチ）でも鳴るようにする（iOS 17 以降の Safari にある。無い環境では何もしない） */
+  window.__audioPlayback = () => { try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { /* */ } };
+  if (!muted) window.__audioPlayback();
+  if (EA) {
+    const wakeEA = () => { if (EA.on) window.__wakeAudio(EA.ctx); };
+    for (const ev of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown']) addEventListener(ev, wakeEA, true);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wakeEA(); });
+    addEventListener('pageshow', wakeEA);
+  }
 })();
 </script>
 <div id="view"></div>
@@ -802,6 +815,44 @@ function start(DATA, isAsakusa) {
       if (linked) break;
     }
     if (!linked) { for (const i of cs) { kBlk[i]++; road[i] = 0; } b.kOpen = false; }
+  }
+  // 10/30 本人「ここが通れる壁」（伝法院通りから仲見世へ向かう所の、道をまたぐ細長い板）：足元の半分以上が通れる所に乗っている建物
+  // （アーケードの屋根・道の上の看板の枠など）は出さない。当たり判定は通れる所の格子で決まるので、神輿はこれらを通り抜けてしまい、
+  // 道をふさぐ意味の分からない壁に見えるため。blds から抜くので、担ぐ候補・町の写真・クリックの当たりからも外れる。
+  // 境内の中の物（灯籠・碑など、わざと通れるようにした小さな物）と、名所の写真がある建物と、用途が分かっている建物（花川戸の交番）は残す。
+  // 仲見世の店は通れる所の外なので外れない。外れた物は __mikoshi.onRoadBlds で見られる。
+  // 乗っている割合は、まず格子のマスで数え、境目の近く（3〜5割）の物だけ 0.2m おきの点で数え直す（細い板はマスの数え方で割合が大きくぶれるため。
+  // 伝法院通りの板は、マスでは5割を切り、点では52％。駅の建物は45％で残る）。幅2.5m以下の細い板は4割から外す。
+  const ROAD_COVER = 0.5, THIN_W = 2.5, THIN_COVER = 0.4;
+  const onRoadBlds = [];
+  const ringHas = (ring, x, y) => { let k = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [ax, ay] = ring[i], [bx, by] = ring[j]; if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) k = !k; } return k; };
+  const fineCover = b => {
+    let n = 0, r = 0;
+    for (const poly of b.polys) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of poly[0]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      for (let y = y0 + 0.1; y < y1; y += 0.2) for (let x = x0 + 0.1; x < x1; x += 0.2) {
+        if (!ringHas(poly[0], x, y)) continue;
+        let hole = false; for (let h = 1; h < poly.length; h++) if (ringHas(poly[h], x, y)) { hole = true; break; }
+        if (hole) continue;
+        n++; if (onRoad(x, y)) r++;
+      }
+    }
+    return n ? r / n : 0;
+  };
+  for (let k = blds.length - 1; k >= 0; k--) {
+    const b = blds[k];
+    if (b.kCells || (window.MIKOSHI_TEX && window.MIKOSHI_TEX[b.id])) continue;
+    if (b.usage && b.usage !== '不明' && b.usage !== '用途不明') continue;
+    let n = 0, r = 0, kei = false;
+    for (const poly of b.polys) fillPoly(poly, i => { n++; if (road[i]) r++; if (keidaiIn[i]) kei = true; });
+    if (kei) continue;
+    let cover = n ? r / n : 0;
+    if (cover >= 0.3 && cover < ROAD_COVER || !n) cover = fineCover(b);
+    const thin = Math.min(b.d.L, b.d.W) <= THIN_W;
+    if (cover < (thin ? THIN_COVER : ROAD_COVER)) continue;
+    onRoadBlds.push({ id: b.id, usage: b.usage, h: +b.h.toFixed(1), cover: +cover.toFixed(2), x: +b.d.cx.toFixed(1), y: +b.d.cy.toFixed(1), L: +b.d.L.toFixed(1), W: +b.d.W.toFixed(1) });
+    blds.splice(k, 1);
   }
 
   // ---------- Three.js ----------
@@ -3469,9 +3520,20 @@ function start(DATA, isAsakusa) {
       hayTimer = setInterval(schedule, 90);
       setTimeout(() => cerPrepare(false), 400);
     }
-    function unlock() { init(); if (ctx && ctx.state === 'suspended') ctx.resume(); }
-    for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, true);
-    function setMute(m) { muted = m; try { localStorage.setItem('mikoshi_mute', m ? '1' : '0'); } catch (e) { /* */ } if (master) master.gain.setTargetAtTime(m ? 0 : 0.9, ctx.currentTime, 0.05); }
+    /* 10/30 iPhone で、ほかのアプリへ移ったりタブを閉じたりして戻ると、ctx が 'interrupted'（iPhone だけの状態）か 'suspended' のまま止まる。
+       前は 'suspended' のときだけ resume していたので、'interrupted' だと触っても鳴らなかった。動いていなければ resume する */
+    function wake() {
+      if (!ctx || ctx.state === 'running' || ctx.state === 'closed') return;
+      try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* */ }
+    }
+    function unlock() {
+      const first = !ctx; init(); wake();
+      if (first && ctx) ctx.addEventListener('statechange', () => log('state', { s: ctx.state }));
+    }
+    for (const ev of ['pointerdown', 'pointerup', 'keydown', 'touchstart', 'touchend', 'click']) window.addEventListener(ev, unlock, true);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+    window.addEventListener('pageshow', wake);
+    function setMute(m) { if (!m && window.__audioPlayback) window.__audioPlayback(); muted = m; try { localStorage.setItem('mikoshi_mute', m ? '1' : '0'); } catch (e) { /* */ } if (master) master.gain.setTargetAtTime(m ? 0 : 0.9, ctx.currentTime, 0.05); }
     // ざわめき：24人の話し声に似せた雑音（母音の響き＋音節の強弱）を6秒ぶん作って繰り返す
     function makeCrowd() {
       const sr = ctx.sampleRate, n = sr * 6, buf = ctx.createBuffer(2, n, sr);
@@ -7500,7 +7562,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdAll.reduce((a, m) => a + m.count, 0), guards: bridgeInfo.length,
+  window.__mikoshi = { hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdAll.reduce((a, m) => a + m.count, 0), guards: bridgeInfo.length, onRoadBlds,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, kei: () => ({ on: KEI.on, lan: KEI.n || 0, k: KEI.on ? +KEI.gm.uniforms.uK.value.toFixed(3) : 0, haze: KEI.on ? +KEI.hm.uniforms.uK.value.toFixed(3) : 0 }), keiOff: v => { KEI.off = !!v; }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

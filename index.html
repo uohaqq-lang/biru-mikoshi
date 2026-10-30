@@ -2687,9 +2687,11 @@ function start(DATA, isAsakusa) {
     }
     reachCache.set(key, m); return m;
   }
-  const reachKey = b => { const hw = Math.min(b.d.W, b.d.L) / 2 + Math.max(b.d.W, b.d.L) * 0.1; return Math.ceil(hw * 2) / 2 + '|' + clrHeights().filter(v => v < b.h).length; };
+  /* 角を曲がる分：長い辺の2割（10/30 1割では、通しで遊んだ2回目に、担ぎ替えた先で道が無くなって降ろすのが5回あった） */
+  const hwOf = b => Math.min(b.d.W, b.d.L) / 2 + Math.max(b.d.W, b.d.L) * 0.2;
+  const reachKey = b => Math.ceil(hwOf(b) * 2) / 2 + '|' + clrHeights().filter(v => v < b.h).length;
   function canReach(b) {
-    const m = reachMap(Math.min(b.d.W, b.d.L) / 2 + Math.max(b.d.W, b.d.L) * 0.1, b.h);
+    const m = reachMap(hwOf(b), b.h);
     for (let dx = -3; dx <= 3; dx += 0.5) for (let dy = -3; dy <= 3; dy += 0.5) { const i = idx(S.x + dx, S.y + dy); if (i >= 0 && m[i]) return true; }
     return false;
   }

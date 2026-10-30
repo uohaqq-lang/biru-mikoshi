@@ -81,10 +81,11 @@
   @media (max-width:600px) { #unstack { top:254px; font-size:15px; } }
   body.sm #unstack { top:318px; font-size:15px; }
   /* ほめる（10/30）：右上の担ぎ手の数の下に「＋3人」などが跳ねて消える */
-  #praise { position:fixed; right:18px; top:calc(104px + env(safe-area-inset-top, 0px)); z-index:24; font-weight:900; font-size:28px; color:#e0442c; pointer-events:none; opacity:0;
-    text-shadow:0 0 3px #fff8e8, 0 0 8px #fff8e8, 0 2px 4px rgba(0,0,0,.4); white-space:nowrap; }
+  /* 10/30 右上だと、担ぎ始めに開いている右上の札に重なった。神輿の少し上（画面のまん中の上寄り）に出す */
+  #praise { position:fixed; left:50%; top:30%; z-index:24; font-weight:900; font-size:30px; color:#e0442c; pointer-events:none; opacity:0;
+    text-shadow:0 0 3px #fff8e8, 0 0 8px #fff8e8, 0 2px 4px rgba(0,0,0,.4); white-space:nowrap; transform:translateX(-50%); }
   #praise.on { animation:praiseUp 1.3s ease-out forwards; }
-  @keyframes praiseUp { 0% { opacity:0; transform:translateY(10px) scale(.6); } 15% { opacity:1; transform:translateY(0) scale(1.15); } 30% { transform:scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateY(-14px); } }
+  @keyframes praiseUp { 0% { opacity:0; transform:translate(-50%, 10px) scale(.6); } 15% { opacity:1; transform:translate(-50%, 0) scale(1.15); } 30% { transform:translate(-50%, 0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translate(-50%, -14px); } }
   body:not([data-mode=carry]) #praise { display:none; }
   /* 次の建物まで あと○人（10/30 案3「目の前に吊るしたごほうび」）：右上の担ぎ手の数の下の行 */
   #info .next { display:block; font-size:.86em; color:#7a4a22; font-weight:700; }
@@ -2698,8 +2699,14 @@ function start(DATA, isAsakusa) {
   const swapMat = new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   function swapFits(b) {
     const old = S.shape; useShape(shapeOf1(b));
+    /* その場に置けて、前か後ろに1.5m動けること（10/30 置けても身動きが取れない所で担ぎ替えて、はまった） */
     let rot = null;
-    for (const r of [S.rot, S.rot + Math.PI / 2, S.rot - Math.PI / 2, 0, Math.PI / 2]) if (!check(S.x, S.y, S.head + r)) { rot = r; break; }
+    const hx = Math.cos(S.head), hy = Math.sin(S.head);
+    for (const r of [S.rot, S.rot + Math.PI / 2, S.rot - Math.PI / 2, 0, Math.PI / 2]) {
+      if (check(S.x, S.y, S.head + r)) continue;
+      if (check(S.x + hx * 1.5, S.y + hy * 1.5, S.head + r) && check(S.x - hx * 1.5, S.y - hy * 1.5, S.head + r)) continue;
+      rot = r; break;
+    }
     useShape(old);
     return rot;
   }
@@ -2714,6 +2721,11 @@ function start(DATA, isAsakusa) {
     const un = !!(S.b && !S.done && !S.swapAnim && S.stack && S.stack.length && document.body.classList.contains('stuck'));
     if ($('unstack').classList.contains('on') !== un) $('unstack').classList.toggle('on', un);
     if (!S.b || S.intro || S.done || S.swapAnim || mode !== 'carry') { if (SW.b) swapShow(null); return; }
+    /* 10/30 案B（本人「a.bで」）：担ぎ替えは、立ち止まっているときだけ出す（何でも担げるようになると、走っている間ずっと出ていて押し続けるだけになった）。
+       進む・バックを離して、神輿がほぼ止まって0.4秒ほどすると、近くの建物が光ってボタンが出る */
+    /* 止まったか：最後に位置か向きが変わってから0.45秒（前は速さの数字が下がるのを待っていたが、下がり方が描き替えの回数で決まり、遅い機械ではなかなか出なかった） */
+    if (Math.abs(S.x - (SW.lx || 0)) + Math.abs(S.y - (SW.ly || 0)) > 0.02 || Math.abs(S.head - (SW.lh || 0)) > 0.002) { SW.lx = S.x; SW.ly = S.y; SW.lh = S.head; SW.movedT = now; }
+    if (hold.on || hold.back || now - (SW.movedT || 0) < 450) { if (SW.b) swapShow(null); SW.t = now - 400; return; }
     swapMat.opacity = 0.18 + 0.3 * (0.5 - 0.5 * Math.cos(now / 900 * Math.PI * 2));
     if (now - SW.t < 400) return; SW.t = now;
     /* 何でも担げるようになった後（freeMode）は、人数を問わず、そばのどの建物にも担ぎ替えられる（高い建物から先に勧める） */
@@ -2773,6 +2785,34 @@ function start(DATA, isAsakusa) {
     S.infoSig = null; showInfo(); thud();
   }
   $('unstack').onclick = () => unswap();
+  /* 案A（10/30 本人「a.bで」）：積んだ建物は、勢いよく（秒速3m以上で）ぶつかると、いちばん上の1棟が落ちる。落ちた建物は傾きながら下へ消え、元の場所に戻る。
+     はじき飛ばし（joinLose）と同じく、続けてぶつけても1.5秒の間は落ちない。高く積むほど、ゆっくり丁寧に運ぶ必要が出る */
+  const falling = [];
+  function stackDrop() {
+    if (!S.b || S.intro || S.done || mode !== 'carry' || !S.stack || !S.stack.length) return;
+    const now = performance.now(); if ((S.spd || 0) < 3 || now - (S.dropAt || 0) < 1500) return;
+    S.dropAt = now;
+    /* いちばん上＝最初に積んだ建物（S.stack[0]）。その見た目は、次に積んだ建物の見た目（なければ今の神輿）の子 */
+    const top = S.stack.shift(), parent = S.stack.length ? findStackMesh(S.stack[0].b) : S.mesh;
+    const m = parent && parent.children.find(o => o.userData.stackOf === top.b);
+    if (m) {
+      m.updateMatrixWorld(true); const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3(); m.matrixWorld.decompose(wp, wq, ws);
+      parent.remove(m); scene.add(m); m.position.copy(wp); m.quaternion.copy(wq);
+      falling.push({ m, b: top.b, t0: now, y0: wp.y, side: hash(now % 991, 1.3) < 0.5 ? 1 : -1, q0: wq.clone() });
+    } else liftOut(top.b, false);
+    S.infoSig = null; showInfo();
+    SND.boom(1); praise('落ちた！');
+  }
+  function findStackMesh(b) { let m = S.mesh; while (m) { const c = m.children.find(o => o.userData.stackOf); if (!c) return null; if (c.userData.stackOf === b) return c; m = c; } return null; }
+  /* 毎こま：落ちていく建物（0.9秒で傾きながら地面の下へ）。落ちきったら元の場所に戻す */
+  function fallStep(now) {
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const F = falling[i], q = Math.min(1, (now - F.t0) / 900);
+      F.m.position.y = F.y0 - q * q * (F.y0 + 30);
+      F.m.quaternion.copy(F.q0); F.m.rotateZ(F.side * q * 1.2);
+      if (q >= 1) { scene.remove(F.m); liftOut(F.b, false); falling.splice(i, 1); }
+    }
+  }
   window.addEventListener('keydown', e => { if (e.key === 'Enter' && SW.b && !e.repeat) { e.preventDefault(); swapTo(); } });
   /* ほめる（10/30 案5）：右上の担ぎ手の数の下に、大きく「＋3人」などを出して消す。10人の節目を越えたら太鼓も */
   function praise(txt) {
@@ -3640,7 +3680,8 @@ function start(DATA, isAsakusa) {
     if (!S.quietBump) S.shake = 1;
     if (!quiet && !S.quietBump && now - S.lastThud > 450) {
       thud(); S.lastThud = now;
-      /* 10/30 本人「乱暴に行くと減ってく」：勢いよくぶつかると、飛び入りの人がはじき飛ばされる */
+      /* 10/30 本人「乱暴に行くと減ってく」：勢いよくぶつかると、飛び入りの人がはじき飛ばされる。積んだ建物があれば、いちばん上が落ちる（案A） */
+      stackDrop();
       joinLose();
       /* 10/28 本人「ちょっと壁に当たっただけで曲が止まる」：こすっただけなら曲は止めない（ドンの間だけ曲を下げる＝boom の duck）。
          曲がつかえた場面（ずっこけ）に替わるのは、押しているのに0.6秒進めないとき（stuckWatch） */
@@ -5032,9 +5073,13 @@ function start(DATA, isAsakusa) {
     /* 最初の一棟：浅草公会堂の西の小さな建物（8トン・9人、浅草神社まで約290m）。10/30 一通り遊んだら、浅草寺の西のお堂（約130m）では
        境内を運ぶだけで担ぎ替えに出会わなかった。町なかの通りを通るここからなら、1回目で3回担ぎ替えた */
     ['cec7bda9'],
-    ['afb46b6e', 'f8bc7b9f'],                           // 35〜36人：二天門（132トン）・本堂の西のお堂（139トン）
-    ['409b776f', '9d361e2d', '95e6e331', '8760bd58'],   // 50〜74人：二天門の南の細長い家・宝蔵門の南の細長い店・浅草神社の北東の3階建て・宝蔵門
-    ['b9141e64'],                                       // 137人：五重塔
+    /* 10/30 通しで遊んだら、2〜4回目が浅草寺の境内の短い道ばかりで、担ぎ替えにも出会わず似た回が続いた（本人「2は直そう」）。
+       2段目〜4段目を、浅草神社から200〜420mの町なかの建物に替えた。境内の二天門・お堂・宝蔵門の南の店などは外した。宝蔵門・五重塔は名所なので残す。
+       どれも、担いで（位置×向き）道すじを探し、浅草神社まで行けると確かめた建物（fix3/t_reach.py。浅草寺の西側の3階建てなど、出られない建物は外した）。
+       3段目にも町なかの建物を足した（五重塔だけだと短い道1本になる） */
+    ['903b30b2', '95927556'],                           // 34〜36人：雷門の東の4階建ての店（浅草神社の南、約385m）・浅草神社の西の4階建ての店（約420m）
+    ['d85dfe72', 'baeec68f', '8760bd58'],               // 58〜82人：浅草神社の東の4階建て（約220m）・東の8階建てのマンション（約270m）・宝蔵門
+    ['f2ca0ab9', '87fdec02', 'b9141e64'],               // 95〜137人：二天門の南の6階建て（約210m）・北東の10階建て（約210m）・五重塔
     ['3d66e44c', 'e33d345b', '963c4c71'],               // 152〜169人（挑戦。朱色）：白いタワーマンション・浅草神社の東のホテル・二天門の北東の11階建て
   ];
   const STAGE_LAST = STAGE_IDS.length - 1;
@@ -6662,6 +6707,7 @@ function start(DATA, isAsakusa) {
   let t0 = performance.now(), peek = null, lastGhost = 0; // peek：試験で好きな所から見るとき
   function frame(t) {
     const dt = Math.min(0.05, (t - t0) / 1000); const tPrev = t0; t0 = t;
+    if (falling.length) fallStep(performance.now());
     updateGate(dt); sizeTags(); updateReach(t); updateWaiting(t); updPickHint(); rotStep(); updateNav(t); if (mode === 'carry') { tourStep(performance.now()); updateTourArrow(); } if (document.body.classList.contains('unfollow') === camFollow) document.body.classList.toggle('unfollow', !camFollow); holdStep(Math.min(0.2, (t - tPrev) / 1000));   // 押している間の進み方は、実際に経った時間で
     /* 押しても進めない時間を数え、本当につかえたときだけ選び直す・大きさを出す */
     stuckWatch(Math.min(0.2, (t - tPrev) / 1000));
@@ -6764,6 +6810,9 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob);
       swapScan(performance.now());
+      /* 案A：積んだ塔は、上ほど大きくぐらぐら揺れる（速いほど大きく） */
+      { let m = S.mesh, i = 0; const tt = performance.now() / 1000, sp = 0.35 + Math.min(1, (S.spd || 0) / 6);
+        while (m) { const c = m.children.find(o => o.userData.stackOf); if (!c) break; i++; const a = 0.007 * i * sp; c.rotation.set(Math.sin(tt * 2.1 + i * 0.7) * a, 0, Math.cos(tt * 1.7 + i) * a); m = c; } }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -6880,7 +6929,7 @@ function start(DATA, isAsakusa) {
     waiting: () => waitCrews.map(w => ({ id: w.b.id.slice(5, 13), st: w.st, n: w.spots.length, vis: w.state !== 'hide' && w.body.visible, x: +w.spots[0].x.toFixed(1), y: +w.spots[0].y.toFixed(1) })), waitMs: () => waitCrews.ms,
     glow: () => reachGlow.map(r => ({ id: r.b.id.slice(5, 13), st: r.st, vis: r.g.visible, y: +r.g.position.y.toFixed(2) })),
     /* 段取りの案内と花火の確かめ用 */
-    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, free: v => { if (v != null) freeMode = v; return freeMode; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, unswap, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([k]) => k !== 'list').map(([k, m]) => [k, m.count])), swapC: () => SW.b && [SW.b.id.slice(5, 13), needOf(SW.b), SW.rot], swapTo, stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]), flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), score: S.b ? joinScore() : null, rank: S.b ? rankOf() : null, drop: JN.drop.map(D => [D.n, D.armed, +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwBody.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, S.weight.ton),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
+    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, free: v => { if (v != null) freeMode = v; return freeMode; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, unswap, stackDrop: sp => { S.spd = sp; S.dropAt = 0; stackDrop(); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([k]) => k !== 'list').map(([k, m]) => [k, m.count])), swapC: () => SW.b && [SW.b.id.slice(5, 13), needOf(SW.b), SW.rot], swapTo, stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]), flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), score: S.b ? joinScore() : null, rank: S.b ? rankOf() : null, drop: JN.drop.map(D => [D.n, D.armed, +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwBody.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, S.weight.ton),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }
 </script>

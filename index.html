@@ -2218,6 +2218,187 @@ function start(DATA, isAsakusa) {
   };
   const mkHead = () => { const g = new THREE.SphereGeometry(0.15, 10, 8); g.translate(0, 1.5, 0); return g; };
   const bodyGeo = mkBody(), headGeo = mkHead();
+  /* ---------- 人の形の作り直し（10/30 本人「カメラが寄りになったときの人の形が気になる。海外の人なのか力士なのか車夫なのか分からない。もうちょいこだわってよい」） ----------
+     色だけでなく形で見分けがつくように、腕・脚・髪・笠・帽子・リュック・カメラ・まわし・髷などの部品をつないで、種類ごとに一つの形にする。
+     描く回数を増やさないように、種類ごとに InstancedMesh 一つで描く：
+       ・法被の人（担ぎ手・車夫）：半纏の絵（hantenTex）の下の端に並べた色の見本（PAL）で、腕の先・頭・髪・鉢巻き・笠も同じ絵一枚で塗る
+       ・町の人（一般・観光客・海外の方・着物の人・力士）：色は人ごとの値（aC1〜aC5・aSk）を、部品ごとの番号（aPO.x）で選ぶ（avMat）。
+         帽子・リュックなどの有る無しは、人ごとの印（aSk.w のビット。aPO.y が何番目か）で決め、無い部品は大きさ0にする
+     遠くの人は細部が見えないので、簡単な形（胴・頭・髪だけ）に切り替える（担ぎ手は組ごと、町の人は1人ずつ、見物人は並べ直すときに） */
+  /* 半纏の絵：上の 120px が半纏（前と同じ並び）、下の 8px が色の見本（肌・髪・白・黒・笠の麦わら、右半分はねじり鉢巻きの帯） */
+  const HT_H = 120, PAL_V = 4 / 128;
+  const PAL = { skin: [0.03125, PAL_V], hair: [0.09375, PAL_V], white: [0.15625, PAL_V], black: [0.21875, PAL_V], straw: [0.28125, PAL_V], col: [0.5, 1 - 0.15 * HT_H / 128] };
+  /* 部品をつないで一つの形にする。parts：{ geo, uv, part, opt }。
+     uv：'h'＝横は形の uv、縦は高さから半纏の絵の高さへ（胴・脚に半纏・帯・股引・足袋が写る。上下のふたは半纏の無地）。[u, v]＝全部の頂点をその色の見本に。'band'＝鉢巻きの帯の見本へ。
+     part・opt：町の人の材質（avMat）で使う、色の欄の番号と出す印の番号 */
+  function personGeo(parts) {
+    let n = 0; const gs = [];
+    for (const p of parts) { const g = p.geo.index ? p.geo.toNonIndexed() : p.geo; gs.push(g); n += g.attributes.position.count; }
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), po = new Float32Array(n * 2);
+    let o = 0;
+    parts.forEach((p, k) => {
+      const g = gs[k], P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+      for (let i = 0; i < P.count; i++, o++) {
+        pos[o * 3] = P.getX(i); pos[o * 3 + 1] = P.getY(i); pos[o * 3 + 2] = P.getZ(i);
+        nor[o * 3] = N.getX(i); nor[o * 3 + 1] = N.getY(i); nor[o * 3 + 2] = N.getZ(i);
+        let u = 0.5, v = 0.5;
+        if (p.uv === 'h') {
+          if (Math.abs(N.getY(i)) > 0.9) { u = PAL.col[0]; v = PAL.col[1]; }
+          else { u = U ? U.getX(i) : 0.5; v = 1 - (1 - Math.max(0, Math.min(1, P.getY(i) / 1.3))) * HT_H / 128; }
+        } else if (p.uv === 'band') { u = 0.53 + 0.44 * (U ? U.getX(i) : 0.5); v = (1.5 + 5 * (U ? U.getY(i) : 0.5)) / 128; }
+        else if (p.uv) { u = p.uv[0]; v = p.uv[1]; }
+        uv[o * 2] = u; uv[o * 2 + 1] = v; po[o * 2] = p.part || 0; po[o * 2 + 1] = p.opt || 0;
+      }
+    });
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    out.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); out.setAttribute('aPO', new THREE.BufferAttribute(po, 2));
+    return out;
+  }
+  const _pq = new THREE.Quaternion(), _pd = new THREE.Vector3(), _pY = new THREE.Vector3(0, 1, 0);
+  /* a から b へ伸びる丸い棒（腕・脚）。ra：a の側の太さ、rb：b の側。両端は体・手・靴に隠れるので、ふたは付けない（三角形を半分に） */
+  function limbG(a, b, ra, rb, seg) {
+    _pd.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); const L = _pd.length();
+    const g = new THREE.CylinderGeometry(rb, ra, L, seg || 6, 1, true); g.applyQuaternion(_pq.setFromUnitVectors(_pY, _pd.normalize()));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); return g;
+  }
+  const ballG = (r, p, ws, hs, sc) => { const g = new THREE.SphereGeometry(r, ws || 5, hs || 3); if (sc) g.scale(sc[0], sc[1], sc[2]); g.translate(p[0], p[1], p[2]); return g; };
+  const boxG = (w, h, d, p, rz) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateZ(rz); g.translate(p[0], p[1], p[2]); return g; };
+  const cylG = (rt, rb, h, y, seg, open) => new THREE.CylinderGeometry(rt, rb, h, seg || 8, 1, !!open).translate(0, y, 0);
+  /* 髪：頭のてっぺんから後ろへ寄せたおわん形（額は出す）。back：後ろへ寄せる角度 */
+  const hairG = (r, y, back, ws) => new THREE.SphereGeometry(r, ws || 8, 3, 0, Math.PI * 2, 0, Math.PI * 0.42).rotateZ(back).translate(0, y, 0);
+  /* 腕を下ろす（s：+1＝右（+z）、−1＝左）。sl：袖の色。肘から先は肌 */
+  const armDownP = (s, sl, opt) => { const A = [0, 1.2, 0.2 * s], E = [0.03, 0.96, 0.25 * s], H = [0.07, 0.75, 0.23 * s];
+    return [[limbG(A, E, 0.062, 0.052), sl, opt], [limbG(E, H, 0.046, 0.04), 'skin', opt], [ballG(0.047, H), 'skin', opt]]; };
+  /* 腕を上げて担ぎ棒をつかむ（棒は頭の横 0.35m、高さ1.6m）。肘を外へ張り、手は棒の上に出して上からつかむ（後ろの寄りのカメラから、腕が頭と棒に隠れないように） */
+  const armUpP = (s, sl) => { const A = [0, 1.2, 0.2 * s], E = [0.02, 1.42, 0.4 * s], H = [0, 1.76, 0.35 * s];
+    return [[limbG(A, E, 0.066, 0.056), sl], [limbG(E, H, 0.05, 0.044), 'skin'], [ballG(0.052, H), 'skin']]; };
+  /* 法被の人の頭：肌の頭・黒い髪と、ねじり鉢巻き（結び目は右の前）か菅笠。lo：遠くから見る簡単な形 */
+  const hantenHeadP = (hat, lo) => {
+    const L = [[new THREE.SphereGeometry(0.15, lo ? 6 : 8, lo ? 4 : 6).translate(0, 1.5, 0), 'skin']];
+    if (!lo) L.push([hairG(0.157, 1.5, 0.35), 'hair']);
+    if (hat === 'kasa') L.push([new THREE.ConeGeometry(0.37, 0.17, lo ? 8 : 14).translate(0, 1.69, 0), 'straw']);
+    else { L.push([cylG(0.163, 0.163, 0.055, 1.54, lo ? 6 : 12, true), 'band']); if (!lo) L.push([ballG(0.036, [0.12, 1.54, 0.1]), 'white']); }
+    return L;
+  };
+  /* 半纏の絵で塗る形（担ぎ手・車夫） */
+  const hanGeo = list => personGeo(list.map(([g, c]) => ({ geo: g, uv: c === 'h' || c === 'band' ? c : PAL[c] })));
+  /* 担ぎ手：そろいの半纏と鉢巻き。担ぎ棒の側の腕を上げて棒をつかむ（R＝右の腕、L＝左の腕。棒の左に立つ人は右の腕を上げる）。
+     Idle＝両腕を下ろす（光る建物のそばで待つ人）。Lo＝遠くから見る形（腕・髪を省く） */
+  const crewBodyG = () => cylG(0.2, 0.24, 1.3, 0.65, 8);
+  const crewGeoR = hanGeo([[crewBodyG(), 'h'], ...armUpP(1, 'col'), ...armDownP(-1, 'col'), ...hantenHeadP('band')]);
+  const crewGeoL = hanGeo([[crewBodyG(), 'h'], ...armUpP(-1, 'col'), ...armDownP(1, 'col'), ...hantenHeadP('band')]);
+  const crewGeoIdle = hanGeo([[crewBodyG(), 'h'], ...armDownP(1, 'col'), ...armDownP(-1, 'col'), ...hantenHeadP('band')]);
+  const crewGeoLo = hanGeo([[crewBodyG(), 'h'], ...hantenHeadP('band', true)]);
+  /* 遠くから見ているとき（カメラから神輿まで CREW_LOD m より遠い）は、担ぎ手を簡単な形に */
+  const CREW_LOD = 70;
+  /* 車夫：黒っぽい法被（胴は細め）に、黒の股引の2本の脚と黒い足袋、笠（kasa）か鉢巻き（band）。arms：腕を下ろす（人力車を引く車夫の腕は梶棒を持つ形で別に描く） */
+  const shafuP = (hat, arms) => {
+    const L = [[cylG(0.18, 0.21, 0.7, 0.95, 8), 'h']];
+    for (const s of [1, -1]) {
+      L.push([limbG([0, 0.64, 0.09 * s], [0.01, 0.03, 0.095 * s], 0.085, 0.064), 'h'], [boxG(0.2, 0.06, 0.1, [0.05, 0.03, 0.095 * s]), 'black']);
+      if (arms) L.push(...armDownP(s, 'col'));
+    }
+    return hanGeo(L.concat(hantenHeadP(hat)));
+  };
+  /* 町の人の材質：色の欄（aPO.x）0〜4＝人ごとの色（服・ズボンや帯・髪・帽子や髪飾り・リュック）、5＝肌、6＝黒、7＝白 */
+  const AV_PART = { c1: 0, c2: 1, c3: 2, c4: 3, c5: 4, skin: 5, black: 6, white: 7 };
+  const avGeo = list => personGeo(list.map(([g, c, opt]) => ({ geo: g, part: AV_PART[c], opt: opt || 0 })));
+  /* 出す印（ビットの番号。1から） */
+  const AVB = { CAS: 1, LONG: 2, SHORT: 3, ARML: 4, ARMR: 5, PHONE: 6, HSHORT: 7, HLONG: 8, HBUN: 9, CAP: 10, SUNHAT: 11, PACK: 12, CAMERA: 13, KIMONO: 14, KANZASHI: 15, SHOEW: 16, SHOEB: 17 };
+  const avMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  avMat.onBeforeCompile = sh => {
+    sh.vertexShader = 'attribute vec2 aPO;\nattribute vec3 aC1;\nattribute vec3 aC2;\nattribute vec3 aC3;\nattribute vec3 aC4;\nattribute vec3 aC5;\nattribute vec4 aSk;\nvarying vec3 vPC;\n' + sh.vertexShader.replace('#include <begin_vertex>', [
+      '#include <begin_vertex>',
+      '  { float pp = aPO.x; vPC = pp < 0.5 ? aC1 : pp < 1.5 ? aC2 : pp < 2.5 ? aC3 : pp < 3.5 ? aC4 : pp < 4.5 ? aC5 : pp < 5.5 ? aSk.rgb : pp < 6.5 ? vec3(0.07) : vec3(0.93);',
+      '    if (aPO.y > 0.5 && mod(floor(aSk.w / exp2(aPO.y - 1.0)), 2.0) < 0.5) transformed = vec3(0.0); }'].join('\n'));
+    sh.fragmentShader = 'varying vec3 vPC;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= vPC;');
+  };
+  /* 町の人の形。kind：'loc'＝町の人、'ovr'＝海外の方、'kim'＝着物の人。種類ごとに要る部品だけを入れて形を分ける
+     （一つの形に全部の部品を入れると、使わない部品の頂点まで毎こま計算することになり、三角形が1人1,400を超えた）。
+     部品ごとに出す印を付け、人ごとに選ぶ（avOf） */
+  function avParts(kind) {
+    const B = AVB, L = [[new THREE.SphereGeometry(0.15, 8, 6).translate(0, 1.48, 0), 'skin'], [limbG([0, 1.25, 0], [0, 1.38, 0], 0.06, 0.055), 'skin']];
+    if (kind === 'kim') {
+      /* 着物：裾まで広がる着物・帯とお太鼓・白い半衿・たもと・前で重ねた手・白足袋。お団子の髪に、かんざし */
+      L.push([cylG(0.185, 0.25, 1.25, 0.665, 10), 'c1'], [cylG(0.214, 0.22, 0.2, 0.98, 10, true), 'c2'], [boxG(0.1, 0.2, 0.28, [-0.25, 1.0, 0]), 'c2'], [cylG(0.075, 0.115, 0.06, 1.3, 8, true), 'white']);
+      for (const s of [1, -1]) L.push([boxG(0.22, 0.36, 0.06, [0, 0.99, 0.245 * s]), 'c1'], [ballG(0.045, [0.21, 0.86, 0.05 * s]), 'skin'], [boxG(0.17, 0.05, 0.09, [0.03, 0.025, 0.065 * s]), 'white']);
+      L.push([hairG(0.157, 1.48, 0.35), 'c3'], [ballG(0.072, [-0.08, 1.63, 0], 6, 4), 'c3']);
+      L.push([ballG(0.03, [-0.06, 1.66, 0.07]), 'c4', B.KANZASHI], [limbG([-0.1, 1.6, 0], [-0.02, 1.68, 0.12], 0.008, 0.008, 4), 'c4', B.KANZASHI]);
+      return avGeo(L);
+    }
+    const ovr = kind === 'ovr';
+    /* 洋服：胴・腰・脚（長いズボンか半ズボン）・靴（白か黒）・腕 */
+    L.push([cylG(0.17, 0.19, 0.66, 0.95, 8), 'c1'], [cylG(0.185, 0.18, 0.12, 0.6, 8, true), 'c2']);
+    for (const s of [1, -1]) {
+      L.push([limbG([0, 0.62, 0.085 * s], [0.01, 0.34, 0.09 * s], 0.085, 0.072), 'c2']);
+      L.push([limbG([0.01, 0.34, 0.09 * s], [0, 0.06, 0.09 * s], 0.072, 0.062), 'c2', B.LONG]);
+      if (ovr) L.push([limbG([0.01, 0.34, 0.09 * s], [0, 0.06, 0.09 * s], 0.06, 0.052), 'skin', B.SHORT]);
+      L.push([boxG(0.21, 0.07, 0.1, [0.045, 0.035, 0.09 * s]), 'white', B.SHOEW]);
+      if (!ovr) L.push([boxG(0.21, 0.07, 0.1, [0.045, 0.035, 0.09 * s]), 'black', B.SHOEB]);
+    }
+    L.push(...armDownP(-1, 'c1'), ...armDownP(1, 'c1', B.ARMR));
+    /* 右手でスマホを顔の前に掲げて撮る */
+    if (ovr) { const A = [0, 1.2, 0.19], E = [0.2, 1.06, 0.25], H = [0.3, 1.36, 0.12];
+      L.push([limbG(A, E, 0.06, 0.05), 'c1', B.PHONE], [limbG(E, H, 0.045, 0.04), 'skin', B.PHONE], [ballG(0.046, H), 'skin', B.PHONE], [boxG(0.015, 0.15, 0.08, [0.33, 1.42, 0.12]), 'black', B.PHONE]); }
+    /* 髪：短い・後ろ髪（肩まで）・お団子 */
+    L.push([hairG(0.157, 1.48, 0.35), 'c3'], [boxG(0.09, 0.34, 0.27, [-0.125, 1.35, 0]), 'c3', B.HLONG]);
+    if (!ovr) L.push([ballG(0.072, [-0.08, 1.63, 0], 6, 4), 'c3', B.HBUN]);
+    /* 帽子：野球帽（つばは前）・つばの広い帽子 */
+    L.push([new THREE.SphereGeometry(0.165, 8, 3, 0, Math.PI * 2, 0, Math.PI * 0.45).rotateZ(0.15).translate(0, 1.48, 0), 'c4', B.CAP], [boxG(0.16, 0.018, 0.2, [0.22, 1.535, 0], -0.12), 'c4', B.CAP]);
+    if (ovr) {
+      L.push([cylG(0.135, 0.162, 0.13, 1.6, 8, true), 'c4', B.SUNHAT], [cylG(0.135, 0.135, 0.001, 1.665, 8), 'c4', B.SUNHAT], [cylG(0.29, 0.29, 0.016, 1.545, 12), 'c4', B.SUNHAT]);
+      /* リュック（背中）と肩ひも */
+      L.push([boxG(0.15, 0.34, 0.28, [-0.255, 1.0, 0]), 'c5', B.PACK], [boxG(0.16, 0.08, 0.24, [-0.25, 1.2, 0]), 'c5', B.PACK]);
+      for (const s of [1, -1]) L.push([boxG(0.025, 0.36, 0.035, [0.168, 1.06, 0.1 * s], 0.05), 'c5', B.PACK]);
+      /* 首から下げたカメラ */
+      L.push([boxG(0.075, 0.09, 0.13, [0.215, 1.03, 0]), 'black', B.CAMERA], [new THREE.CylinderGeometry(0.036, 0.036, 0.07, 8).rotateZ(Math.PI / 2).translate(0.285, 1.03, 0), 'black', B.CAMERA]);
+      for (const s of [1, -1]) L.push([limbG([0.2, 1.07, 0.055 * s], [0.07, 1.3, 0.1 * s], 0.009, 0.009, 4), 'black', B.CAMERA]);
+    }
+    return avGeo(L);
+  }
+  const AV_GEO = { loc: avParts('loc'), ovr: avParts('ovr'), kim: avParts('kim') };
+  /* 遠くの町の人：胴（服の色）・頭・髪だけ */
+  const avLoGeo = avGeo([[cylG(0.19, 0.23, 1.3, 0.65, 6), 'c1'], [new THREE.SphereGeometry(0.15, 6, 4).translate(0, 1.48, 0), 'skin'], [hairG(0.157, 1.48, 0.35, 6), 'c3']]);
+  /* 力士：太い胴（腹が出た形）・まわしと前の下がり・太い腕と脚・黒い髪に髷（頭の上に前へ折り返して乗せた形） */
+  const avSumoGeo = (() => {
+    const prof = [[0.001, 0.56], [0.33, 0.56], [0.38, 0.68], [0.43, 0.85], [0.445, 0.98], [0.41, 1.12], [0.34, 1.24], [0.22, 1.33], [0.1, 1.37], [0.001, 1.38]].map(([r, y]) => new THREE.Vector2(r, y));
+    const L = [[new THREE.LatheGeometry(prof, 10).scale(1.06, 1, 1), 'skin'], [cylG(0.42, 0.36, 0.2, 0.66, 10, true), 'c2'], [boxG(0.06, 0.24, 0.22, [0.37, 0.5, 0]), 'c2']];
+    for (let k = -2; k <= 2; k++) L.push([boxG(0.018, 0.2, 0.025, [0.405, 0.42, k * 0.05]), 'c2']);
+    for (const s of [1, -1]) {
+      L.push([limbG([0, 0.6, 0.17 * s], [0.02, 0.06, 0.19 * s], 0.14, 0.11), 'skin'], [boxG(0.25, 0.07, 0.14, [0.06, 0.035, 0.19 * s]), 'skin']);
+      const A = [0, 1.18, 0.39 * s], E = [0.05, 0.93, 0.46 * s], H = [0.14, 0.76, 0.41 * s];
+      L.push([limbG(A, E, 0.1, 0.09), 'skin'], [limbG(E, H, 0.085, 0.075), 'skin'], [ballG(0.075, H), 'skin']);
+    }
+    L.push([new THREE.SphereGeometry(0.16, 8, 6).translate(0, 1.5, 0), 'skin'], [hairG(0.167, 1.5, 0.25), 'c3']);
+    L.push([ballG(0.06, [0.03, 1.69, 0], 8, 5, [1.9, 0.75, 0.95]), 'c3'], [ballG(0.04, [-0.07, 1.665, 0]), 'c3']);
+    return avGeo(L);
+  })();
+  /* 町の人の InstancedMesh（形ごとに人ごとの色の欄を持たせる） */
+  const AV_ATTR = [['aC1', 3], ['aC2', 3], ['aC3', 3], ['aC4', 3], ['aC5', 3], ['aSk', 4]];
+  function avMesh(geo, max) {
+    const g = geo.clone();
+    for (const [k, n] of AV_ATTR) g.setAttribute(k, new THREE.InstancedBufferAttribute(new Float32Array(max * n), n));
+    const m = new THREE.InstancedMesh(g, avMat, max); m.count = 0; m.frustumCulled = false; m.userData.av = true;
+    return m;
+  }
+  /* 1人置く（tmpM に位置と向きを入れてから）。A：avOf で作った色と印 */
+  function avAdd(m, A) {
+    const i = m.count; if (i >= m.instanceMatrix.count) return;
+    m.count++; m.setMatrixAt(i, tmpM);
+    const at = m.geometry.attributes, f = A.f, o3 = i * 3, o4 = i * 4;
+    for (let k = 0; k < 3; k++) { at.aC1.array[o3 + k] = f[k]; at.aC2.array[o3 + k] = f[3 + k]; at.aC3.array[o3 + k] = f[6 + k]; at.aC4.array[o3 + k] = f[9 + k]; at.aC5.array[o3 + k] = f[12 + k]; }
+    for (let k = 0; k < 4; k++) at.aSk.array[o4 + k] = f[15 + k];
+  }
+  /* 描き終わったこまの片付け：送り直しの印。0人の形は描かず、送りもしない（描く回数と送る量を減らす）。
+     人数分だけ送る（updateRange）のも試したが、こま数の上限を外して測ると GPU の待ちがかえって増えたので、前と同じく全体を送る */
+  const updN = (a, n) => { if (n <= 0) return; a.needsUpdate = true; };
+  function avDone(m) {
+    m.visible = m.count > 0;
+    if (!m.visible) return;
+    updN(m.instanceMatrix, m.count);
+    if (m.userData.av) for (const [k] of AV_ATTR) updN(m.geometry.attributes[k], m.count);
+  }
   /* 担ぎ手の半纏（本人決定 10/21：形は今のかわいい形のまま、色と柄を三社祭の半纏に合わせ、ねじり鉢巻きを足す）。
      三社祭の本社神輿は、氏子の町会が順に引き継いで担ぎ、担ぐ間は町会ごとの半纏を着る決まりで、色は町会ごとに青・赤・緑など（調べた出典は 直した記録_飾りと人力車.md）。
      そこで一度に担ぐのは一つの町会として、担ぐ建物ごとに町会の色を一つ選ぶ。
@@ -2230,7 +2411,8 @@ function start(DATA, isAsakusa) {
   const hantenTexs = new Map();
   function hantenTex(col, crest) {
     const key = col + crest; let t = hantenTexs.get(key); if (t) return t;
-    const W = 128, H = 128, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    /* 10/30 人の形の作り直し：絵は 128×128 のまま、半纏は上の HT_H（120px）に描き、下の 8px に色の見本（PAL）を並べる */
+    const W = 128, H = HT_H, cv = document.createElement('canvas'); cv.width = W; cv.height = 128;
     const g = cv.getContext('2d'), wh = '#f1ece0', yH = H * 0.6, b0 = H * 0.46, b1 = H * 0.56;
     g.fillStyle = col; g.fillRect(0, 0, W, yH);
     /* 腰の帯：白地に半纏の色の菱つなぎ */
@@ -2248,9 +2430,16 @@ function start(DATA, isAsakusa) {
     g.fillStyle = light ? '#16120f' : wh; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
     g.fillStyle = light ? wh : col; g.font = 'bold ' + Math.round(r * 0.9) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(crest[0], cx, cy - r * 0.43); g.fillText(crest[1], cx, cy + r * 0.47);
-    /* 股引と地下足袋 */
-    g.fillStyle = '#1b2233'; g.fillRect(0, yH, W, H * 0.34);
+    /* 股引と地下足袋（車夫の「浅草」の法被は、股引も黒に近く） */
+    g.fillStyle = crest === '浅草' ? '#16171d' : '#1b2233'; g.fillRect(0, yH, W, H * 0.34);
     g.fillStyle = '#121212'; g.fillRect(0, H * 0.94, W, H * 0.06);
+    /* 色の見本（8px ずつ）：肌・髪・白・黒・笠の麦わら。右半分（64〜128px）は、白い手ぬぐいを紺の斜めの線でねじった鉢巻きの帯 */
+    [['#e9c9a3', 0], ['#1d1a18', 8], ['#f1ece0', 16], ['#121212', 24], ['#cdb27a', 32], ['#cdb27a', 40]].forEach(([c, x]) => { g.fillStyle = c; g.fillRect(x, H, 8, 8); });
+    g.fillStyle = '#f4f1ea'; g.fillRect(64, H, 64, 8);
+    g.save(); g.beginPath(); g.rect(64, H, 64, 8); g.clip();
+    g.strokeStyle = '#3a4a78'; g.lineWidth = 1.2;
+    for (let x = 58; x < W + 4; x += 4) { g.beginPath(); g.moveTo(x, H + 8); g.lineTo(x + 5, H); g.stroke(); }
+    g.restore();
     t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 2;
     hantenTexs.set(key, t); return t;
   }
@@ -2279,8 +2468,9 @@ function start(DATA, isAsakusa) {
     hapMat.map = hapMat.emissiveMap = hantenTex(HANTEN[S.team], '三社');
   }
   const MAX_CREW = 7000;
-  const crewBody = new THREE.InstancedMesh(bodyGeo, hapMat, MAX_CREW), crewHead = new THREE.InstancedMesh(headGeo, bandMat, MAX_CREW);
-  crewBody.frustumCulled = crewHead.frustumCulled = false;
+  /* 10/30 担ぎ手は、右の腕を上げる人（crewBody）と左の腕を上げる人（crewBodyL）の二つ。頭・髪・鉢巻きも同じ形に入れた（前の頭の InstancedMesh は無くした） */
+  const crewBody = new THREE.InstancedMesh(crewGeoR, hapMat, MAX_CREW), crewBodyL = new THREE.InstancedMesh(crewGeoL, hapMat, MAX_CREW);
+  crewBody.frustumCulled = crewBodyL.frustumCulled = false;
   const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3(1, 1, 1), tmpP = new THREE.Vector3(), upY = new THREE.Vector3(0, 1, 0);
   function inRing(ring, x, y) {
     let inside = false;
@@ -2294,22 +2484,23 @@ function start(DATA, isAsakusa) {
   // 担ぎ手：担ぎ棒の両側に0.6mおき、そのあと足元のまわりをぎっしり。入りきらない人数は数字だけ出す。
   function buildCrew() {
     const g = new THREE.Group();
-    g.add(crewBody); g.add(crewHead);
+    g.add(crewBody); g.add(crewBodyL);
     /* 10/30 担ぎ手は組の人数そのまま（team）。立つ所の候補（棒のまわり→足元のまわり）を先に全部集め、人数が少なければ、棒のまわりからとびとびに選ぶ
        （前から順に埋めると、10人が1本の棒の端に固まった）。候補より多い人は、飛び入りの輪の内側に立つ（S.crewOver。joinStep） */
     const want = Math.min(team, MAX_CREW), P = poleLayout(S.dim);
     let n = 0;
     /* 担ぎ手の足元（神輿の中の座標）を覚えておく。まわりの建物の中に立つ人を隠すのに使う（fitCrew） */
-    const uv = [], cPole = [], cFill = [];
+    /* sd：上げる腕（0＝右、1＝左）。長い棒の左（+v）に立つ人は棒が右にあるので右の腕、右に立つ人は左の腕。横棒・足元のまわりの人は、ばらばらに */
+    const uv = [], sd = [], cPole = [], cFill = [];
     let into = cPole;
-    const put = (u, v) => into.push(u, v);
+    const put = (u, v, s) => into.push(u, v, s === undefined ? (Math.sin(u * 7.13 + v * 3.71) * 43758.5453 % 1 + 1) % 1 < 0.5 ? 0 : 1 : s);
     for (const p of P.along) for (let u = p.u0 + 0.4; u <= p.u1 - 0.4; u += 0.6) {
       if (P.cross.some(c => Math.abs(c.u - u) < 0.45)) continue;
-      put(u, p.v + 0.35, 0); put(u, p.v - 0.35, 0);
+      put(u, p.v + 0.35, 0); put(u, p.v - 0.35, 1);
     }
     for (const c of P.cross) for (let v = c.v0 + 0.4; v <= c.v1 - 0.4; v += 0.6) {
       if (P.along.some(p => Math.abs(p.v - v) < 0.45)) continue;
-      put(c.u + 0.35, v, 0); put(c.u - 0.35, v, 0);
+      put(c.u + 0.35, v); put(c.u - 0.35, v);
     }
     // 足元のまわり（外接長方形を棒の先まで広げた範囲）を、0.5mおきにぎっしり埋める（本人「隙間が見えるなら埋めて」。人数のリアルさより、隙間なく見えること）。
     // 建物の外に出ている所は全部、建物の下は壁ぎわ（縁から1m以内）だけ（奥は見えないので数を使わない）。棒のまわりの人と重なる所は飛ばす。
@@ -2323,18 +2514,19 @@ function start(DATA, isAsakusa) {
       put(u + jx, v + jy);
     }
     /* 候補から want 人を選ぶ：棒のまわりを先に、足りなければ足元のまわりから。どちらも、とびとびに均して */
-    const pick = (src, k) => { const m = src.length / 2; for (let i = 0; i < k; i++) { const j = Math.min(m - 1, Math.floor((i + 0.5) * m / k)); uv.push(src[2 * j], src[2 * j + 1]); } };
-    const nP = cPole.length / 2, nF = cFill.length / 2;
+    const pick = (src, k) => { const m = src.length / 3; for (let i = 0; i < k; i++) { const j = Math.min(m - 1, Math.floor((i + 0.5) * m / k)); uv.push(src[3 * j], src[3 * j + 1]); sd.push(src[3 * j + 2]); } };
+    const nP = cPole.length / 3, nF = cFill.length / 3;
     if (want <= nP) pick(cPole, want); else { pick(cPole, nP); pick(cFill, Math.min(nF, want - nP)); }
+    let nR = 0, nL = 0;
     for (let i = 0; i < uv.length / 2; i++) {
       tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpQ.setFromAxisAngle(upY, 0); tmpS.set(1, 1, 1);
-      tmpM.compose(tmpP, tmpQ, tmpS); crewBody.setMatrixAt(n, tmpM); crewHead.setMatrixAt(n, tmpM); n++;
+      tmpM.compose(tmpP, tmpQ, tmpS); if (sd[i]) crewBodyL.setMatrixAt(nL++, tmpM); else crewBody.setMatrixAt(nR++, tmpM); n++;
     }
     S.crewOver = Math.max(0, want - n);
-    crewBody.count = crewHead.count = n;
-    crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
+    crewBody.count = nR; crewBodyL.count = nL;
+    updN(crewBody.instanceMatrix, nR); updN(crewBodyL.instanceMatrix, nL);
     S.crewShown = n;
-    S.crewUV = Float32Array.from(uv); S.crewMask = null; S.fitKey = '';
+    S.crewUV = Float32Array.from(uv); S.crewSide = Uint8Array.from(sd); S.crewMask = null; S.fitKey = '';
     return g;
   }
   /* 担ぎ手・担ぎ棒が、まわりの建物の中に入って見えないように（直す係 第1回・不具合1・4）。
@@ -2382,10 +2574,10 @@ function start(DATA, isAsakusa) {
       S.crewWait = wait;
       if (changed) {
         S.crewMask = mask;
-        let m = 0;
-        for (let i = 0; i < n; i++) if (mask[i]) { tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpM.compose(tmpP, tmpQ, tmpS); crewBody.setMatrixAt(m, tmpM); crewHead.setMatrixAt(m, tmpM); m++; }
-        crewBody.count = crewHead.count = m;
-        crewBody.instanceMatrix.needsUpdate = crewHead.instanceMatrix.needsUpdate = true;
+        let mR = 0, mL = 0; const sd = S.crewSide;
+        for (let i = 0; i < n; i++) if (mask[i]) { tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpM.compose(tmpP, tmpQ, tmpS); if (sd && sd[i]) crewBodyL.setMatrixAt(mL++, tmpM); else crewBody.setMatrixAt(mR++, tmpM); }
+        crewBody.count = mR; crewBodyL.count = mL;
+        updN(crewBody.instanceMatrix, mR); updN(crewBodyL.instanceMatrix, mL);
       }
     }
     /* 担ぎ棒：神輿の縁（横棒はまん中）から外へ0.25mずつ見て、建物に当たる手前で止める。ふだんは元の長さのまま */
@@ -3073,8 +3265,9 @@ function start(DATA, isAsakusa) {
     return best;
   }
   function tourStep(now) {
-    /* tourOff：右上の歯車で「名所の説明なし」にしたとき */
-    if (tourOff || !S.b || !S.toured || S.intro || S.done || mode !== 'carry') { if (tour.L) tourReset(); return; }
+    /* tourOff：右上の歯車で「名所の説明なし」にしたとき。
+       10/30 本人「一番最初に浅草公会堂の説明が出るのはいらない。初めて遊ぶときに説明が最初に入ると邪魔」：1回目の運び（初めて浅草神社に着くまで。arriveN が0の間）は出さない */
+    if (tourOff || arriveN === 0 || !S.b || !S.toured || S.intro || S.done || mode !== 'carry') { if (tour.L) tourReset(); return; }
     const el = $('tour');
     /* 担ぎ替えの候補が光っている間は、説明の文を出さない（ボタンと神輿に札が重なった。10/30 ゲームプログラマーの指摘）。止まっていても動いているのと同じ扱い */
     const pushing = hold.on || hold.back || rotHold.dir !== 0 || !!SW.b;
@@ -3571,7 +3764,9 @@ function start(DATA, isAsakusa) {
     /* 大勢がそろえて打つ1回（手締めの1打）。人ごとに打つ時が少しずれる（標準で spread 秒、数十ms）。打つ時の中心は素の頭から0.1秒 */
     function mkClap(people, spread) {
       const sr = ctx.sampleRate, b = ctx.createBuffer(2, Math.ceil(sr * 0.45), sr), L = b.getChannelData(0), R = b.getChannelData(1);
-      for (let p = 0; p < people; p++) clapOne(L, R, sr, 0.1 + Math.max(-0.09, Math.min(0.2, gauss() * spread)), Math.random() * 1.6 - 0.8, 0.4 + Math.random() * 0.6);
+      /* 10/30 人ごとのずれの平均を0にそろえる。前は素（3つ）ごとに平均がずれ、打つ時刻が素によって十数ミリ秒早い・遅いになり、手締めの間隔が 0.165・0.195 秒とふらついた */
+      const off = Array.from({ length: people }, () => gauss() * spread), mean = off.reduce((a, v) => a + v, 0) / people;
+      for (let p = 0; p < people; p++) clapOne(L, R, sr, 0.1 + Math.max(-0.09, Math.min(0.2, off[p] - mean)), Math.random() * 1.6 - 0.8, 0.4 + Math.random() * 0.6);
       finish([L, R], 0.9); return b;
     }
     /* 飾り金具：重い真鍮や鉄の金具が揺れて当たる鈍い「ガチャン」。8〜12回の当たりを80msほどに散らす。
@@ -3646,26 +3841,40 @@ function start(DATA, isAsakusa) {
        10/23 大麻を外して 8.0 → 5.9秒にした。一本締めの最後（5.12秒）から担ぎ上げの拍子木（5.9秒）まで、0.78秒の間 */
     let haraiFast = false;
     function setHaraiFast(v) { haraiFast = !!v; }
+    /* お祓いの拍子木と一本締めの予定：[始まりからの秒, 'ki'（拍子木）か 'clap'（手締めの1打）, 大きさ]。fast：短いお祓い（約3秒。今は1回目から） */
+    function haraiPlan(fast) {
+      const P = [];
+      if (fast) {
+        /* 10/30 本人「パソコンで気持ち悪く聞こえた」：一本締めは「打つ・打つ・打つ・休み」の4拍を3回、最後に1打（3・3・3・1）。
+           前の短い版は組の間が0.62秒で、3打（0.4秒）のあとの休みが0.22秒しかなく、9打がほぼ同じ間隔（0.2・0.2・0.22…）で並んで、休みが消えていた。
+           1拍0.18秒にして、休みも1拍きちんと空ける（最後の1打は2.82秒。3秒の魂振りの前に収まる） */
+        const b = 0.18, g0 = 0.66;
+        P.push([0.3, 'ki', 0.7]);
+        for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) P.push([g0 + k * 4 * b + j * b, 'clap', j === 2 ? 0.68 : 0.58]);
+        P.push([g0 + 12 * b, 'clap', 0.75]);
+      } else {
+        /* 拍子木を2つ（カーン、カーン）。着いたときのドンが引いてから。1.3〜2.0秒は「いよーっ」の間（声は入れない）。
+           一本締め：シャン・シャン・シャン（休み）を3回、最後にシャン。1拍0.26秒 */
+        P.push([0.5, 'ki', 0.7], [1.3, 'ki', 0.7]);
+        for (const g of [2.0, 3.04, 4.08]) for (const d of [0, 0.26, 0.52]) P.push([g + d, 'clap', d > 0.5 ? 0.68 : 0.58]);
+        P.push([5.12, 'clap', 0.75]);
+      }
+      return P;
+    }
     function haraiSfx(t) {
       cerPrepare(true);
       if (!cerIn) return;
+      /* 音の素をここで作ったときは、作っている間に時刻が進む。前は作る前の時刻から予約していたので、過ぎた分の打が今の時刻にまとめて重なって鳴った。作った後の時刻から数える */
+      t = Math.max(t, ctx.currentTime + 0.03);
       if (cerRun) cerRun.gain.setTargetAtTime(0, t, 0.05);
       cerRun = ctx.createGain(); cerRun.connect(cerIn);
       crowdTo(0.35, t, 0.6);
-      /* 10/30 本人「お祓いを2回目から少しだけ短く（3秒ほど）」：2回目からは拍子木1つ、一本締めを詰めて（1打0.2秒・組の間0.62秒）約3秒に。並び（3・3・3・1）は崩さない */
+      /* 手締めの素は、打つ時の中心が素の頭から0.1秒 */
       let c = 0;
-      if (haraiFast) {
-        cerPlay(pick(CB.ki), t + 0.35, 0.7, -0.15);
-        for (const g of [0.9, 1.52, 2.14]) for (const d of [0, 0.2, 0.4]) cerPlay(CB.clap[c++ % CB.clap.length], t + g + d - 0.1, d > 0.3 ? 0.68 : 0.58, 0);
-        cerPlay(pick(CB.clap), t + 2.76 - 0.1, 0.75, 0);
-        return;
+      for (const [at, k, g] of haraiPlan(haraiFast)) {
+        if (k === 'ki') cerPlay(pick(CB.ki), t + at, g, -0.15);
+        else cerPlay(CB.clap[c++ % CB.clap.length], t + at - 0.1, g, 0);
       }
-      /* 拍子木を2つ（カーン、カーン）。着いたときのドンが引いてから */
-      cerPlay(pick(CB.ki), t + 0.5, 0.7, -0.15);
-      cerPlay(pick(CB.ki), t + 1.3, 0.7, -0.15);
-      /* 1.3〜2.0秒は「いよーっ」の間（声は入れない）。一本締め：シャン・シャン・シャン（休み）を3回、最後にシャン。1打0.26秒 */
-      for (const g of [2.0, 3.04, 4.08]) for (const d of [0, 0.26, 0.52]) cerPlay(CB.clap[c++ % CB.clap.length], t + g + d - 0.1, d > 0.5 ? 0.68 : 0.58, 0);
-      cerPlay(pick(CB.clap), t + 5.12 - 0.1, 0.75, 0);
     }
     /* 魂振りの「オイサ、ハッ」：担ぎ上げの瞬間に1回、3拍あとの揺れの中でもう1回（宮出しで担ぎ上げた瞬間に野太い「オイサ、ハッ！」が響く、という報道に合わせた）。
        強い「ハッ」を曲の拍の頭に合わせ、オイサはその約0.55秒前から鳴る。1回が約1.6秒あるので、2回目は1回目のハッの響きが −20dB ほどに引いてから入る3拍あとにした。
@@ -3805,7 +4014,7 @@ function start(DATA, isAsakusa) {
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
     return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, don, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
-      _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice }; } };
+      _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
 
   // ---------- つかえたとき：揺れ・音・寸法 ----------
@@ -4060,7 +4269,7 @@ function start(DATA, isAsakusa) {
       if (S.shadow) { scene.remove(S.shadow); S.shadow = null; }
       liftOut(S.b, false); restoreStack(); swapShow(null); S.swapAnim = null;
       trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
-      crowdBody.count = crowdHead.count = 0; joinReset();
+      for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset();
       S.b = null; S.rec = null; S.stuck = null; S.slide = null; S.scaleAnim = null;
     }
   };
@@ -4069,11 +4278,14 @@ function start(DATA, isAsakusa) {
   const MAX_CROWD = 3000;
   const crowdColors = [0xc9b79c, 0x6f7f95, 0xa65f4e, 0x5d6b52, 0xd8d2c4, 0x3e3a3a, 0xb98f3f];
   const crowdMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-  const crowdBody = new THREE.InstancedMesh(bodyGeo, crowdMat, MAX_CROWD), crowdHead = new THREE.InstancedMesh(headGeo, skinMat, MAX_CROWD);
-  crowdBody.frustumCulled = crowdHead.frustumCulled = false;
-  crowdBody.setColorAt(0, new THREE.Color(0xffffff)); // 色の欄を先に作っておく（後から足すと色が出ない）
-  crowdBody.count = crowdHead.count = 0;
-  scene.add(crowdBody); scene.add(crowdHead);
+  /* 10/30 見物人も町の人の形（avMat）で：カメラから CROWD_NEAR m 以内は手足・髪型・持ち物のある形（crowdNear）、遠くは胴・頭・髪だけ（crowdFar）。
+     ほとんどは町の人（髪型と服・ズボンの色が人ごとに少しずつ違う）、ところどころ観光客・着物の人 */
+  const CROWD_NEAR = 45;
+  const crowdNear = { loc: avMesh(AV_GEO.loc, MAX_CROWD), ovr: avMesh(AV_GEO.ovr, 1000), kim: avMesh(AV_GEO.kim, 1000) }, crowdFar = avMesh(avLoGeo, MAX_CROWD);
+  for (const m of Object.values(crowdNear)) scene.add(m);
+  scene.add(crowdFar);
+  const crowdAll = [...Object.values(crowdNear), crowdFar];
+  let crowdCamD = 0;
   const hash = (x, y) => { const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return v - Math.floor(v); };
   let crowdSpots = [], crowdAt = null;
   function refreshCrowd(force) {
@@ -4108,24 +4320,31 @@ function start(DATA, isAsakusa) {
     SND.setCrowd(near); SND.crowdLog();
   }
   /* 並べ直す：神輿の足元（＋少しのゆとり）に入る人と、人力車の所に立つ人は隠す（人力車が走るときは updateRickshaws から毎こま） */
-  const crowdCol = new THREE.Color();
+  /* 見物人の格好：8割は町の人（服は見物人の色）、1割ずつ海外の方と着物の人 */
+  function crowdP(p) {
+    const u = hash(p.x + 1.7, p.y - 2.9), v = hash(p.y + 0.3, p.x - 5.1);
+    return u < 0.8 ? { t: 'local', c: p.c, v } : u < 0.9 ? personOf(0.62 + (u - 0.8) * 2, v) : personOf(0.37 + (u - 0.9) * 2, v);
+  }
   function crowdLayout() {
     if (!S.b || !S.dim) return;
     const ori = S.head + S.rot, c = Math.cos(ori), sn = Math.sin(ori);
     const L2 = S.dim.L / 2 + 1.2, W2 = S.dim.W / 2 + 1.2;
-    let n = 0;
+    /* カメラの位置（地図の座標）。近い人だけ細かい形に */
+    const cp = camera.position, cx = cp.x, cy = -cp.z, cz = cp.y, N2 = CROWD_NEAR * CROWD_NEAR;
+    crowdCamD = Math.hypot(cx - S.x, cy - S.y, cz);
+    for (const m of crowdAll) m.count = 0;
     for (const p of crowdSpots) {
       if (p.j) continue;   /* 飛び入りを待つ人は、跳ねるので別に毎こま描く（joinStep） */
       const dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
       if (Math.abs(u) < L2 && Math.abs(v) < W2) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
-      tmpP.copy(V(p.x, p.y, 0)); tmpQ.setFromAxisAngle(upY, 0); tmpS.set(p.s, p.s, p.s);
-      tmpM.compose(tmpP, tmpQ, tmpS); crowdBody.setMatrixAt(n, tmpM); crowdHead.setMatrixAt(n, tmpM);
-      crowdBody.setColorAt(n, crowdCol.setHex(p.c)); n++;
+      const A = p.A || (p.A = avOf(crowdP(p)));
+      /* 神輿のほうを向いて立つ（前は全員が東を向いていた） */
+      tmpP.copy(V(p.x, p.y, 0)); tmpQ.setFromAxisAngle(upY, Math.atan2(-dy, -dx) + (hash(p.y, p.x + 2.2) - 0.5) * 0.8); tmpS.set(p.s, p.s * A.h, p.s);
+      tmpM.compose(tmpP, tmpQ, tmpS);
+      avAdd((p.x - cx) * (p.x - cx) + (p.y - cy) * (p.y - cy) + cz * cz < N2 ? crowdNear[A.k] : crowdFar, A);
     }
-    crowdBody.count = crowdHead.count = n;
-    crowdBody.instanceMatrix.needsUpdate = crowdHead.instanceMatrix.needsUpdate = true;
-    if (crowdBody.instanceColor) crowdBody.instanceColor.needsUpdate = true;
+    for (const m of crowdAll) avDone(m);
   }
 
   // ---------- 飛び入り（10/29 本人が選んだ案。10/30 作り直し：本人「後ろについてくのはなんか変」「壁にぶつかったりするとちょっと減ってくのおもろい。ピクミンみたいに」
@@ -4143,7 +4362,6 @@ function start(DATA, isAsakusa) {
   /* 10/30 案E：神輿の足元から10m以内なら道を進むだけで両側の人がほぼ全員入った。4.5mにして、道の端へ寄せないと拾えないようにした（寄せるとぶつける危険＝攻めると得、ぶつけると損） */
   const JOIN_R = 4.5, JOIN_CELL = 22, JOIN_MAX = 400, JOIN_WAIT_MAX = 300, RKJ_R = 8, RKJ_RATE = 0.3, RKJ_N = [8, 16], LAMP_MAX = 200, JOIN_SLOTS = 1200;
   const JN = { n: 0, list: [], keys: new Set(), wait: [], drop: [], lastCue: 0, slots: [], slotKey: '', mask: [], maskKey: '' };
-  const jwBody = new THREE.InstancedMesh(bodyGeo, crowdMat, JOIN_WAIT_MAX), jwHead = new THREE.InstancedMesh(headGeo, skinMat, JOIN_WAIT_MAX);
   /* 待つ人の目印：頭の上に掲げた小さな提灯（赤く灯る） */
   /* 10/30 拾う距離を4.5mにしたので、遠くから見つけやすいよう提灯を大きく（半径0.22→0.36m） */
   const jlGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.68, 12); jlGeo.translate(0, 2.4, 0);
@@ -4151,9 +4369,9 @@ function start(DATA, isAsakusa) {
   const jwLamp = new THREE.InstancedMesh(jlGeo, jlMat, JOIN_WAIT_MAX);
   /* 半纏の人（加わった人・はじき飛ばされて待つ人・人力車の一団）と、その提灯 */
   const JB_MAX = JOIN_SLOTS + 24 * RKJ_N[1];
-  const jnBody = new THREE.InstancedMesh(bodyGeo, hapMat, JB_MAX), jnHead = new THREE.InstancedMesh(headGeo, bandMat, JB_MAX), jnLamp = new THREE.InstancedMesh(jlGeo, jlMat, LAMP_MAX);
-  jwBody.setColorAt(0, new THREE.Color(0xffffff));
-  for (const m of [jwBody, jwHead, jwLamp, jnBody, jnHead, jnLamp]) { m.frustumCulled = false; m.count = 0; scene.add(m); }
+  /* 10/30 待つ人の胴と頭（jwBody・jwHead）は、町の人の形（PT）で描くようになって使っていなかったので外した。半纏の人も頭を胴の形に入れたので jnHead は無くした */
+  const jnBody = new THREE.InstancedMesh(crewGeoR, hapMat, JB_MAX), jnLamp = new THREE.InstancedMesh(jlGeo, jlMat, LAMP_MAX);
+  for (const m of [jwLamp, jnBody, jnLamp]) { m.frustumCulled = false; m.count = 0; scene.add(m); }
   const spotKey = p => p.x.toFixed(1) + ',' + p.y.toFixed(1);
   /* 曲の厚み：重さに、飛び入りの人数を足す（40人で一番厚く） */
   const joinInten = () => Math.min(1, (S.heavy || 0) + JN.n / 40);
@@ -4161,8 +4379,8 @@ function start(DATA, isAsakusa) {
     JN.n = 0; JN.list.length = 0; JN.keys.clear(); JN.wait.length = 0; JN.drop.length = 0; JN.maskKey = '';
     /* 境内で待つ人の立つ所は、担ぐ建物ごとに調べ直す（担いでいる建物の元の場所は空いているので、前の建物の分を使い回さない） */
     shrineSp = null;
-    jwBody.count = jwHead.count = jwLamp.count = jnBody.count = jnHead.count = jnLamp.count = 0;
-    if (PT) for (const m of PT.list) m.count = 0;
+    jwLamp.count = jnBody.count = jnLamp.count = 0;
+    if (PT) { for (const m of PT.list) { m.count = 0; m.visible = false; } PT.n = 0; }
     SND.setJoin(0);
     /* 人力車の一団：担ぐたびに選び直す（どの人力車にいるかはランダム） */
     for (const r of rickshaws) r.jnHide = null, r.jn = Math.random() < RKJ_RATE ? RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)) : 0;
@@ -4331,56 +4549,95 @@ function start(DATA, isAsakusa) {
   /* 格好を決める。u：組の格好を決める乱数、v：その人の色を決める乱数、c0：見物人の服の色（町の人のとき） */
   function personOf(u, v, c0) {
     const t = u < 0.36 ? 'local' : u < 0.61 ? 'kimono' : u < 0.83 ? 'overseas' : u < 0.93 ? 'shafu' : 'sumo';
-    if (t === 'local') return { t, c: c0 || pick(LOCAL_C, v) };
-    if (t === 'kimono') return { t, c: pick(KIMONO_C, v), c2: pick(OBI_C, (v * 7.3) % 1) };
-    if (t === 'overseas') return { t, c: pick(SHIRT_C, v), c2: pick(HAIR_C, (v * 5.1) % 1) };
-    if (t === 'shafu') return { t, k: v < 0.5 };
-    return { t, c2: v < 0.6 ? 0x2a2a3a : 0x4a2a6a };
+    if (t === 'local') return { t, c: c0 || pick(LOCAL_C, v), v };
+    if (t === 'kimono') return { t, c: pick(KIMONO_C, v), c2: pick(OBI_C, (v * 7.3) % 1), v };
+    if (t === 'overseas') return { t, c: pick(SHIRT_C, v), c2: pick(HAIR_C, (v * 5.1) % 1), v };
+    if (t === 'shafu') return { t, k: v < 0.5, v };
+    return { t, c2: v < 0.6 ? 0x2a2a3a : 0x4a2a6a, v };
   }
   /* 飛び入りを待つ人の格好（待つ場所で決まる。u は連れの格好をそろえるのに使う） */
   function waitP(p) { if (!p.P) { const u = hash(p.x + 5.5, p.y - 3.3); p.P = personOf(u, hash(p.y + 1.1, p.x + 0.7), p.c); p.P.u = u; } return p.P; }
-  /* 人力車の一団：0・1人目は車夫、ほかは乗っていたお客さん（着物の人か海外の方） */
-  const rkjPerson = (r, i) => i < 2 ? { t: 'shafu', k: i === 0 } : personOf(0.37 + hash(r.x0 + i, r.y0) * 0.45, hash(i, r.y0 + 1.7));
+  /* 人力車の一団：0・1人目は車夫、ほかは乗っていたお客さん（着物の人か海外の方）。毎こま作り直さないように、車ごとに覚えておく */
+  const rkjPerson = (r, i) => { const L = r.jP || (r.jP = []); return L[i] || (L[i] = i < 2 ? { t: 'shafu', k: i === 0 } : personOf(0.37 + hash(r.x0 + i, r.y0) * 0.45, hash(i, r.y0 + 1.7))); };
+  /* 人ごとの色と出す部品（avMat の欄）。P に覚えておく。
+     町の人：髪型（短い・肩までの後ろ髪・お団子、ときどき野球帽）と、服・ズボン・靴の色が人ごとに違う。
+     海外の方：明るい色の服に、半ズボン（すねは肌）か長いズボン、白い靴、髪の色はいろいろ。野球帽かつばの広い帽子・リュック・首から下げたカメラ・スマホで撮る手。半分ほどは背を高めに。
+     着物の人：裾まで広がる着物に帯とお太鼓、お団子の髪にかんざし。力士：まわしの色（P.c2）と黒い髪 */
+  const SKIN_JP = [0xe9c9a3, 0xf0d3b5, 0xe2bb94], SKIN_ALL = [0xf3d8c2, 0xe9c9a3, 0xd9b08a, 0xb98058, 0x8a5a3a, 0x63402c];
+  const PANTS_C = [0x2b3346, 0x2f2f33, 0x55606e, 0x8a7a5e, 0x3a4f7a, 0x6a5a4a], HAIR_JP = [0x1a1614, 0x261d17, 0x3a2a1e, 0x4e3a2a];
+  const CAP_C = [0xf2f2f2, 0x2a2a2a, 0xd8c79a, 0x2f5fa8, 0xc0392b, 0x6b8e5a], PACK_C = [0x2d3e50, 0x8e2b2b, 0x3c6e47, 0x4a4a4a, 0xd27d2d, 0x5b4a8a, 0x1f1f1f];
+  const SHORTS_C = [0xc8b48a, 0x8f9aa8, 0x4f6d8f, 0x6b6b4f, 0xd8d0c0], KANZ_C = [0xd6334a, 0xe8c040, 0xf2f2f2];
+  const avCol = new THREE.Color();
+  function avOf(P) {
+    if (P.A) return P.A;
+    const v = P.v !== undefined ? P.v : 0.5, r = k => hash(v * 97.1 + k * 13.7, k * 3.1 + v * 7.7);
+    const c = { c1: 0x888888, c2: 0x333333, c3: 0x1a1614, c4: 0xffffff, c5: 0x333333, sk: pick(SKIN_JP, r(1)) };
+    let m = 0, h = 1;
+    const on = (...ks) => { for (const k of ks) m += 2 ** (AVB[k] - 1); };
+    if (P.t === 'sumo') { c.c2 = P.c2; c.c3 = 0x15120f; c.sk = 0xe2b48a; }
+    else if (P.t === 'kimono') { c.c1 = P.c; c.c2 = P.c2; c.c3 = pick(HAIR_JP, r(2)); c.c4 = pick(KANZ_C, r(3)); on('KIMONO', 'HSHORT', 'HBUN'); if (r(4) < 0.7) on('KANZASHI'); }
+    else if (P.t === 'overseas') {
+      c.c1 = P.c; c.c3 = P.c2; c.sk = pick(SKIN_ALL, r(5)); on('CAS', 'ARML', 'SHOEW', 'HSHORT');
+      if (r(6) < 0.65) { on('SHORT'); c.c2 = pick(SHORTS_C, r(7)); } else { on('LONG'); c.c2 = r(7) < 0.6 ? 0x3a4f7a : 0x2b3346; }
+      const ph = r(8); if (ph < 0.22) on('PHONE'); else { on('ARMR'); if (ph < 0.55) on('CAMERA'); }
+      if (r(9) < 0.4) on('HLONG');
+      const hat = r(10); if (hat < 0.38) on('CAP'); else if (hat < 0.68) on('SUNHAT');
+      c.c4 = pick(CAP_C, r(11));
+      if (r(12) < 0.55) { on('PACK'); c.c5 = pick(PACK_C, r(13)); }
+      if (r(14) < 0.6) h = 1.05 + r(15) * 0.1;
+    } else {
+      c.c1 = P.c || pick(LOCAL_C, r(16)); c.c2 = pick(PANTS_C, r(17)); c.c3 = pick(HAIR_JP, r(18)); on('CAS', 'ARML', 'ARMR', 'LONG', 'HSHORT', r(19) < 0.7 ? 'SHOEB' : 'SHOEW');
+      const hs = r(20); if (hs < 0.3) on('HLONG'); else if (hs < 0.45) on('HBUN'); else if (hs > 0.9) { on('CAP'); c.c4 = pick(CAP_C, r(21)); }
+    }
+    const f = new Float32Array(19); let o = 0;
+    for (const k of ['c1', 'c2', 'c3', 'c4', 'c5', 'sk']) { avCol.setHex(c[k]); f[o++] = avCol.r; f[o++] = avCol.g; f[o++] = avCol.b; }
+    f[18] = m;
+    return (P.A = { f, h, k: P.t === 'sumo' ? 'sumo' : P.t === 'kimono' ? 'kim' : P.t === 'overseas' ? 'ovr' : 'loc' });
+  }
+  /* 町の人を、カメラからこれより遠い（m）と簡単な形に */
+  const PT_LOD = 50;
   let PT = null;
   function ensurePT() {
     if (PT) return PT;
-    const N = JB_MAX + JOIN_WAIT_MAX, mk = (geo, mat, col) => { const m = new THREE.InstancedMesh(geo, mat, N); if (col) m.setColorAt(0, new THREE.Color(0xffffff)); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
-    const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const obiGeo = new THREE.CylinderGeometry(0.235, 0.24, 0.17, 8); obiGeo.translate(0, 0.8, 0);
-    const hairGeo = new THREE.SphereGeometry(0.162, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2); hairGeo.translate(0, 1.52, 0);
-    const sumoGeo = new THREE.CylinderGeometry(0.36, 0.42, 1.25, 10); sumoGeo.translate(0, 0.625, 0);
-    const mawashiGeo = new THREE.CylinderGeometry(0.43, 0.43, 0.26, 10); mawashiGeo.translate(0, 0.33, 0);
-    const mageGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.16, 6); mageGeo.rotateZ(Math.PI / 2); mageGeo.translate(0, 1.66, 0);
-    PT = {
-      body: mk(bodyGeo, white, true), obi: mk(obiGeo, white, true), hair: mk(hairGeo, white, true), head: mk(headGeo, skinMat),
-      sBody: mk(bodyGeo, drvMat), sBand: mk(headGeo, bandMat), kasa: mk(kasaGeo, DRV.kasa.material),
-      mBody: mk(sumoGeo, new THREE.MeshLambertMaterial({ color: 0xe2b48a })), mawashi: mk(mawashiGeo, white, true), mage: mk(mageGeo, new THREE.MeshLambertMaterial({ color: 0x1a1a1a })),
-    };
-    /* 担ぎ替えまで、あと何人か：神輿のまわりの輪の空いた所に、うすい白い人の形（案A。字の「あと○人」の代わり） */
+    const N = JB_MAX + JOIN_WAIT_MAX, mk = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, N); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
+    const av = geo => { const m = avMesh(geo, N); scene.add(m); return m; };
+    /* 10/30 人の形の作り直し：町の人（loc）・海外の方（ovr）・着物の人（kim）・遠くの町の人（lo）・力士（sumo）・車夫（笠 shK・鉢巻き shB）の7つ（前は部品ごとに10個） */
+    PT = { loc: av(AV_GEO.loc), ovr: av(AV_GEO.ovr), kim: av(AV_GEO.kim), lo: av(avLoGeo), sumo: av(avSumoGeo), shK: mk(shafuP('kasa', true), drvMat), shB: mk(shafuP('band', true), drvMat) };
+    /* 担ぎ替えまで、あと何人か：神輿のまわりの輪の空いた所に、うすい白い人の形（案A。字の「あと○人」の代わり）。胴と頭を一つの形に */
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0xfff4dc, transparent: true, opacity: 0.28, depthWrite: false });
-    PT.gBody = mk(bodyGeo, ghostMat); PT.gHead = mk(headGeo, ghostMat);
-    PT.list = Object.values(PT);
+    PT.ghost = mk(personGeo([{ geo: cylG(0.2, 0.24, 1.3, 0.65, 8) }, { geo: new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.5, 0) }]), ghostMat);
+    PT.list = Object.values(PT); PT.n = 0; PT.N = N;
     return PT;
   }
-  const ptCol = new THREE.Color();
   /* 1人置く（tmpM に位置と向きを入れてから） */
-  function ptAdd(m, col) { const i = m.count++; m.setMatrixAt(i, tmpM); if (col !== undefined) m.setColorAt(i, ptCol.setHex(col)); }
+  function ptAdd(m) { if (m.count >= m.instanceMatrix.count) return; const i = m.count++; m.setMatrixAt(i, tmpM); }
   /* tilt：足もとを軸に、後ろへ倒す角度（rad。はじき飛ばされて転ぶ・尻もちをつく人） */
   const ptE = new THREE.Euler(0, 0, 0, 'YXZ');
   function ptPut(P, x, y, z, face, s, tilt) {
     tmpP.copy(V(x, y, z));
-    if (tilt) tmpQ.setFromEuler(ptE.set(0, face, tilt, 'YXZ')); else tmpQ.setFromAxisAngle(upY, face);
-    tmpS.setScalar(s || 1); tmpM.compose(tmpP, tmpQ, tmpS);
-    const T = PT;
-    if (P.t === 'shafu') { ptAdd(T.sBody); if (P.k) { ptAdd(T.head); ptAdd(T.kasa); } else ptAdd(T.sBand); return; }
-    if (P.t === 'sumo') { tmpS.setScalar((s || 1) * 1.12); tmpM.compose(tmpP, tmpQ, tmpS); ptAdd(T.mBody); ptAdd(T.mawashi, P.c2); ptAdd(T.head); ptAdd(T.mage); return; }
-    ptAdd(T.body, P.c); ptAdd(T.head);
-    if (P.t === 'kimono') ptAdd(T.obi, P.c2);
-    if (P.t === 'overseas') ptAdd(T.hair, P.c2);
+    /* 力士は体を左右に揺らす（歩く・走るときは大きく） */
+    let roll = 0;
+    if (P.t === 'sumo') {
+      const mv = P.lx !== undefined && Math.hypot(x - P.lx, y - P.ly) > 0.004; P.lx = x; P.ly = y;
+      P.sw = (P.sw || 0) + ((mv ? 1 : 0.35) - (P.sw || 0)) * 0.15;
+      roll = Math.sin(performance.now() * 0.009 + (P.v || 0) * 6.283) * 0.12 * P.sw;
+    }
+    if (tilt || roll) tmpQ.setFromEuler(ptE.set(roll, face, tilt || 0, 'YXZ')); else tmpQ.setFromAxisAngle(upY, face);
+    const T = PT, k = (s || 1) * (P.t === 'sumo' ? 1.12 : 1), A = P.t === 'shafu' ? null : avOf(P);
+    tmpS.set(k, k * (A ? A.h : 1), k); tmpM.compose(tmpP, tmpQ, tmpS);
+    T.n++;
+    if (P.t === 'shafu') { ptAdd(P.k ? T.shK : T.shB); return; }
+    if (P.t === 'sumo') { avAdd(T.sumo, A); return; }
+    const cp = camera.position, dx = x - cp.x, dy = y + cp.z, dz = cp.y - z;
+    avAdd(dx * dx + dy * dy + dz * dz > PT_LOD * PT_LOD ? T.lo : T[A.k], A);
   }
   function joinStep(now, px, py, ori, bob) {
     if (!S.b || !S.dim) return;
-    const T = ensurePT(); for (const m of T.list) m.count = 0;
+    const T = ensurePT(); for (const m of T.list) m.count = 0; T.n = 0;
+    /* 遠くから見ているとき（CREW_LOD）は、担ぎ手を簡単な形に。見物人は、カメラの遠さが6m以上変わったら並べ直す（近い人だけ細かい形に） */
+    { const cp = camera.position, cd = Math.hypot(cp.x - px, -cp.z - py, cp.y), lo = cd > CREW_LOD;
+      if ((crewBody.geometry === crewGeoLo) !== lo) { crewBody.geometry = lo ? crewGeoLo : crewGeoR; crewBodyL.geometry = lo ? crewGeoLo : crewGeoL; jnBody.geometry = crewBody.geometry; }
+      if (Math.abs(cd - crowdCamD) > 6) crowdLayout(); }
     const carrying = !S.done && !S.intro, c = Math.cos(ori), sn = Math.sin(ori);
     /* 神輿の足元の外接長方形から d m 以内か */
     const within = (x, y, d) => { const dx = x - px, dy = y - py; return Math.abs(dx * c + dy * sn) < S.dim.L / 2 + d && Math.abs(-dx * sn + dy * c) < S.dim.W / 2 + d; };
@@ -4421,20 +4678,20 @@ function start(DATA, isAsakusa) {
       /* その人の格好で（ptPut）。提灯は頭の上に */
       ptPut(waitP(p), p.x, p.y, hop, Math.atan2(-dy, -dx), p.s); jwLamp.setMatrixAt(w, tmpM); w++;
     }
-    jwBody.count = jwHead.count = 0; jwLamp.count = w;
-    jwLamp.instanceMatrix.needsUpdate = true;
+    jwLamp.count = w;
+    updN(jwLamp.instanceMatrix, w);
     /* 半纏の人：帰り道からは出さない（担ぎ手と一緒に散ったことにする）。選ぶ画面でも出さない */
     const L = JN.list, ph = S.done && S.done.phase;
-    if (ph === 'back' || ph === 'home') { jnBody.count = jnHead.count = jnLamp.count = 0; ptDone(); return; }
+    if (ph === 'back' || ph === 'home') { jnBody.count = jnLamp.count = 0; ptDone(); return; }
     let n = 0, nl = 0;
     /* put：組の担ぎ手（半纏）。putP：町の人（その人の格好） */
     const put = (x, y, z, face) => {
       if (n >= JB_MAX) return;
       tmpP.copy(V(x, y, z)); tmpQ.setFromAxisAngle(upY, face); tmpS.set(1, 1, 1);
-      tmpM.compose(tmpP, tmpQ, tmpS); jnBody.setMatrixAt(n, tmpM); jnHead.setMatrixAt(n, tmpM); n++;
+      tmpM.compose(tmpP, tmpQ, tmpS); jnBody.setMatrixAt(n, tmpM); n++;
     };
     const putP = (P, x, y, z, face, lamp, tilt) => {
-      if (PT.head.count >= JB_MAX + JOIN_WAIT_MAX - 2) return;
+      if (PT.n >= PT.N - 2) return;
       ptPut(P, x, y, z, face, 1, tilt);
       if (lamp && nl < LAMP_MAX) jnLamp.setMatrixAt(nl++, tmpM);
     };
@@ -4471,7 +4728,7 @@ function start(DATA, isAsakusa) {
         for (let i = 0; i < gn; i++) {
           const p = sl[over + L.length + i]; if (!p) break;
           tmpP.copy(V(px + p.u * c - p.v * sn, py + p.u * sn + p.v * c, 0)); tmpQ.setFromAxisAngle(upY, ori); tmpS.setScalar(1); tmpM.compose(tmpP, tmpQ, tmpS);
-          ptAdd(PT.gBody); ptAdd(PT.gHead);
+          ptAdd(PT.ghost);
         }
       }
     }
@@ -4505,11 +4762,12 @@ function start(DATA, isAsakusa) {
         putP(rkjPerson(r, i), p.x, p.y, hopAt(p.x, p.y), Math.atan2(py - p.y, px - p.x), i === 1 || i === 6);
       }
     }
-    jnBody.count = jnHead.count = n; jnLamp.count = nl;
-    jnBody.instanceMatrix.needsUpdate = jnHead.instanceMatrix.needsUpdate = jnLamp.instanceMatrix.needsUpdate = true;
+    jnBody.count = n; jnLamp.count = nl;
+    updN(jnBody.instanceMatrix, n); updN(jnLamp.instanceMatrix, nl);
     ptDone();
   }
-  function ptDone() { for (const m of PT.list) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; } }
+  /* 描き終わったこま：送り直しの印。0人の形は描かない（描く回数を減らす） */
+  function ptDone() { for (const m of PT.list) avDone(m); }
 
   // ---------- 雷門：二つの塊と、大提灯 ----------
   // 塊は幅3.9m×奥行8.1m、間の通り抜け5.4m、天井6.3m、屋根の頂部12.6m（LOD2の寸法）。神輿が近づくと提灯を下から畳む。
@@ -4583,6 +4841,29 @@ function start(DATA, isAsakusa) {
     const want = near ? 0.22 : 1;
     gate.fold += (want - gate.fold) * Math.min(1, dt * 2.5);
     gate.lantern.scale.y = gate.fold;
+    gateFade(dt);
+  }
+  /* 10/30 本人「仲見世通りに入るときに、通り抜けられる壁があるのが意味わからん」：神輿が雷門をくぐって仲見世へ入るとき、後ろから追うカメラが門の屋根と梁の中を通り、
+     画面いっぱいに赤い垂木や梁が壁のように出ていた（判定は無く、見た目だけ）。担いでいる間、カメラが門の中と軒の下（足元の形の外へ5m・高さ16mまで。軒が張り出していて、軒の下からも屋根の裏と扁額が画面をふさいだ）にいるときだけ、
+     門を0.12秒ほどで薄くして見えなくし、カメラが門の外へ出たら戻す（半分透かすと、垂木と梁と大提灯が何枚も重なって、かえってごちゃついた）。門の外から見るときは今までどおり */
+  function gateFade(dt) {
+    if (!raimonB) return;
+    const d = raimonB.d, cp = camera.position, x = cp.x - d.cx, y = -cp.z - d.cy, c = Math.cos(d.a), s = Math.sin(d.a);
+    const u = x * c + y * s, v = -x * s + y * c;
+    const inside = mode === 'carry' && !!S.b && Math.abs(u) < d.L / 2 + 5 && Math.abs(v) < d.W / 2 + 5 && cp.y < 16;
+    const want = inside ? 0 : 1;
+    let f = gate.fade === undefined ? 1 : gate.fade + (want - gate.fade) * Math.min(1, dt * 18);
+    if (Math.abs(f - want) < 0.02) f = want;
+    if (f === gate.fade) return;
+    gate.fade = f;
+    const tr = f < 1;
+    for (const o of lmMeshes.raimon) {
+      o.visible = f > 0;
+      o.traverse(m => {
+        if (!m.material) return;
+        for (const mt of [].concat(m.material)) { if (mt.transparent !== tr) { mt.transparent = tr; mt.depthWrite = !tr; mt.needsUpdate = true; } mt.opacity = f; }
+      });
+    }
   }
 
   // ---------- 人力車（本人 10/21「人力車もうちょいリアルに」「もうちょいいろんなところにいてもいいかなぁ」） ----------
@@ -4649,12 +4930,14 @@ function start(DATA, isAsakusa) {
   const RKM = {};
   for (const k in RKP) { const m = new THREE.InstancedMesh(RKP[k], RKMAT[k], RK_MAX); m.count = 0; m.frustumCulled = false; RKM[k] = m; scene.add(m); }
   /* 車夫：担ぎ手と同じかわいい形（本人決定 10/21）。法被は紺に「浅草」の大紋（車夫の法被の色は調べて分からなかったので推測）。笠の人と、ねじり鉢巻きの人 */
-  const drvMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: hantenTex('#22305a', '浅草') });
-  const kasaGeo = new THREE.ConeGeometry(0.42, 0.2, 14); kasaGeo.translate(0, 1.72, 0);
-  const armGeo = mergeGeos([-0.2, 0.2].map(z => { const g = new THREE.BoxGeometry(0.4, 0.09, 0.09).toNonIndexed(); g.translate(0.2, 1.0, z); return g; }));
+  /* 10/30 人の形の作り直し（本人「車夫なのか分からない」）：法被を紺→黒っぽい紺に。胴を細くして、黒の股引の2本の脚と黒い足袋、黒い髪に菅笠か鉢巻き（shafuP）。
+     腕は肩から梶棒の先の横木（高さ0.8m、0.33m前）へ下ろしてつかむ形（袖は法被、先は肌）。描く回数は 胴5つ→笠の人・鉢巻きの人・腕の3つ */
+  const drvMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: hantenTex('#1d2232', '浅草') });
+  const drvArmGeo = hanGeo([-1, 1].flatMap(s => { const A = [0, 1.2, 0.19 * s], E = [0.13, 0.98, 0.29 * s], H = [0.31, 0.84, 0.36 * s];
+    return [[limbG(A, E, 0.06, 0.05), 'col'], [limbG(E, H, 0.045, 0.04), 'skin'], [ballG(0.046, H), 'skin']]; }));
   const DRV = {
-    body: new THREE.InstancedMesh(bodyGeo, drvMat, RK_MAX), band: new THREE.InstancedMesh(headGeo, bandMat, RK_MAX), plain: new THREE.InstancedMesh(headGeo, skinMat, RK_MAX),
-    kasa: new THREE.InstancedMesh(kasaGeo, new THREE.MeshLambertMaterial({ color: 0xcdb27a }), RK_MAX), arm: new THREE.InstancedMesh(armGeo, new THREE.MeshLambertMaterial({ color: 0x22305a }), RK_MAX),
+    kasa: new THREE.InstancedMesh(shafuP('kasa', false), drvMat, RK_MAX), band: new THREE.InstancedMesh(shafuP('band', false), drvMat, RK_MAX),
+    arm: new THREE.InstancedMesh(drvArmGeo, drvMat, RK_MAX),
   };
   for (const k in DRV) { DRV[k].count = 0; DRV[k].frustumCulled = false; scene.add(DRV[k]); }
   const rickshaws = [];
@@ -4925,14 +5208,14 @@ function start(DATA, isAsakusa) {
     rkFrameNo++;
     rkThreat(dt);
     const now = performance.now();
-    let carDirty = false, hb = 0, hp = 0, hk = 0, sig = '';
+    let carDirty = false, hb = 0, hk = 0, sig = '';
     rkCrewList.length = 0;
     for (let i = 0; i < rickshaws.length; i++) {
       const r = rickshaws[i];
       rkStep(r, dt, now);
       if (r.hidden) {
         if (r.dirty) { for (const k in RKM) RKM[k].setMatrixAt(i, rkZ); r.dirty = false; carDirty = true; }
-        DRV.body.setMatrixAt(i, rkZ); DRV.arm.setMatrixAt(i, rkZ);
+        DRV.arm.setMatrixAt(i, rkZ);
         continue;
       }
       if (r.dirty || !r.placed) {
@@ -4952,8 +5235,8 @@ function start(DATA, isAsakusa) {
       rkM.makeRotationY(face);
       if (running) { rkA.makeRotationZ(-0.14); rkM.multiply(rkA); }
       rkM.setPosition(V(wx, wy, running ? Math.abs(Math.sin(r.step)) * 0.07 : 0));
-      DRV.body.setMatrixAt(i, rkM); DRV.arm.setMatrixAt(i, rkM);
-      if (r.kasa) { DRV.plain.setMatrixAt(hp++, rkM); DRV.kasa.setMatrixAt(hk++, rkM); } else DRV.band.setMatrixAt(hb++, rkM);
+      DRV.arm.setMatrixAt(i, rkM);
+      if (r.kasa) DRV.kasa.setMatrixAt(hk++, rkM); else DRV.band.setMatrixAt(hb++, rkM);
       if (RKT.on && Math.hypot(r.x - RKT.cx, r.y - RKT.cy) < Math.hypot(RKT.hu, RKT.hv) * 2.9 + 6) { rkCrewList.push(r); sig += r.x.toFixed(1) + r.y.toFixed(1); }
     }
     rkSig = sig;
@@ -4971,7 +5254,7 @@ function start(DATA, isAsakusa) {
     }
     const n = rickshaws.length;
     for (const k in RKM) { RKM[k].count = n; if (carDirty) RKM[k].instanceMatrix.needsUpdate = true; }
-    DRV.body.count = DRV.arm.count = n; DRV.band.count = hb; DRV.plain.count = hp; DRV.kasa.count = hk;
+    DRV.arm.count = n; DRV.band.count = hb; DRV.kasa.count = hk;
     for (const k in DRV) DRV[k].instanceMatrix.needsUpdate = true;
   }
   (function placeRickshaws() {
@@ -5546,7 +5829,6 @@ function start(DATA, isAsakusa) {
     return m;
   }
   /* 段 st の担ぎ手を用意する。1段目は町が出たときに、2〜4段目は町の画面が出てから少しずつ（置き場所を探す手間を分ける） */
-  let headMatW = null;
   const waitBodyMats = new Map();
   /* 10/30：待つ担ぎ手は、光る建物のうちいちばん大きい1棟（次に担ぐとよい建物）のそばだけに、組の人数のまま立つ（60人まで）。
      町の画面に入るたびに、その棟と人数が変わっていれば立て直す。最初は、10人が小さなお堂のそばで待つ */
@@ -5573,10 +5855,8 @@ function start(DATA, isAsakusa) {
     for (const r of rs) { const spots = waitSpots(r.b, N); if (spots.length) list.push({ b: r.b, st: r.st, spots, team: HANTEN[teamOf(r.b)] }); }
     waitCrews.ms = (waitCrews.ms || 0) + Math.round(performance.now() - t0);   /* 置き場所を探すのにかかった時間（確かめ用） */
     if (!list.length) return;
-    if (!headMatW) { headMatW = bandMat.clone(); headMatW.onBeforeCompile = waitSway; }
-    const head = waitMesh(headGeo, headMatW, list.reduce((a, w) => a + w.spots.length, 0));
+    /* 10/30 人の形の作り直し：頭・髪・鉢巻き・下ろした腕まで一つの形（crewGeoIdle）にしたので、頭の部品は無くした（描く回数 2→1） */
     const bodies = new Map();
-    let hi = 0;
     for (const w of list) {
       let B = bodies.get(w.team);
       if (!B) {
@@ -5589,17 +5869,14 @@ function start(DATA, isAsakusa) {
         B = { mat, n: 0, ws: [] }; bodies.set(w.team, B);
       }
       w.bodyStart = B.n; B.n += w.spots.length; B.ws.push(w);
-      w.headStart = hi; hi += w.spots.length; w.head = head; w.state = '';
+      w.state = '';
     }
     for (const B of bodies.values()) {
-      const body = waitMesh(bodyGeo, B.mat, B.n);
+      const body = waitMesh(crewGeoIdle, B.mat, B.n);
       for (const w of B.ws) w.body = body;
     }
-    /* 揺れの位相と速さ（胴と頭で同じ値） */
-    for (const w of list) w.spots.forEach((p, i) => {
-      w.body.geometry.attributes.aWait.setXY(w.bodyStart + i, p.ph, p.sp);
-      w.head.geometry.attributes.aWait.setXY(w.headStart + i, p.ph, p.sp);
-    });
+    /* 揺れの位相と速さ */
+    for (const w of list) w.spots.forEach((p, i) => w.body.geometry.attributes.aWait.setXY(w.bodyStart + i, p.ph, p.sp));
     waitCrews.push(...list);
   }
   /* 棟 w の担ぎ手を並べる。e：建物へ寄っていく割合（0〜1）。hide なら大きさ0にして隠す */
@@ -5609,9 +5886,9 @@ function start(DATA, isAsakusa) {
       let x = p.x, y = p.y;
       if (e > 0) { const dx = cx - x, dy = cy - y, L = Math.hypot(dx, dy) || 1, m = Math.min(2.2, L * 0.4) * e; x += dx / L * m; y += dy / L * m; }
       tmpQ.setFromAxisAngle(upY, p.face); tmpP.set(x, 0, -y); tmpS.setScalar(hide ? 0 : p.s);
-      tmpM.compose(tmpP, tmpQ, tmpS); w.body.setMatrixAt(w.bodyStart + i, tmpM); w.head.setMatrixAt(w.headStart + i, tmpM);
+      tmpM.compose(tmpP, tmpQ, tmpS); w.body.setMatrixAt(w.bodyStart + i, tmpM);
     });
-    w.body.instanceMatrix.needsUpdate = w.head.instanceMatrix.needsUpdate = true;
+    w.body.instanceMatrix.needsUpdate = true;
   }
   function updateWaiting(t) {
     if (!waitCrews.length) return;
@@ -5630,7 +5907,7 @@ function start(DATA, isAsakusa) {
       waitPlace(w, walk > 0 ? walk * walk * (3 - 2 * walk) : 0, st === 'hide');
     }
     /* まとめた部品は、中の誰かが出ているときだけ描く */
-    for (const m of waitMeshes) m.visible = waitCrews.some(w => w.state !== 'hide' && (w.body === m || w.head === m));
+    for (const m of waitMeshes) m.visible = waitCrews.some(w => w.state !== 'hide' && w.body === m);
   }
   function sizeTags() {
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1);
@@ -5871,7 +6148,7 @@ function start(DATA, isAsakusa) {
     const el = $('done'); el.classList.remove('on'); setTimeout(() => { el.style.display = 'none'; }, 500);
     trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
     S.b = null; $('info').innerHTML = '';
-    crowdBody.count = crowdHead.count = 0; joinReset(); swapShow(null); S.swapAnim = null; restoreStack();
+    for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset(); swapShow(null); S.swapAnim = null; restoreStack();
     enterPick(true); Object.assign(mapCam, homeView());
     opening = { t0: null, dur: 2400, fromPos: from.pos, fromLook: from.look };
     refreshDoneMarks();
@@ -6882,13 +7159,16 @@ function start(DATA, isAsakusa) {
     }
     const n = uv.length / 2, mat = hapMat.clone(); mat.map = mat.emissiveMap = hantenTex(HANTEN[teamOf(b)], '三社');
     if (NIGHT) { mat.emissive = new THREE.Color(0xffffff); mat.emissiveIntensity = 0.25; }
-    const body = new THREE.InstancedMesh(bodyGeo, mat, Math.max(1, n)), head = new THREE.InstancedMesh(headGeo, bandMat, Math.max(1, n));
-    body.frustumCulled = head.frustumCulled = false;
-    const crew = new THREE.Group(); crew.add(body); crew.add(head);
+    /* 担ぎ手の形は担いでいるときと同じ（近い方の長い棒が右にある人は右の腕、左にある人は左の腕を上げる） */
+    const body = new THREE.InstancedMesh(crewGeoR, mat, Math.max(1, n)), bodyL = new THREE.InstancedMesh(crewGeoL, mat, Math.max(1, n));
+    body.frustumCulled = bodyL.frustumCulled = false;
+    const crew = new THREE.Group(); crew.add(body); crew.add(bodyL);
     const ori = 355.5 * Math.PI / 180, rot = Math.atan2(Math.sin(ori), Math.cos(ori));
     tmpQ.setFromAxisAngle(upY, -rot); tmpS.set(1, 1, 1);
-    for (let i = 0; i < n; i++) { tmpP.set(uv[2 * i], 0, -uv[2 * i + 1]); tmpM.compose(tmpP, tmpQ, tmpS); body.setMatrixAt(i, tmpM); head.setMatrixAt(i, tmpM); }
-    body.count = head.count = n; body.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
+    const pv = P.along[1].v;
+    let nR = 0, nL = 0;
+    for (let i = 0; i < n; i++) { const v = uv[2 * i + 1]; tmpP.set(uv[2 * i], 0, -v); tmpM.compose(tmpP, tmpQ, tmpS); if (v > (v >= 0 ? pv : -pv)) body.setMatrixAt(nR++, tmpM); else bodyL.setMatrixAt(nL++, tmpM); }
+    body.count = nR; bodyL.count = nL; body.instanceMatrix.needsUpdate = bodyL.instanceMatrix.needsUpdate = true;
     /* 足元の影（carryBody と同じ） */
     const shPoly = local.map(r => r.map(([x, y]) => { const L = Math.hypot(x, y) || 1, k = 1 + 1.2 / Math.max(L, 1.5); return [x * k, y * k]; }));
     const shadow = new THREE.Mesh(new THREE.ShapeGeometry(shapeOf(shPoly)), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.32, depthWrite: false }));
@@ -7220,7 +7500,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdAll.reduce((a, m) => a + m.count, 0), guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, kei: () => ({ on: KEI.on, lan: KEI.n || 0, k: KEI.on ? +KEI.gm.uniforms.uK.value.toFixed(3) : 0, haze: KEI.on ? +KEI.hm.uniforms.uK.value.toFixed(3) : 0 }), keiOff: v => { KEI.off = !!v; }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,
@@ -7231,7 +7511,7 @@ function start(DATA, isAsakusa) {
     waiting: () => waitCrews.map(w => ({ id: w.b.id.slice(5, 13), st: w.st, n: w.spots.length, vis: w.state !== 'hide' && w.body.visible, x: +w.spots[0].x.toFixed(1), y: +w.spots[0].y.toFixed(1) })), waitMs: () => waitCrews.ms,
     glow: () => reachGlow.map(r => ({ id: r.b.id.slice(5, 13), st: r.st, vis: r.g.visible, y: +r.g.position.y.toFixed(2) })),
     /* 段取りの案内と花火の確かめ用 */
-    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, free: v => { if (v != null) freeMode = v; return freeMode; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, unswap, stackDrop: sp => { S.spd = sp; S.dropAt = 0; stackDrop(); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([k]) => k !== 'list').map(([k, m]) => [k, m.count])), swapC: () => SW.b && [SW.b.id.slice(5, 13), needOf(SW.b), SW.rot], swapTo, swapUI: () => ({ lit: SW.lit, cls: $('swap').className, lure: !!SW.lure, lureStop: !!(SW.lure && SW.lure.stopT), lureN: SW.lureN, swaps: SW.swaps, flips: SW.flips, b: SW.b && SW.b.id.slice(5, 13), v: +(S.v || 0).toFixed(2), cam: !!S.swapCam, lureW: +(S.lureW || 0).toFixed(2) }), stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]), flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), score: S.b ? joinScore() : null,drop: JN.drop.map(D => [D.n, D.armed, +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwBody.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, S.weight.ton),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
+    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, free: v => { if (v != null) freeMode = v; return freeMode; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, unswap, stackDrop: sp => { S.spd = sp; S.dropAt = 0; stackDrop(); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([, m]) => m && m.isInstancedMesh).map(([k, m]) => [k, m.count])), crowdNF: () => crowdAll.map(m => m.count), crewLod: () => crewBody.geometry === crewGeoLo, swapC: () => SW.b && [SW.b.id.slice(5, 13), needOf(SW.b), SW.rot], swapTo, swapUI: () => ({ lit: SW.lit, cls: $('swap').className, lure: !!SW.lure, lureStop: !!(SW.lure && SW.lure.stopT), lureN: SW.lureN, swaps: SW.swaps, flips: SW.flips, b: SW.b && SW.b.id.slice(5, 13), v: +(S.v || 0).toFixed(2), cam: !!S.swapCam, lureW: +(S.lureW || 0).toFixed(2) }), stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]), flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), score: S.b ? joinScore() : null,drop: JN.drop.map(D => [D.n, D.armed, +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwLamp.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, S.weight.ton),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }
 </script>

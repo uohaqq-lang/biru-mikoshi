@@ -56,11 +56,9 @@
   .nw { white-space:nowrap; }
   /* 建物に入っている店（data/shops.js。OpenStreetMap） */
   #sel .shops { display:block; white-space:normal; max-width:460px; font-size:12px; line-height:1.5; margin-top:3px; }
-  #sel .shops .more, #info .shops .more { color:var(--dim); white-space:nowrap; }
-  #sel .shops .s1 { white-space:nowrap; }
+  #sel .shops .more { color:var(--dim); white-space:nowrap; }
   #sel .shops.one { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:min(460px, calc(100vw - 180px)); }   /* 札の店は1行だけ */
   @media (max-width:600px) { #sel .shops.one { max-width:calc(100vw - 150px); } }
-  #info .shops { font-size:11px; line-height:1.5; }
   #carry { background:var(--red); color:#fff; font-weight:700; }
   /* 組の人数が足りない建物（10/30）：灰色の「あと○人」。押すと横に揺れる */
   #carry.short { background:#8d8780; color:#f4efe6; }
@@ -148,13 +146,13 @@
   #gateBox span { position:absolute; left:6px; top:4px; font-size:11px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8); }
   @media (max-width:600px) { #gateBox { left:132px; width:130px; height:96px; } }
   /* 運び出しの間（2.6秒）は、建物が浮いて担ぎ手が集まる所だけを見せる。操作のボタン・情報・地図はまだ出さない */
-  body.intro #dialWrap, body.intro #rot, body.intro #again, body.intro #info, body.intro #mini, body.intro #zoom, body.intro #gateBox, body.intro #guide { display:none !important; }
+  body.intro #dialWrap, body.intro #rot, body.intro #again, body.intro #info, body.intro #mini, body.intro #zoom, body.intro #gateBox { display:none !important; }
   /* 担ぎ始め：向き・バックは少し遅れて、選び直す・地図は最初に押してから（押さなければ数秒後）出す */
   body.calm1 #rot, body.calm1 #back { display:none !important; }
   body.calm2 #again, body.calm2 #mini { display:none !important; }
   /* 「ゴールの浅草神社に向かおう！」が出ている間は、上の札を隠し、縮んで札に吸い込まれてから出す */
   body.goWait #goalNav { visibility:hidden; }
-  /* 左上は題だけ。操作の文は出さない（ボタンと「？遊び方」にある）。出典は下の端へ小さく */
+  /* 左上は題だけ。操作の文は出さない（ボタンの形と動きで分かるように）。出典は下の端へ小さく */
   body[data-mode] #howto, body[data-mode] #title br { display:none; }
   body[data-mode]:not(.sm) #src { position:fixed; left:50%; bottom:1px; transform:translateX(-50%); width:max-content; max-width:62vw; font-size:10px; line-height:1.3; text-align:center; background:rgba(244,239,230,.7); border-radius:4px; padding:0 6px; pointer-events:none; }
   #info { cursor:pointer; }
@@ -176,23 +174,24 @@
   #bestCnt b { font-size:13px; }
   body.sm #best { font-size:11px; padding:4px 8px; line-height:1.45; }
   body.sm #bestCnt b { font-size:12px; }
-  /* 触れた建物の難しさ（data/difficulty.js。無ければ出さない） */
-  #sel .diff { color:var(--ink); }
-  #sel .diff .st { color:var(--gold); letter-spacing:.06em; font-size:14px; }
-  #sel .diff.d4 .st, #sel .diff.d5 .st { color:var(--red); }
   /* スマホのお祓い・魂振りの札は、左上の地図の下に出す。前は下から170pxで、神輿（画面の下から約330〜380px）と揺れる担ぎ手を覆った（直す係 第1回・不具合13） */
   @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; min-width:180px; padding:6px 16px; } #done .doneN { font-size:40px; } #done .doneFree { font-size:14px; } #doneLbl { font-size:13px; } }
-  #mute, #photoBtn { font-size:12px; padding:5px 10px; }
-  #photoBtn.off { color:var(--dim); }
-  #photoBtn { display:none !important; }   /* 本人「写真ありいらない」：写真はいつも出すので、切り替えは見せない */
+  #mute { font-size:12px; padding:5px 10px; }
+  /* 10/30 本人「一気に情報量が多い」：写真・名所の説明・出典は、右上の小さな歯車（⚙）の中にまとめる（写真の切り替えは前から見せていない。本人「写真ありいらない」） */
+  #gear { font-size:15px; line-height:1; padding:5px 9px; }
+  #gear.on { background:#e8dcc6; }
+  #right { position:relative; }
+  #gearMenu { position:absolute; right:0; top:34px; z-index:60; display:none; flex-direction:column; align-items:stretch; gap:4px; background:rgba(244,239,230,.96); border-radius:10px; padding:5px; box-shadow:0 2px 10px rgba(0,0,0,.3); }
+  #gearMenu.on { display:flex; }
+  #gearMenu button { box-shadow:none; background:none; font-size:13px; padding:8px 12px; text-align:left; white-space:nowrap; border-radius:7px; }
+  #gearMenu button:hover { background:rgba(43,36,32,.07); }
+  #tourTgl.off { color:var(--dim); }
+  body.sm #gear { font-size:14px; padding:4px 8px; }
+  body.sm #gearMenu { top:30px; }
   /* 町の写真を読み込んでいる間だけ、右上に小さく出す */
   #ttLoad { display:none; background:rgba(244,239,230,.85); border-radius:6px; padding:2px 8px; font-size:11px; color:var(--dim); pointer-events:none; }
   #ttLoad.on { display:block; }
   #right { display:flex; flex-direction:column; align-items:flex-end; gap:6px; max-width:44vw; }
-  #guide { display:none; background:rgba(244,239,230,.94); border-radius:8px; padding:5px 9px; font-size:12px; line-height:1.6; max-width:340px; }
-  #guide button { background:none; box-shadow:none; padding:0; font-size:12px; font-weight:700; color:var(--red); }
-  #guide.closed #guideText { display:none; }
-  #guideText { margin-top:3px; }
   #sel .lm { white-space:normal; max-width:520px; font-size:12px; line-height:1.6; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(43,36,32,.2); }
   #tour { position:fixed; left:50%; top:96px; transform:translate(-50%, 8px); width:min(560px, 86vw); background:rgba(244,239,230,.96); border-left:5px solid var(--red); border-radius:8px; padding:9px 14px; font-size:14px; line-height:1.7; box-shadow:0 2px 10px rgba(0,0,0,.25); opacity:0; transition:opacity .8s, transform .8s; pointer-events:none; }
   #tour.on { opacity:1; transform:translate(-50%, 0); }
@@ -212,7 +211,7 @@
   #tour .tx { position:absolute; top:3px; right:4px; width:28px; height:28px; padding:0; background:none; box-shadow:none; font-size:18px; line-height:28px; color:var(--dim); }
   #tour.on .tx { pointer-events:auto; }
   #tour .tx::after { content:''; position:absolute; inset:-8px; }
-  @media (max-width:600px) { #tour { top:auto; bottom:240px; font-size:12px; } #guide { max-width:52vw; font-size:11px; } }
+  @media (max-width:600px) { #tour { top:auto; bottom:240px; font-size:12px; } }
   #hold, #back { position:fixed; border-radius:50%; font-weight:700; touch-action:none; -webkit-touch-callout:none; user-select:none; -webkit-user-select:none; box-shadow:0 3px 10px rgba(0,0,0,.35); }
   #hold { right:24px; bottom:24px; width:120px; height:120px; padding:8px; background:var(--red); color:#fff; font-size:16px; line-height:1.35; }
   #back { right:158px; bottom:34px; width:70px; height:70px; padding:0; font-size:15px; }
@@ -248,8 +247,7 @@
   #keys #kL { grid-column:1; grid-row:2; } #keys #kD { grid-column:2; grid-row:2; } #keys #kR { grid-column:3; grid-row:2; }
   #keys.glow .k, #keys .k.glow { animation:glow 1s ease-in-out infinite; }
   body.calm1 #keys #kL, body.calm1 #keys #kD, body.calm1 #keys #kR { visibility:hidden; }
-  @media (pointer:fine) { #stick { display:none !important; } #keys { display:grid; } #help .spOnly { display:none; } }
-  @media not all and (pointer:fine) { #help .pcOnly { display:none; } }
+  @media (pointer:fine) { #stick { display:none !important; } #keys { display:grid; } }
   /* スマホを横に持ったとき（指で触る画面で横長）：両手持ちのゲームと同じく、ジョイスティックは左の親指で。「建物を選び直す」は右下へ。
      縦持ち（片手。右の親指が多い）とPCは右のまま */
   @media (pointer:coarse) and (orientation:landscape) {
@@ -276,24 +274,14 @@
     #info { font-size:11px; max-width:42vw; padding:5px 8px; }
     #msg { font-size:16px; white-space:normal; width:80vw; }
   }
-  /* ---- 遊び方の札・ゴールまでの距離と矢印・次に押すものの合図 ---- */
+  /* ---- ゴールまでの距離と矢印・次に押すものの合図（10/30 遊び方の札は無くした。本人「読まなくてもできるくらいに」） ---- */
   #btnrow { display:flex; gap:6px; }
-  #helpBtn { font-size:12px; padding:5px 10px; }
-  #help { position:fixed; inset:0; background:rgba(20,16,14,.38); display:none; align-items:center; justify-content:center; z-index:80; }
-  #help.on { display:flex; }
-  #help .hb { background:var(--paper); border-radius:16px; padding:22px 28px 20px; max-width:min(600px, 88vw); box-shadow:0 6px 24px rgba(0,0,0,.35); text-align:left; }
-  #help .ht { font-size:24px; font-weight:800; color:var(--red); margin-bottom:8px; }
-  #help p { font-size:21px; line-height:1.6; margin:8px 0; }
-  #helpGo { display:block; margin:16px auto 0; background:var(--red); color:#fff; font-size:20px; font-weight:700; padding:12px 40px; }
   #goalNav { position:fixed; left:50%; top:12px; transform:translateX(-50%); background:rgba(244,239,230,.94); border:2px solid var(--red); border-radius:22px; padding:6px 16px 6px 10px; font-size:16px; font-weight:700; display:none; align-items:center; gap:8px; box-shadow:0 1px 4px rgba(0,0,0,.25); pointer-events:none; white-space:nowrap; }
   #goalNav.on { display:flex; }
   #goalArrow { display:inline-block; color:var(--red); font-size:22px; line-height:1; }
   @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(200,50,42,.75); } 50% { box-shadow:0 0 0 14px rgba(200,50,42,0); } }
   #hold.glow, #back.glow, #rot button.glow { animation:glow 1s ease-in-out infinite; }
-  body.sm #help p { font-size:17px; }
-  body.sm #help .ht { font-size:20px; }
   body.sm #goalNav { top:152px; left:116px; right:12px; transform:none; font-size:14px; justify-content:center; padding:5px 10px; }
-  body.sm #helpBtn { font-size:11px; padding:4px 8px; }
   /* 担ぎ始めに一度、「浅草神社まで あと○m」を少し大きくして目立たせる（3秒ほど） */
   @keyframes navPop { 0%,100% { scale:1; } 12%,48%,84% { scale:1.3; background:#fff3d2; box-shadow:0 0 0 6px rgba(217,165,33,.6), 0 1px 4px rgba(0,0,0,.25); } 30%,66% { scale:1.18; background:#fff3d2; box-shadow:0 0 0 3px rgba(217,165,33,.45), 0 1px 4px rgba(0,0,0,.25); } }
   #goalNav.pop { animation:navPop 3.2s ease-in-out; transform-origin:50% 0; }
@@ -327,10 +315,9 @@
   body.sm #best, body.sm #diffSel { bottom:40px; }
   @media (max-width:600px) { #sel { bottom:160px; } }
   body.sm #right { max-width:62vw; }
-  body.sm #mute, body.sm #photoBtn { font-size:11px; padding:4px 8px; }
+  body.sm #mute { font-size:11px; padding:4px 8px; }
   body.sm #ttLoad { font-size:10px; }
   body.sm #info { font-size:12px; max-width:62vw; cursor:pointer; padding:5px 9px; }
-  body.sm #guide { max-width:62vw; font-size:11px; }
   body.sm #mini { top:48px; bottom:auto; left:10px; width:96px; height:96px; }
   body.sm #gateBox { top:150px; bottom:auto; left:10px; width:96px; height:76px; }
   body.sm #msg { top:192px; font-size:15px; width:84vw; white-space:normal; }
@@ -359,8 +346,9 @@
   body.sm #btnrow button, body.sm #zoom button, body.sm #carry { position:relative; }
   body.sm #btnrow button::after, body.sm #zoom button::after, body.sm #again:not(.big)::after, body.sm #carry::after { content:''; position:absolute; }
   body.sm #btnrow button::after { inset:-10px -3px; }
-  /* 上の段のいちばん右（「昼にする」を無くしたので音のボタン）は、右の画面の端まで広げる */
-  body.sm #btnrow #mute::after { inset:-10px -12px -10px -3px; }
+  /* 上の段のいちばん右（10/30 から歯車）は、右の画面の端まで広げる */
+  body.sm #btnrow #gear::after { inset:-10px -12px -10px -3px; }
+  body.sm #gearMenu button { position:relative; font-size:13px; padding:10px 14px; }
   body.sm #zoom button::after { inset:-4px -3px; }
   body.sm #again:not(.big)::after { inset:-7px -2px; }
   body.sm #carry::after { inset:-2px; }
@@ -410,22 +398,18 @@
   /* 題字の画面の間は、町の画面のボタン・札を出さない（出典だけは残す。左上の題の箱は、字と下地を消して出典の置き場にだけ使う） */
   /* 花火の間は、空と浅草神社を見せるため、小さな地図とズームのボタンを隠す */
   body.hanabi #mini, body.hanabi #zoom { display:none !important; }
-  body.titling #boot, body.titling #right, body.titling #diffSel, body.titling #best, body.titling #pickHint, body.titling #zoom, body.titling #sel, body.titling #skip, body.titling #help, body.titling #goGoal { display:none !important; }
+  body.titling #boot, body.titling #right, body.titling #diffSel, body.titling #best, body.titling #pickHint, body.titling #zoom, body.titling #sel, body.titling #skip, body.titling #goGoal { display:none !important; }
   /* 出典の入った上の段は、題字の画面（#ttl）がある間はその上に出す（触ったあとの暗転の間も出典が消えないように） */
   #ttl ~ #top { z-index:96; }
   body.titling #top, body.titling #top * { pointer-events:none !important; }
   body.titling #title { background:none; box-shadow:none; }
   /* 10/26 本人「画面の情報は少ないほうがよい」：左上の「ビル神輿」と、下のお祓いの記録（○棟・いちばん大きい建物）は出さない。
-     出典は地図の決まり（PLATEAU・地理院・OpenStreetMap）で消せないので、題字の画面では全部を出し、遊んでいる間は左下の小さな「出典」だけにする（押すと開く。遊び方にも全文） */
+     出典は地図の決まり（PLATEAU・地理院・OpenStreetMap）で消せないので、題字の画面では全部を出し、遊んでいる間は右上の歯車（⚙）の「出典」から開く（10/30 前は下のまん中の小さな「出典」ボタン） */
   body[data-mode] #title { background:none; box-shadow:none; padding:0; }
   body[data-mode] #title > b { display:none; }
   #best { display:none !important; }
   body[data-mode]:not(.titling):not(.srcOpen) #src { display:none !important; }
   body.srcOpen #src { pointer-events:auto !important; cursor:pointer; z-index:60; }
-  #srcBtn { position:fixed; left:50%; transform:translateX(-50%); bottom:3px; z-index:20; font-size:11px; padding:3px 8px; background:rgba(244,239,230,.85); color:var(--dim); display:none; }
-  body[data-mode]:not(.titling):not(.hanabi):not(.srcOpen) #srcBtn { display:block; }
-  body.sm #srcBtn { bottom:3px; }
-  #help .src { font-size:11px; color:var(--dim); line-height:1.5; margin-top:10px; }
   body.titling #title > b, body.titling #title > br, body.titling #howto { display:none; }
 </style>
 </head>
@@ -487,22 +471,13 @@
 <div id="view"></div>
 <div id="top" class="hud">
   <div id="title"><b>ビル神輿</b><br><span id="howto">町の建物を選んでください</span><br><span id="src"></span></div>
-  <div id="right"><div id="btnrow"><button id="helpBtn">？遊び方</button><button id="mute" title="音を消す・出す">🔊 音あり</button><button id="photoBtn" title="建物の写真を出す・消す">写真あり</button></div><div id="ttLoad"></div><div id="info"></div><div id="guide"><button id="guideBtn">名所の説明 ▾</button><div id="guideText"></div></div></div>
+  <div id="right"><div id="btnrow"><button id="mute" title="音を消す・出す">🔊 音あり</button><button id="gear" title="設定" aria-label="設定" aria-expanded="false">⚙</button></div><div id="gearMenu"><button id="tourTgl">名所の説明あり</button><button id="srcItem">出典</button></div><div id="ttLoad"></div><div id="info"></div></div>
 </div>
 <div id="diffSel" class="hud"><button data-d="full">実物大</button><button data-d="half">半分</button><button data-d="mikoshi">神輿</button></div>
 <div id="gateBox" class="hud"><span>雷門の提灯</span></div>
 <canvas id="mini" class="hud" width="340" height="340"></canvas>
 <div id="tour"></div>
 <div id="goalNav"><span id="goalArrow">➤</span><span id="goalText"></span></div>
-<div id="help"><div class="hb"><div class="ht">遊び方</div>
-  <p>①町の建物をひとつ選んで担ぐ</p>
-  <p class="pcOnly">②↑（W）で進む。←→（A・D）で向きが変わる</p>
-  <p class="pcOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら↓（S）で下がって向きを変える</p>
-  <p class="spOnly">②右下の丸を上へ倒すと進む。左右へ倒すと向きが変わる</p>
-  <p class="spOnly">③浅草神社（赤い旗）まで運んでお祓い。つっかえたら丸を下へ倒して下がり、向きを変える</p>
-  <p>④人が集まったら立ち止まる。近くの大きな建物に担ぎ替えられる</p>
-  <button id="helpGo">はじめる</button><div class="src" id="helpSrc"></div></div></div>
-<button id="srcBtn" title="出典を見る">出典</button>
 <div id="msg"></div>
 <div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
@@ -564,10 +539,24 @@ function start(DATA, isAsakusa) {
   $('src').textContent = '出典：' + (isAsakusa ? '3D都市モデル（Project PLATEAU）台東区（2025年度）（国土交通省）を加工して作成' : (DATA.meta.source || DATA.meta.name || ''));
   // 地面の航空写真の出典（スマホでは2行目に分ける）
   if (isAsakusa) { const g = document.createElement('span'); g.className = 'gsi'; g.innerHTML = '<span class="sl">／</span><span class="sm2">出典：</span>地理院タイル（全国最新写真（シームレス））を加工して作成' + (window.MIKOSHI_SHOPS ? '／© OpenStreetMap contributors（ODbL）' : ''); $('src').appendChild(g); }   // 店の情報（data/shops.js）は OpenStreetMap
-  /* 遊んでいる間の出典は左下の「出典」から開く（押すと開き、出典を押すと閉じる）。遊び方の画面にも同じ文 */
-  $('helpSrc').innerHTML = $('src').innerHTML;
-  $('srcBtn').onclick = e => { e.stopPropagation(); document.body.classList.add('srcOpen'); };
+  /* 右上の歯車（⚙）：名所の説明のあり・なしと、出典。10/30 本人「一気に情報量が多い」→ 画面に並べず、ここにまとめる。
+     遊んでいる間の出典は、ここの「出典」から開く（下の端に出し、出典を押すと閉じる） */
+  const gearMenu = $('gearMenu');
+  const gearShow = on => { gearMenu.classList.toggle('on', on); $('gear').classList.toggle('on', on); $('gear').setAttribute('aria-expanded', on ? 'true' : 'false'); };
+  $('gear').onclick = e => { e.stopPropagation(); gearShow(!gearMenu.classList.contains('on')); };
+  /* 名所の説明（近づくと出る車夫の案内の札 #tour）を出さないようにもできる。選んだ方を覚える */
+  let tourOff = false;
+  try { tourOff = localStorage.getItem('mikoshi_tour_off') === '1'; } catch (e) { /* 覚えられない環境では毎回「あり」 */ }
+  const tourLabel = () => { const el = $('tourTgl'); el.textContent = tourOff ? '名所の説明なし' : '名所の説明あり'; el.classList.toggle('off', tourOff); };
+  $('tourTgl').onclick = e => {
+    e.stopPropagation(); tourOff = !tourOff; tourLabel();
+    try { localStorage.setItem('mikoshi_tour_off', tourOff ? '1' : '0'); } catch (e2) { /* 覚えられない環境 */ }
+  };
+  tourLabel();
+  $('srcItem').onclick = e => { e.stopPropagation(); gearShow(false); document.body.classList.add('srcOpen'); };
   $('src').onclick = e => { e.stopPropagation(); document.body.classList.remove('srcOpen'); };
+  /* メニューの外を触ったら閉じる（町や神輿の操作は止めずに、そのまま通す） */
+  document.addEventListener('pointerdown', e => { if (gearMenu.classList.contains('on') && !(e.target.closest && e.target.closest('#gearMenu, #gear'))) gearShow(false); }, true);
   // スマホ（幅600px未満か縦長）の印
   const isSm = () => innerWidth < 600 || innerHeight > innerWidth;
   const markSm = () => document.body.classList.toggle('sm', isSm());
@@ -1638,15 +1627,8 @@ function start(DATA, isAsakusa) {
   const lmByKind = { gate: LANDMARKS.find(L => L.kind === 'gate'), bridge: LANDMARKS.find(L => L.kind === 'bridge') };
   const lmText = L => `<div class="lm"><b>${L.name}</b>　${L.text}</div>`;
   // 難しさ（data/difficulty.js。Python で、ゲームと同じ判定でゴールまで行けるかを先に計算したもの）。鍵は ID の bldg_ の後ろ8字
+  // 10/30 札に出していた難しさの星は外した（札は名前と担ぎ手を基本に）。ここの DIFF は確かめ用（__mikoshi.DIFF）に残す。花火の条件（hanabiTier）は別に読む
   const DIFF = window.MIKOSHI_DIFF || {};
-  const DIFF_WORD = ['', '行けそう', 'がんばれば行ける', 'かなり難しい', 'ほぼ無理', '無理'];
-  function diffText(b) {
-    /* 星は「実物大のまま着けるか」で計算したもの。だから実物大のときだけ出す */
-    if (sizeMode !== 'full') return '';
-    const s = DIFF[String(b.id || '').slice(5, 13)];
-    if (!(s >= 1 && s <= 5)) return '';
-    return `<br><span class="diff d${s}">難しさ <span class="st">${'★'.repeat(s)}${'☆'.repeat(5 - s)}</span> ${DIFF_WORD[s]}</span>`;
-  }
   // 建物に入っている店（data/shops.js。OpenStreetMap から tools/osm_shops.py で結びつけたもの）。鍵は難しさと同じ
   const SHOPS = window.MIKOSHI_SHOPS || {};
   const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1659,33 +1641,15 @@ function start(DATA, isAsakusa) {
     const L = (SHOPS[String(b.id || '').slice(5, 13)] || []).filter(([n]) => !(Lm && (Lm.name.includes(n) || n.includes(Lm.name))));
     return { fac: L.filter(([, k]) => FACILITY.has(k)), shop: L.filter(([, k]) => !FACILITY.has(k)) };
   }
-  // sep：札は「、」でつなぐ、info は1軒1行（'<br>'）。店は3軒まで出し、4軒以上は「ほか○軒」
-  function shopsText(b, sep) {
-    const { fac, shop } = shopsOf(b);
-    if (!fac.length && !shop.length) return '';
-    const one = ([n, k]) => `<span class="s1">${escH(cutName(n, sep === '<br>' ? 20 : 24))}（${escH(k)}）</span>`;   // 1軒の途中では折らない
-    const parts = fac.slice(0, 2).map(one);
-    if (shop.length) {
-      const more = shop.length > 3 ? `<span class="more">${sep === '<br>' ? '<br>' : ' '}ほか${shop.length - 3}軒</span>` : '';
-      parts.push(`<span class="more">入っている店：</span>${sep}${shop.slice(0, 3).map(one).join(sep)}${more}`);
-    }
-    return `<span class="shops">${parts.join(sep)}</span>`;
-  }
-  // 札（選ぶとき）の店：1行に収まる分だけ（全角1字＝2で48まで）並べ、残りは「ほか○軒」
+  /* 札（選ぶとき）の店：短い1行だけ。建物そのものの名前（百貨店・ホテルなど）があればその1つ、無ければ店を1軒（種類は付けない）。残りは「ほか○軒」。
+     10/30 本人「一気に情報量が多い」→ 前は1行に収まるだけ並べていて、スマホでは「…」で切れていた。
+     店には頭に「入っている店：」を付ける（本人 10/26「こんなでかい建物が本当にパン屋？」。9階建ての1階の1軒が、建物そのもののように読めたため） */
   function shopsLine(b) {
     const { fac, shop } = shopsOf(b);
     if (!fac.length && !shop.length) return '';
-    const wd = s => { let w = 0; for (const ch of s) w += ch.charCodeAt(0) < 0x2000 ? 1 : 2; return w; };
-    const facS = fac.slice(0, 2).map(([n, k]) => `${cutName(n, 16)}（${k}）`).join('、');
-    let used = wd(facS), out = escH(facS);
-    if (shop.length) {
-      /* 頭に「入っている店：」（本人 10/26「こんなでかい建物が本当にパン屋？」。9階建ての1階の1軒が、建物そのもののように読めたため） */
-      const HEAD = (facS ? '　' : '') + '入っている店：', shown = []; used += wd(HEAD);
-      for (const [n, k] of shop) { const s = `${cutName(n, 16)}（${k}）`, w = wd(s) + (shown.length ? 2 : 0); if (shown.length && used + w > 48) break; shown.push(s); used += w; }
-      const rest = shop.length - shown.length;
-      out += `<span class="more">${HEAD}</span>${escH(shown.join('、'))}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}`;
-    }
-    return `<span class="shops one">${out}</span>`;
+    const rest = fac.length + shop.length - 1;
+    const first = fac.length ? escH(`${cutName(fac[0][0], 16)}（${fac[0][1]}）`) : `<span class="more">入っている店：</span>${escH(cutName(shop[0][0], 16))}`;
+    return `<span class="shops one">${first}${rest > 0 ? `<span class="more"> ほか${rest}軒</span>` : ''}</span>`;
   }
   function setHover(b) {
     /* 札と黄色い光は町の画面だけ。乗せ替えの待ち（mouseHover の0.25秒）が担いだ後に来ても出さない（直す係 第1回で見つけた） */
@@ -1704,8 +1668,8 @@ function start(DATA, isAsakusa) {
     hoverMesh = new THREE.Mesh(bldGeo(b, b.h + 0.05), hoverMat); scene.add(hoverMesh);
     /* 担ぎ手は、その建物に要る人数（needOf）。組の人数が足りなければ、担ぐボタンを「あと○人」にして押せなくする（10/30） */
     const need = needOf(b), short = !freeMode && need > team, L = lmOfBld.get(b);
-    // 札は「用途（名所なら名前）・担ぎ手・店1行」だけ。寸法と重さは担いでいる間の右上、名所の説明は担いだ後の車夫の案内で出す（研究を受けた直しメモ.md）
-    $('selInfo').innerHTML = (L ? `<b>${L.name}</b>（${b.usage}）` : `<b>${b.usage}</b>`) + `　<span class="nw">担ぎ手 <b>${fmt(need)}人</b></span>${shopsLine(b)}${diffText(b)}`;
+    // 札は「用途（名所なら名前）・担ぎ手・店の短い1行」だけ。寸法・重さ・難しさの星は出さない（10/30）。名所の説明は担いだ後の車夫の案内で出す（研究を受けた直しメモ.md）
+    $('selInfo').innerHTML = (L ? `<b>${L.name}</b>（${b.usage}）` : `<b>${b.usage}</b>`) + `　<span class="nw">担ぎ手 <b>${fmt(need)}人</b></span>${shopsLine(b)}`;
     const cb = $('carry'); cb.classList.toggle('short', short); cb.textContent = short ? `あと${fmt(need - team)}人` : 'この建物を担ぐ';
     $('sel').style.display = 'flex';
   }
@@ -1727,7 +1691,7 @@ function start(DATA, isAsakusa) {
     if (fresh) setSize(SIZE_DEFAULT);
     /* 組の人数が変わったら、光る建物と待つ担ぎ手を選び直す（10/30） */
     setupWaitFocus();
-    $('guide').style.display = 'none'; tourReset();
+    tourReset();
     if (S.b) { mapCam.x = S.x; mapCam.y = S.y; mapCam.dist = Math.min(mapCam.dist, 300); }
     clearGhosts();
     view.classList.add('picking');
@@ -2634,14 +2598,13 @@ function start(DATA, isAsakusa) {
     showInfo(); refreshCrowd(true);
     S.site = { x: cx, y: cy };
     // 名所の説明は、担ぎ始めて少ししてから車夫の案内（下の札）で一度だけ出す（前は右上の「名所の説明」の札にも出していた。同じことを言う札は一つに）
-    // 情報（用途・寸法・重さ・担ぎ手）は、担ぎ始めの6秒だけ全部見せて、あとは1行にたたむ（押せばまた開く。PCもスマホも同じ）
+    // 情報（名前・担ぎ手。10/30 寸法と重さは外した）は、担ぎ始めの6秒だけ全部見せて、あとは1行にたたむ（押せばまた開く。PCもスマホも同じ）
     /* 担ぎ始めは神輿を追う */
     camFollow = true;
     S.infoOpen = true; clearTimeout(S.infoTimer);
     /* 担いだ名所そのものの説明も、止まったときに出す（tourPick） */
     S.toured = new Set(); const myL = lmOfBld.get(b); tourReset();
     S.myL = myL || null;
-    $('guide').style.display = 'none';
     // 運び出し：その場で縮む（実物大なら縮まない）→浮く→担ぎ手が集まる→道へ運び出す。カメラは町の引きから神輿の後ろへ寄る。クリックで飛ばせる。
     const from = mode0 === 'pick' ? { pos: camera.position.clone(), look: V(mapCam.x, mapCam.y, 0) } : { pos: camera.position.clone(), look: camLook.clone() };
     S.intro = { t0: performance.now(), dur: how === 'site' ? 2600 : 3000, shrink: S.k < 0.999 ? SHRINK_MS : 0, sx: cx, sy: cy, sori: a, from };
@@ -3110,7 +3073,8 @@ function start(DATA, isAsakusa) {
     return best;
   }
   function tourStep(now) {
-    if (!S.b || !S.toured || S.intro || S.done || mode !== 'carry') { if (tour.L) tourReset(); return; }
+    /* tourOff：右上の歯車で「名所の説明なし」にしたとき */
+    if (tourOff || !S.b || !S.toured || S.intro || S.done || mode !== 'carry') { if (tour.L) tourReset(); return; }
     const el = $('tour');
     /* 担ぎ替えの候補が光っている間は、説明の文を出さない（ボタンと神輿に札が重なった。10/30 ゲームプログラマーの指摘）。止まっていても動いているのと同じ扱い */
     const pushing = hold.on || hold.back || rotHold.dir !== 0 || !!SW.b;
@@ -3945,11 +3909,8 @@ function start(DATA, isAsakusa) {
     if (S.infoSig === sig && $('info').innerHTML) { if (gn && !S.infoOpen) gn.style.top = ''; return; }   // 中身が変わらないときは書き直さない（毎こま呼ばれるため）
     S.infoSig = sig;
     if (!S.infoOpen) { $('info').innerHTML = `担ぎ手 <b class="ppl">${fmt(ppl)}人</b> ▾${nextL}`; if (gn) gn.style.top = ''; return; }
-    const sh = shopsText(b, '<br>'), Lm = lmOfBld.get(b);
-    // 名所の説明に高さが書いてある名所（五重塔「約53m」は相輪の先まで。データの高さは塔の本体まで）は、高さの数字を出さない（食い違って見えるため）
-    // 寸法と重さは、担いでいる大きさ（実物大でなければ縮めた大きさ）
-    const D = S.dim, hTxt = Lm && /高さ/.test(Lm.text) && S.k === 1 ? '' : ` × 高さ ${f1(D.h)}m`;
-    $('info').innerHTML = `<b>${lmName(b)}</b><br>${sh ? sh + '<br>' : ''}幅 ${f1(D.W)} × 奥行 ${f1(D.L)}${hTxt}<br>重さ およそ${fmtSm(w.ton)}トン<br><b class="ppl">担ぎ手 ${fmt(ppl)}人</b>${JN.n ? `（飛び入り ${fmt(JN.n)}人）` : ''} ▴${nextL}`;
+    /* 開いたときも、建物の名前と担ぎ手（飛び入り）だけ。10/30 本人（スマホで遊んで）「一気に情報量が多い」→ 寸法・重さ・入っている店は出さない */
+    $('info').innerHTML = `<b>${lmName(b)}</b><br><b class="ppl">担ぎ手 ${fmt(ppl)}人</b>${JN.n ? `（飛び入り ${fmt(JN.n)}人）` : ''} ▴${nextL}`;
     // スマホで info を開いている間は、「浅草神社まで あと○m」を info の下へずらす（店の行で info が伸びて隠れるので）
     if (gn) gn.style.top = isSm() ? Math.max(152, Math.round($('info').getBoundingClientRect().bottom + 6)) + 'px' : '';
   }
@@ -4065,21 +4026,19 @@ function start(DATA, isAsakusa) {
   window.addEventListener('blur', () => { stopHold(); stopBack(); stopRot(); });
   const muteLabel = () => { $('mute').textContent = SND.isMuted() ? '🔇 音なし' : '🔊 音あり'; };
   $('mute').onclick = () => { SND.unlock(); SND.setMute(!SND.isMuted()); muteLabel(); }; muteLabel();
-  // 写真あり／なし。なしにすると写真付きの形を隠して箱を出す（読み込みの途中なら、そこで止める）
-  const photoLabel = () => { const el = $('photoBtn'); el.textContent = photoOn ? '写真あり' : '写真なし'; el.classList.toggle('off', !photoOn); };
+  // 写真あり／なし。なしにすると写真付きの形を隠して箱を出す（読み込みの途中なら、そこで止める）。
+  // 切り替えのボタンは無い（本人「写真ありいらない」）。?photo=0／1 と確かめ用（__mikoshi.setPhoto）だけ
   function setPhoto(on) {
     photoOn = on;
     try { localStorage.setItem('mikoshi_photo', on ? '1' : '0'); } catch (e) { /* 覚えられない環境では毎回初めの状態 */ }
     for (const p of TT.parts) p.mesh.visible = on;
     for (const b of texTown.keys()) applyFlat(b);
     for (const b of TT.byB.keys()) applyFlat(b);
-    photoLabel(); ttStatus();
+    ttStatus();
     if (on && TT.started) ttNext();   // まだ始めていなければ、町が出たあとで frame から始まる
     rebuildCarry();
   }
-  $('photoBtn').onclick = () => setPhoto(!photoOn); photoLabel();
   $('info').onclick = () => { if (!S.b) return; S.infoOpen = !S.infoOpen; clearTimeout(S.infoTimer); showInfo(); };
-  $('guideBtn').onclick = () => { const g = $('guide'); g.classList.toggle('closed'); $('guideBtn').textContent = g.classList.contains('closed') ? '名所の説明 ▸' : '名所の説明 ▾'; };
   for (const [id, dir] of [['rL', 1], ['rR', -1]]) {
     const el = $(id);
     el.addEventListener('pointerdown', e => { e.preventDefault(); el.setPointerCapture(e.pointerId); startRot(dir); });
@@ -6221,13 +6180,11 @@ function start(DATA, isAsakusa) {
     if (NT.lamp && HB.lampAt) { NT.lamp.position.copy(HB.lampAt); NT.lamp.distance = 75; NT.lamp.intensity = 2.0 + 1.5 * HB.flash; NT.lamp.color.setHex(0xffb070); }
   }
 
-  // ---------- 何をすればよいか：遊び方の札、ゴールまでの距離と矢印、次に押すものの合図 ----------
+  // ---------- 何をすればよいか：ゴールまでの距離と矢印、次に押すものの合図 ----------
+  // 10/30 遊び方の札と「？遊び方」は無くした（本人「遊び方をわざわざ見なきゃいけないのは今どきよくない。読まなくてもできるくらいに」）。
+  // 最初は自動で担ぎ出し、進むが脈打ち（holdHint）、浅草神社までの札が大きくなり（navPop）、初めてつかえると向きとバックが脈打つ（rotHint）
   const seen = k => { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
   const mark = k => { try { localStorage.setItem(k, '1'); } catch (e) { /* 覚えられない環境では毎回出る */ } };
-  // 遊び方の札は、右上の「？遊び方」を押したときだけ出す（開いた直後には出さない。触っていれば分かるように）
-  function showHelp() { $('help').classList.add('on'); }
-  $('helpGo').onclick = () => { $('help').classList.remove('on'); mark('mikoshi_help_seen'); };
-  $('helpBtn').onclick = () => showHelp();
   // 町の画面の一行の案内（マウスなら「クリック」）。
   const finePtr = !!(window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches);
   // 本人（10/17）「見たときに何をすればよいか分かりにくい。建物を選んで！みたいなの出てもいい」→ 選ぶ画面では毎回、大きく出す
@@ -6255,7 +6212,7 @@ function start(DATA, isAsakusa) {
   let carried = seen('mikoshi_carried');
   function carriedOnce() { if (!carried) { carried = true; mark('mikoshi_carried'); } }
   // 町に戻って明かりの届く範囲が広がっている間（4.5〜7秒）は、「建物を選んで！」を待たせる（広がる所に目が行くように）
-  function updPickHint() { $('pickHint').classList.toggle('on', mode === 'pick' && !opening && !TS && $('sel').style.display !== 'flex' && !$('help').classList.contains('on') && !RCH.anim); }
+  function updPickHint() { $('pickHint').classList.toggle('on', mode === 'pick' && !opening && !TS && $('sel').style.display !== 'flex' && !RCH.anim); }
   // 担ぎ始めに一度、上の「浅草神社まで あと○m」を3秒ほど大きくする（どこへ行けばよいか分かるように）
   let navPopT = 0;
   function navPop() {
@@ -7263,7 +7220,7 @@ function start(DATA, isAsakusa) {
   requestAnimationFrame(frame);
   { const bt = document.getElementById('boot'); if (bt) bt.remove(); }   // 町が出たので、読み込み中の印を消す
   // 試験用（自動の確かめで使う）
-  window.__mikoshi = { showHelp, hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
+  window.__mikoshi = { hoverAt: (x, y) => { camera.updateMatrixWorld(); setHover(pickAt(x, y)); }, LANDMARKS, endIntro, SND, lmOf: b => { const L = lmOfBld.get(b); return L && L.name; }, goals, loadDone, arrive, doneState: () => S.done && S.done.phase, opening: () => opening, setOpening: o => { opening = o; }, HOME, mapPos, V, dbg: () => ({ hover: hover && hover.usage, cand: cand && cand.usage, overSel, hoverReq, ptrs: ptrs.size, mode, aiming }), marchHit, camera, ghostList: () => [...ghosts.keys()].map(b => b.usage + ' ' + b.id), ghostIds: () => [...ghosts.keys()].map(b => b.id), slabGhosts, ghostFix,S, CAM, camZoom: () => camZoom, choose, pickAt, setHover, mapCam, blds, selectable, ghosts: () => ghosts.size, mode: () => mode, startFromSite, move, rotate, check, onRoad, gate, rickshaws, RKT, lmPolys, zoomBy, peek: (x, y, a, D, z, e) => { peek = x === undefined ? null : { look: V(x, y, z === undefined ? 3 : z), pos: V(x + Math.cos(a) * D, y + Math.sin(a) * D, z === undefined ? D * 0.5 : z + D * (e === undefined ? 0.5 : e)) }; }, crowd: () => crowdBody.count, guards: bridgeInfo.length,
     night: () => NIGHT ? { k: +NT.k.toFixed(3), lan: NT.lanterns, phase: S.done ? S.done.phase : mode } : null, setNight: k => { if (NIGHT) { NT.force = k; } }, kei: () => ({ on: KEI.on, lan: KEI.n || 0, k: KEI.on ? +KEI.gm.uniforms.uK.value.toFixed(3) : 0, haze: KEI.on ? +KEI.hm.uniforms.uK.value.toFixed(3) : 0 }), keiOff: v => { KEI.off = !!v; }, renderInfo: () => renderer.info.render,
     reach: () => NIGHT ? { lv: RCH.level, R: Math.round(RCH.dispR), rAll: RCH.rAll, full: +RCH.fullK.toFixed(2), anim: !!RCH.anim, pend: RCH.pending, hov: +RCH.hov.k.toFixed(2), lit: RCH.lan ? RCH.lan.lit.reduce((a, v) => a + (v > 0.5), 0) : 0 } : null, RCH,
     setSize, size: () => sizeMode, scaleOf, resizeCarry, fitsScale, shapeFor, carry: () => S.b ? { k: S.k, visK: S.visK, dim: S.dim, people: S.weight.people, ton: S.weight.ton, crew: S.crewShown, stuck: S.stuck && S.stuck.kind, x: S.x, y: S.y, head: S.head, rot: S.rot } : null, clearAt, DIFF, flat: b => flatState.get(b) || 0, SIZE_DEFAULT, MIKOSHI_SIDE,

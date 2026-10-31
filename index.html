@@ -62,33 +62,7 @@
   #carry { background:var(--red); color:#fff; font-weight:700; }
   /* 組の人数が足りない建物（10/30）：灰色の「あと○人」。押すと横に揺れる */
   #carry.short { background:#8d8780; color:#f4efe6; }
-  /* 担ぎ替え（10/30）：いつも同じ所（進むの隣）に置く。担げる建物が近くに無いときは暗く（押せない見た目）、あると灯って脈打つ。出たり消えたりさせない
-     （10/30 本人「進むを押しっぱなしだと一度も出ず、積み上がることに気づかないまま着いた」。前は止まって0.45秒たったときだけ、下のまん中に出していた）。
-     .call：最初の1〜2回、担ぎ手が足を止めて候補の方を向いている間（swapLure）は、大きく脈打つ */
-  /* .hud は押せない（pointer-events:none）ので、ここで押せるようにする。暗いときに押しても何も起きない（swapTo が断る）。町を触ったことにもならない */
-  #swap { position:fixed; right:24px; bottom:166px; width:198px; box-sizing:border-box; z-index:25; touch-action:manipulation; pointer-events:auto;
-    background-color:rgba(96,88,80,.5); background-image:none; color:rgba(255,248,232,.55); font-weight:800; font-size:19px; letter-spacing:.08em; padding:12px 8px; border-radius:32px; border:2px solid rgba(255,248,232,.28);
-    box-shadow:0 2px 6px rgba(0,0,0,.25); white-space:nowrap; cursor:default; }
-  /* 色の移り変わり（transition）は付けない：重い場面で移り変わりが進まず、灯ったのに字と縁だけ暗いまま残った（10/30 確かめ用の画面で） */
-  #swap.on { background-color:#c8321f; background-image:linear-gradient(#e0442c, #b8261a); color:#fff8e8; border-color:#ffd27a; box-shadow:0 3px 10px rgba(0,0,0,.4); cursor:pointer; animation:swapBeat 1.02s ease-out infinite; }
-  #swap.on.call { animation:swapCall .76s ease-out infinite; }
-  #swap.nope { animation:szNo .4s; }
-  @keyframes swapBeat { 0% { transform:scale(1.07); } 25%, 100% { transform:scale(1); } }
-  @keyframes swapCall { 0% { transform:scale(1.18); box-shadow:0 0 0 0 rgba(255,210,122,.95), 0 3px 10px rgba(0,0,0,.4); } 35% { transform:scale(1); } 100% { transform:scale(1); box-shadow:0 0 0 18px rgba(255,210,122,0), 0 3px 10px rgba(0,0,0,.4); } }
-  body:not([data-mode=carry]) #swap, body.titling #swap, body.intro #swap, body.hanabi #swap { display:none; }
-  /* 指で触る画面：ジョイスティックの左隣（右の親指で届く）。横持ちはジョイスティックが左なので、その右隣 */
-  @media not all and (pointer:fine) {
-    #swap { right:176px; bottom:68px; width:auto; padding:12px 20px; }
-    body.sm #swap { right:144px; bottom:74px; font-size:17px; padding:11px 16px; }
-  }
-  @media (pointer:coarse) and (orientation:landscape) { html body #swap { right:auto; left:168px; } html body.sm #swap { left:146px; } }
-  /* ひとつ降ろす（10/30）：担ぎ替えて積んだ後につかえたときだけ、「やり直す」の下に出る。押すと今の建物を元の場所へ戻し、屋根の上の建物を担ぎ直す */
-  #unstack { position:fixed; left:50%; top:242px; transform:translateX(-50%); z-index:30; display:none; font-size:17px; font-weight:700; padding:10px 24px;
-    background:rgba(244,239,230,.95); color:var(--red); box-shadow:0 2px 8px rgba(0,0,0,.3); white-space:nowrap; }
-  #unstack.on { display:block; }
-  body:not([data-mode=carry]) #unstack { display:none !important; }
-  @media (max-width:600px) { #unstack { top:254px; font-size:15px; } }
-  body.sm #unstack { top:318px; font-size:15px; }
+  /* 10/30 3分版：担ぎ替えのボタン（#swap）と「ひとつ降ろす」（#unstack）は、ぶつかると勝手にくっつく形にしたので外した */
   /* ほめる（10/30）：右上の担ぎ手の数の下に「＋3人」などが跳ねて消える */
   /* 10/30 右上だと、担ぎ始めに開いている右上の札に重なった。神輿の少し上（画面のまん中の上寄り）に出す */
   #praise { position:fixed; left:50%; top:30%; z-index:24; font-weight:900; font-size:30px; color:#e0442c; pointer-events:none; opacity:0;
@@ -107,9 +81,10 @@
   body:not([data-mode=carry]) #lose { display:none; }
   #info.ouch { animation:ouch .5s; }
   #info.ouch .ppl { color:#d8261a; }
+  /* 3分版：担ぎ手が増えた瞬間、数字が跳ねる */
+  #info.pop .ppl { display:inline-block; animation:pplPop .38s ease-out; }
+  @keyframes pplPop { 0% { transform:scale(1.55); color:#e0442c; } 60% { transform:scale(.95); } 100% { transform:scale(1); } }
   @keyframes ouch { 0%,100% { transform:translateX(0); } 15% { transform:translateX(-7px); } 35% { transform:translateX(6px); } 55% { transform:translateX(-4px); } 75% { transform:translateX(2px); } }
-  /* 次の建物まで あと○人（10/30 案3「目の前に吊るしたごほうび」）：右上の担ぎ手の数の下の行 */
-  #info .next { display:block; font-size:.86em; color:#7a4a22; font-weight:700; }
   #carry.nope { animation:szNo .4s; }
   /* 大きさ（実物大・半分・神輿）は使わない（10/30 組の人数で担げる大きさが決まる形にしたため） */
   #diffSel { display:none !important; }
@@ -165,7 +140,31 @@
   #done .doneN { display:inline-block; font-size:54px; font-weight:800; color:var(--red); font-variant-numeric:tabular-nums; }
   #done .doneN.pop { animation:donePop .22s ease-out; }
   @keyframes donePop { 0% { transform:scale(1.14); } 100% { transform:scale(1); } }
-  #done .doneFree { margin-top:2px; font-size:16px; font-weight:800; color:var(--red); }
+  /* 3分版：結果（積んだ塔を見せている間）だけ「もう一回」を出す。札は押せない（pointer-events:none）ので、このボタンだけ押せるようにする */
+  #doneAgain { display:none; margin:8px auto 2px; font-size:20px; font-weight:800; letter-spacing:.1em; padding:10px 34px; background:var(--red); color:#fff; box-shadow:0 2px 8px rgba(0,0,0,.3); pointer-events:auto; }
+  #done.result #doneAgain { display:block; }
+  /* 高さ比べ（10/30 本人「高さをスカイツリーと比較するのは楽しいかも」）：結果の画面の右下に、細い縦の2本（スカイツリーの形・自分の塔）。字は一言だけ。
+     前の回の塔の高さは、塔の棒に細い横線で残す（.prev） */
+  /* 10/31 直し：景色の中のスカイツリーと見分けがつくよう、角丸の半透明の札に入れたグラフにする。中は小さなスカイツリーの形と、自分の塔の赤い棒 */
+  #hcmp { position:fixed; right:84px; bottom:24px; display:none; flex-direction:column; align-items:center; pointer-events:none; z-index:22; opacity:0; transition:opacity .8s;
+    background:rgba(244,239,230,.9); border:2px solid var(--gold); border-radius:12px; padding:10px 16px 8px; box-shadow:0 3px 12px rgba(0,0,0,.35); }
+  #hcmp.on { opacity:1; }
+  #hcmp .bars { display:flex; align-items:flex-end; gap:14px; height:150px; padding:0 6px; border-bottom:2px solid #8a7f72; }
+  #hcmp .sky { width:16px; fill:#5d86b8; }
+  #hcmp .me { width:12px; background:linear-gradient(#e0b02a 0 5px, #c8322a 5px); position:relative; }
+  #hcmp .prev { position:absolute; left:-8px; right:-8px; height:0; border-top:2px dashed #2b2420; opacity:.7; display:none; }
+  #hcmpTxt { margin-top:6px; font-weight:800; font-size:17px; color:var(--ink); white-space:nowrap; }
+  #hcmp.over #hcmpTxt { font-size:24px; color:var(--red); }
+  body.sm #hcmp { right:auto; left:12px; bottom:16px; padding:8px 12px 6px; }
+  body.sm #hcmp .bars { height:110px; }
+  body.sm #hcmpTxt { font-size:15px; }
+  body.sm #hcmp.over #hcmpTxt { font-size:20px; }
+  /* 結果の間は、札を左へ（まん中の積んだ塔を札で隠さない）。PCは左上の地図の下、スマホは上の左 */
+  #done.result { left:16px; top:218px; transform:none; }
+  /* スマホの結果：左上に置くと、手前に立つ自分の塔のてっぺんを隠したので、右下に小さくまとめる（左下は高さ比べの札） */
+  body.sm #done.result { left:auto; right:12px; top:auto; bottom:16px; min-width:0; width:160px; padding:6px 10px; }
+  body.sm #done.result .doneN { font-size:32px; }
+  body.sm #done.result #doneAgain { font-size:15px; padding:8px 16px; margin-top:4px; }
   #best { left:12px; bottom:14px; background:rgba(244,239,230,.9); border-radius:8px; padding:5px 9px; font-size:12px; line-height:1.5; display:none; max-width:70vw; }
   /* お祓いを受けた建物の数は、町の画面でいつも出す（0棟でも）。いちばん大きい建物は、受けたことがあるときだけ */
   body[data-mode=pick] #best { display:block; }
@@ -175,7 +174,7 @@
   body.sm #best { font-size:11px; padding:4px 8px; line-height:1.45; }
   body.sm #bestCnt b { font-size:12px; }
   /* スマホのお祓い・魂振りの札は、左上の地図の下に出す。前は下から170pxで、神輿（画面の下から約330〜380px）と揺れる担ぎ手を覆った（直す係 第1回・不具合13） */
-  @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; min-width:180px; padding:6px 16px; } #done .doneN { font-size:40px; } #done .doneFree { font-size:14px; } #doneLbl { font-size:13px; } }
+  @media (max-width:600px) { #done { top:156px; bottom:auto; font-size:12px; min-width:180px; padding:6px 16px; } #done .doneN { font-size:40px; } #doneAgain { font-size:17px; padding:9px 26px; } #doneLbl { font-size:13px; } }
   #mute { font-size:12px; padding:5px 10px; }
   /* 10/30 本人「一気に情報量が多い」：写真・名所の説明・出典は、右上の小さな歯車（⚙）の中にまとめる（写真の切り替えは前から見せていない。本人「写真ありいらない」） */
   #gear { font-size:15px; line-height:1; padding:5px 9px; }
@@ -492,13 +491,14 @@
 <div id="tour"></div>
 <div id="goalNav"><span id="goalArrow">➤</span><span id="goalText"></span></div>
 <div id="msg"></div>
-<div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div></div>
+<div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div><button id="doneAgain">もう一回</button></div>
+<div id="hcmp"><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
 <div id="hint"></div>
 <div id="pickHint"></div>
 <div id="goGoal">ゴールの浅草神社に向かおう！</div>
 <div id="sel"><div id="selInfo"></div><button id="carry">この建物を担ぐ</button></div>
-<button id="swap" class="hud">担ぎ替える</button><div id="praise"></div><div id="lose"></div><button id="unstack" class="hud">ひとつ降ろす</button>
+<div id="praise"></div><div id="lose"></div>
 <div id="zoom"><button id="zIn" title="寄る（＋）">＋</button><button id="zOut" title="引く（−）">−</button><button id="recenter" title="神輿のところへ戻る">◎</button></div>
 <div id="rot"><button id="rL" title="押している間 左へ向きを変える（Q・←）">⟲ 向き</button><button id="rR" title="押している間 右へ向きを変える（E・→）">向き ⟳</button></div>
 <div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button>
@@ -1400,10 +1400,7 @@ function start(DATA, isAsakusa) {
      5＋要る人数/2 で自動の運転で通しで遊ぶと 10→40→86→153人。1回目の後が2段目（34〜36人）にぎりぎりで、飛び入りが15人より少ないと届かなかった。
      10 にすると、前の式（5＋J/2＋要る人数/2）と比べて、飛び入りが10人以上なら同じか遅く、10人未満でも最大5人多いだけ */
   const arriveBonus = need => 10 + Math.floor((need || 0) / 2);
-  /* 10/30 本人「最後はどの建物でも運べる」＋案B「積み上げの高さに挑む」：最後の段（朱色）の建物でお祓いを済ませたら、町じゅうの建物が担げる（freeMode）。
-     そこからは、担ぎ替えて積み上げられる。
-     10/30 本人「点数に関係しているのが人数なら、出すのは人数だけでよい」：着いたときの札から、積んだ高さとスカイツリーの比べは外した（担いでいる間の右上の情報には積んだ高さが出る） */
-  let freeMode = false;
+  /* 10/30 3分版：「最後の段で何でも担げる（freeMode）」は、1回で終わる形にしたので外した */
 
   const f1 =v => (Math.round(v * 10) / 10).toFixed(1);
   // 小さい数字（神輿の大きさの重さ・足元の面積）は、10未満なら小数1桁
@@ -1718,14 +1715,50 @@ function start(DATA, isAsakusa) {
     $('carry').style.display = '';
     hoverMesh = new THREE.Mesh(bldGeo(b, b.h + 0.05), hoverMat); scene.add(hoverMesh);
     /* 担ぎ手は、その建物に要る人数（needOf）。組の人数が足りなければ、担ぐボタンを「あと○人」にして押せなくする（10/30） */
-    const need = needOf(b), short = !freeMode && need > team, L = lmOfBld.get(b);
+    /* 3分版の土台（要る人数11人）は、最初の10人で担げることにする（10/31 選ぶ画面で「あと1人」になって担げなかった） */
+    const need = needOf(b), short = need > team && !isRunBase(b), L = lmOfBld.get(b);
     // 札は「用途（名所なら名前）・担ぎ手・店の短い1行」だけ。寸法・重さ・難しさの星は出さない（10/30）。名所の説明は担いだ後の車夫の案内で出す（研究を受けた直しメモ.md）
     $('selInfo').innerHTML = (L ? `<b>${L.name}</b>（${b.usage}）` : `<b>${b.usage}</b>`) + `　<span class="nw">担ぎ手 <b>${fmt(need)}人</b></span>${shopsLine(b)}`;
     const cb = $('carry'); cb.classList.toggle('short', short); cb.textContent = short ? `あと${fmt(need - team)}人` : 'この建物を担ぐ';
     $('sel').style.display = 'flex';
   }
   const raycaster = new THREE.Raycaster();
-  function pickAt(px, py) {
+  /* 10/31 本人（スマホ）「こうやって向こう側にあると選択できないんだよね」：光っている建物の光の玉（または建物のまん中）の近くを押したら、
+     手前に別の建物があっても、光っている建物を選ぶ。画面の上の距離で見る（指で押すときは半径 GLOW_TAP_TOUCH px、マウスは GLOW_TAP_MOUSE px）。
+     いちばん近いものを選ぶ。光っていない所を押したときは、今までどおり（手前の建物） */
+  const GLOW_TAP_TOUCH = 44, GLOW_TAP_MOUSE = 26, glowV = new THREE.Vector3();
+  function glowAt(px, py, touch) {
+    let best = null, bd = touch ? GLOW_TAP_TOUCH : GLOW_TAP_MOUSE;
+    for (const r of reachGlow) {
+      if (!r.g.visible) continue;
+      for (const p of [r.halo.getWorldPosition(glowV).clone(), V(r.b.d.cx, r.b.d.cy, r.b.h * 0.5)]) {
+        p.project(camera); if (p.z > 1) continue;
+        const d = Math.hypot((p.x + 1) / 2 * innerWidth - px, (1 - p.y) / 2 * innerHeight - py);
+        if (d < bd) { bd = d; best = r.b; }
+      }
+    }
+    return best;
+  }
+  /* 光っている建物が、町の画面のカメラから見て手前の建物に隠れるときは、手前の建物を半透明にする（担いでいる間と同じ仕組み。ghosts） */
+  let glowGhostT = 0;
+  function glowGhosts(now) {
+    if (mode !== 'pick' || opening || TS || now - glowGhostT < 400) return; glowGhostT = now;
+    camera.updateMatrixWorld();
+    const o = camera.position, d = new THREE.Vector3();
+    for (const r of reachGlow) {
+      if (!r.g.visible) continue;
+      for (const z of [r.b.h * 0.5, r.b.h + 1]) {
+        const tg = V(r.b.d.cx, r.b.d.cy, z); d.subVectors(tg, o); const len = d.length(); d.normalize();
+        for (let t = 0; t < len - 2; t += 1.5) {
+          const b = bldAt(o.x + d.x * t, -(o.z + d.z * t), o.y + d.y * t, bb => bb === r.b);
+          if (!b || ghosts.has(b)) continue;
+          const m = new THREE.Mesh(bldGeo(b, b.h), ghostMat(b.col)); m.renderOrder = 2; scene.add(m); ghosts.set(b, m); ghostHit.set(b, { n: 2, t: now }); setFlat(b, 2);
+        }
+      }
+    }
+  }
+  function pickAt(px, py, touch) {
+    const gb = glowAt(px, py, touch); if (gb) return gb;
     raycaster.setFromCamera(new THREE.Vector2(px / innerWidth * 2 - 1, -(py / innerHeight) * 2 + 1), camera);
     const r = raycaster.ray;
     // 雷門・吾妻橋に先に当たるなら、そちら（説明だけ出す）
@@ -1800,7 +1833,7 @@ function start(DATA, isAsakusa) {
     ptrs.delete(e.pointerId);
     if (mode === 'pick' && downAt && downAt.moved <= 6 && ptrs.size === 0) {
       camera.updateMatrixWorld();
-      const b = pickAt(e.clientX, e.clientY);
+      const b = pickAt(e.clientX, e.clientY, e.pointerType !== 'mouse');
       if (e.pointerType === 'mouse') { if (b && !b.isLandmark) choose(b, 'site'); else if (b) setHover(b); }           // マウス：クリックした建物をそのまま担ぐ（乗せていなくても）
       else setHover(b);                                                       // 指：一度目のタップで選ぶ。「この建物を担ぐ」で担ぐ
     }
@@ -1847,7 +1880,7 @@ function start(DATA, isAsakusa) {
   /* 組の人数が足りない建物は担げない（ボタンを揺らすだけ） */
   $('carry').onclick = () => {
     if (!hover || hover.isLandmark) return;
-    if (!freeMode && needOf(hover) > team) { const cb = $('carry'); cb.classList.remove('nope'); void cb.offsetWidth; cb.classList.add('nope'); return; }
+    if (needOf(hover) > team && !isRunBase(hover)) { const cb = $('carry'); cb.classList.remove('nope'); void cb.offsetWidth; cb.classList.add('nope'); return; }
     choose(hover, 'site');
   };
 
@@ -2348,7 +2381,9 @@ function start(DATA, isAsakusa) {
     const L = [[cylG(0.18, 0.21, 0.7, 0.95, 8), 'h']];
     for (const s of [1, -1]) {
       L.push([limbG([0, 0.64, 0.09 * s], [0.01, 0.03, 0.095 * s], 0.085, 0.064), 'h'], [boxG(0.2, 0.06, 0.1, [0.05, 0.03, 0.095 * s]), 'black']);
-      if (arms) L.push(...armDownP(s, 'col'));
+      /* arms：true＝両腕を下ろす。1／−1＝その側（1＝右）の腕を上げて担ぎ棒をつかみ、反対の腕は下ろす */
+      if (arms === true) L.push(...armDownP(s, 'col'));
+      else if (arms) L.push(...(s === arms ? armUpP(s, 'col') : armDownP(s, 'col')));
     }
     return hanGeo(L.concat(hantenHeadP(hat)));
   };
@@ -2356,7 +2391,9 @@ function start(DATA, isAsakusa) {
   const AV_PART = { c1: 0, c2: 1, c3: 2, c4: 3, c5: 4, skin: 5, black: 6, white: 7 };
   const avGeo = list => personGeo(list.map(([g, c, opt]) => ({ geo: g, part: AV_PART[c], opt: opt || 0 })));
   /* 出す印（ビットの番号。1から） */
-  const AVB = { CAS: 1, LONG: 2, SHORT: 3, ARML: 4, ARMR: 5, PHONE: 6, HSHORT: 7, HLONG: 8, HBUN: 9, CAP: 10, SUNHAT: 11, PACK: 12, CAMERA: 13, KIMONO: 14, KANZASHI: 15, SHOEW: 16, SHOEB: 17 };
+  const AVB = { CAS: 1, LONG: 2, SHORT: 3, ARML: 4, ARMR: 5, PHONE: 6, HSHORT: 7, HLONG: 8, HBUN: 9, CAP: 10, SUNHAT: 11, PACK: 12, CAMERA: 13, KIMONO: 14, KANZASHI: 15, SHOEW: 16, SHOEB: 17, UPL: 18, UPR: 19 };
+  /* 10/30 本人「みんな神輿を担いでほしい」：飛び入りの人が担ぎ棒をつかむ腕（担ぎ手と同じ形。UPL＝左の腕、UPR＝右の腕）。担いでいる間だけ、下ろした腕と替える（avUp） */
+  const armUpB = (s, sl) => armUpP(s, sl).map(([g, c]) => [g, c, s > 0 ? AVB.UPR : AVB.UPL]);
   const avMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   avMat.onBeforeCompile = sh => {
     sh.vertexShader = 'attribute vec2 aPO;\nattribute vec3 aC1;\nattribute vec3 aC2;\nattribute vec3 aC3;\nattribute vec3 aC4;\nattribute vec3 aC5;\nattribute vec4 aSk;\nvarying vec3 vPC;\n' + sh.vertexShader.replace('#include <begin_vertex>', [
@@ -2374,6 +2411,7 @@ function start(DATA, isAsakusa) {
       /* 着物：裾まで広がる着物・帯とお太鼓・白い半衿・たもと・前で重ねた手・白足袋。お団子の髪に、かんざし */
       L.push([cylG(0.185, 0.25, 1.25, 0.665, 10), 'c1'], [cylG(0.214, 0.22, 0.2, 0.98, 10, true), 'c2'], [boxG(0.1, 0.2, 0.28, [-0.25, 1.0, 0]), 'c2'], [cylG(0.075, 0.115, 0.06, 1.3, 8, true), 'white']);
       for (const s of [1, -1]) L.push([boxG(0.22, 0.36, 0.06, [0, 0.99, 0.245 * s]), 'c1'], [ballG(0.045, [0.21, 0.86, 0.05 * s]), 'skin'], [boxG(0.17, 0.05, 0.09, [0.03, 0.025, 0.065 * s]), 'white']);
+      L.push(...armUpB(1, 'c1'), ...armUpB(-1, 'c1'));
       L.push([hairG(0.157, 1.48, 0.35), 'c3'], [ballG(0.072, [-0.08, 1.63, 0], 6, 4), 'c3']);
       L.push([ballG(0.03, [-0.06, 1.66, 0.07]), 'c4', B.KANZASHI], [limbG([-0.1, 1.6, 0], [-0.02, 1.68, 0.12], 0.008, 0.008, 4), 'c4', B.KANZASHI]);
       return avGeo(L);
@@ -2388,7 +2426,7 @@ function start(DATA, isAsakusa) {
       L.push([boxG(0.21, 0.07, 0.1, [0.045, 0.035, 0.09 * s]), 'white', B.SHOEW]);
       if (!ovr) L.push([boxG(0.21, 0.07, 0.1, [0.045, 0.035, 0.09 * s]), 'black', B.SHOEB]);
     }
-    L.push(...armDownP(-1, 'c1'), ...armDownP(1, 'c1', B.ARMR));
+    L.push(...armDownP(-1, 'c1', B.ARML), ...armDownP(1, 'c1', B.ARMR), ...armUpB(1, 'c1'), ...armUpB(-1, 'c1'));
     /* 右手でスマホを顔の前に掲げて撮る */
     if (ovr) { const A = [0, 1.2, 0.19], E = [0.2, 1.06, 0.25], H = [0.3, 1.36, 0.12];
       L.push([limbG(A, E, 0.06, 0.05), 'c1', B.PHONE], [limbG(E, H, 0.045, 0.04), 'skin', B.PHONE], [ballG(0.046, H), 'skin', B.PHONE], [boxG(0.015, 0.15, 0.08, [0.33, 1.42, 0.12]), 'black', B.PHONE]); }
@@ -2418,8 +2456,11 @@ function start(DATA, isAsakusa) {
     for (let k = -2; k <= 2; k++) L.push([boxG(0.018, 0.2, 0.025, [0.405, 0.42, k * 0.05]), 'c2']);
     for (const s of [1, -1]) {
       L.push([limbG([0, 0.6, 0.17 * s], [0.02, 0.06, 0.19 * s], 0.14, 0.11), 'skin'], [boxG(0.25, 0.07, 0.14, [0.06, 0.035, 0.19 * s]), 'skin']);
-      const A = [0, 1.18, 0.39 * s], E = [0.05, 0.93, 0.46 * s], H = [0.14, 0.76, 0.41 * s];
-      L.push([limbG(A, E, 0.1, 0.09), 'skin'], [limbG(E, H, 0.085, 0.075), 'skin'], [ballG(0.075, H), 'skin']);
+      const A = [0, 1.18, 0.39 * s], E = [0.05, 0.93, 0.46 * s], H = [0.14, 0.76, 0.41 * s], bd = s > 0 ? AVB.ARMR : AVB.ARML, bu = s > 0 ? AVB.UPR : AVB.UPL;
+      L.push([limbG(A, E, 0.1, 0.09), 'skin', bd], [limbG(E, H, 0.085, 0.075), 'skin', bd], [ballG(0.075, H), 'skin', bd]);
+      /* 担ぐときの太い腕（肩から上へ。担ぎ棒は頭の横0.35m・高さ1.6mだが、力士は肩幅が広いので、棒の上をつかむ） */
+      const UE = [0.03, 1.45, 0.5 * s], UH = [0, 1.76, 0.38 * s];
+      L.push([limbG(A, UE, 0.1, 0.09), 'skin', bu], [limbG(UE, UH, 0.085, 0.075), 'skin', bu], [ballG(0.075, UH), 'skin', bu]);
     }
     L.push([new THREE.SphereGeometry(0.16, 8, 6).translate(0, 1.5, 0), 'skin'], [hairG(0.167, 1.5, 0.25), 'c3']);
     L.push([ballG(0.06, [0.03, 1.69, 0], 8, 5, [1.9, 0.75, 0.95]), 'c3'], [ballG(0.04, [-0.07, 1.665, 0]), 'c3']);
@@ -2739,6 +2780,8 @@ function start(DATA, isAsakusa) {
     // 鳳凰：屋上のまん中。大きさは建物ごとに、足元の短い辺と高さの小さい方の35%（見える大きさで0.8〜9m。縮めたときは0.45mから）。低い建物で鳳凰だけ大きく見えないように
     const ps = Math.max(k < 1 ? 0.45 : 0.8, Math.min(9, Math.min(b.d.W, b.d.L, b.h) * k * 0.35)) / k;
     const ph = makePhoenix(ps); ph.position.set(0, phY, 0); up.add(ph);
+    /* 3分版：くっついた建物を積み始める高さ（土台の屋根）と、塔のいちばん上へ移す鳳凰（flyStep） */
+    g.userData.roofY = (BS.tb + topH) * (S.visK || k); g.userData.phoenix = ph;
     body.scale.setScalar(S.visK || k);
     g.userData.body = body; g.userData.poles = poles;
     // 夜の版：神輿を明るくし、担ぎ棒の先に提灯を立てる
@@ -2812,7 +2855,7 @@ function start(DATA, isAsakusa) {
     if (S.crew) scene.remove(S.crew);
     if (S.shadow) scene.remove(S.shadow);
     if (S.b) liftOut(S.b, false);
-    restoreStack(); S.swapAnim = null; S.swapCam = null; swapShow(null); swapLureEnd(); SW.no.clear(); SW.rung.clear();
+    restoreStack(); RT.i = 0; AT.combo = 0; AT.log.length = 0; clearGhosts();
     S.b = b;
     liftOut(b, true);
     /* 町の画面の一行の案内は、次から出さない */
@@ -2827,7 +2870,8 @@ function start(DATA, isAsakusa) {
     const g = carryLook(b);
     scene.add(g); S.mesh = g;
     // 出発：立っていた所からいちばん近い道に出る（試験用に how='anchor' なら、ガードの近くから）。
-    const st = how === 'anchor' ? findStartFor() : startFromSite(b);
+    /* 3分版の土台は、決めた出発の位置と向きから（RUN_START） */
+    const st = isRunBase(b) && raimonB ? { x: RUN_START.x, y: RUN_START.y, h: RUN_START.h, rot: 0 } : how === 'anchor' ? findStartFor() : startFromSite(b);
     S.x = st.x; S.y = st.y; S.head = st.h;
     // 長い辺を進む向きにそろえる（細長い建物は縦にして担ぐ）
     S.rot = st.rot || 0; S.dist = 0; S.done = null; S.rec = []; S.recWall = performance.now(); S.stuck = null; hideMsg();
@@ -2857,7 +2901,8 @@ function start(DATA, isAsakusa) {
     if (!S.intro) return;
     holdHint(true);
     // 本人（10/17）「選んだらゴールの浅草神社に向かおう！みたいなの出して」：担ぎ始めに3秒だけ大きく出し、上の「浅草神社まで」の札へ縮んで吸い込まれる
-    goGoalShow();
+    /* 3分版：「ゴールの浅草神社に向かおう！」は、最初の1棟がくっつく所（出発して約3秒）に重なったので、くっついた後（4.2秒後）に出す */
+    { const b0 = S.b; clearTimeout(S.goT); S.goT = setTimeout(() => { if (S.b === b0 && !S.done && mode === 'carry') goGoalShow(); }, raimonB ? 4200 : 0); }
     SND.setScene('carry');
     S.intro = null; $('skip').style.display = 'none'; record();
     camSnap = true;
@@ -2872,273 +2917,258 @@ function start(DATA, isAsakusa) {
     // 担いだ建物が名所なら、その説明は「ゴールに向かおう！」が消えてから、止まっているときに車夫の案内で出す（tourStep）
     // 担ぎ始めにはもう道からはみ出していても、ここでは何も出さない（押して本当に進めないときだけ、選び直す・大きさを出す）
   }
-  // ---------- 担ぎ替え（10/30 本人が選んだ案。塊魂の「さっきまで邪魔だった物が、大きくなったら獲物に変わる」を神輿に） ----------
-  /* 担いでいる途中、組＋飛び入りの人数で担げる、今よりひと回り大きな建物のそばを通ると、その建物が金色に光り、「担ぎ替える」のボタンが出る。
-     押すと、その建物が元の場所から浮いて神輿の所へ来て、担いでいた建物（の見た目）は新しい建物の屋根の上に乗る（本人「1で」＝積んでいく）。
-     積んだ建物は、つかえるかの判定には入れない（高架でもすぐ通れなくなるため）。浅草神社でまとめてお祓いを受け、収まるときに全部元の場所へ戻る（restoreStack）。
-     候補：神輿のまわり14m以内、要る人数が組＋飛び入り以下で、今の建物の1.3倍＋2人より多い、難しさ★1〜3の建物。いちばん大きいものから3棟まで、今の場所に置けるか確かめる */
-  const shapeCache = new Map();
-  const shapeOf1 = b => { let s = shapeCache.get(b); if (!s) { s = shapeFor(b, 1); shapeCache.set(b, s); } return s; };
-  function restoreStack() { for (const s of S.stack || []) liftOut(s.b, false); S.stack = []; }
-  /* 担ぎ替えの候補が、そこから浅草神社まで行けるか（10/30 一通り遊んだら、担ぎ替えた後に道が無くなって抜けられなくなった）。
-     道の面の「端からの距離」（clr。0.5mのマスで数える）を一度だけ作る。建物の半幅（短い辺の半分＋長い辺の1割。角を曲がる分）以上の所と、
-     桁下の高さが建物の高さ以上の所だけを通って、ゴールから塗り広げる（reachMap）。今いる所の3m以内に届いていれば行ける。幅と高さの組ごとに覚える。
-     向きを変えながら抜ける道までは見ないので、目安（それでも抜けられないときは「ひとつ降ろす」） */
-  let clr = null; const reachCache = new Map();
-  function buildClr() {
-    if (clr) return;
-    const n = GW * GH; clr = new Float32Array(n);
-    for (let i = 0; i < n; i++) clr[i] = road[i] ? 1e9 : 0;
-    for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
-      const i = r * GW + c; if (!clr[i]) continue; let v = clr[i];
-      if (c > 0) v = Math.min(v, clr[i - 1] + 1);
-      if (r > 0) { v = Math.min(v, clr[i - GW] + 1); if (c > 0) v = Math.min(v, clr[i - GW - 1] + 1.414); if (c < GW - 1) v = Math.min(v, clr[i - GW + 1] + 1.414); }
-      clr[i] = v;
+  // ---------- 3分版（10/30 本人「こんなゲームに難しさはいらない。3分で気持ちよく飽きてもらってよい作りにしよう」「3分でこのゲームを出し切ろう」） ----------
+  /* 1回で終わる：小さな建物を10人で担いで出発し、ぶつかった建物を勝手にくっつけながら（塊魂）、雷門をくぐり、仲見世を進み、浅草神社でお祓い・魂振り・花火。
+     最後に積んだ塔と担ぎ手の数を見せ、「もう一回」ですぐ同じ所からやり直す（restartRun）。前の「段」「3回運ぶと何でも担げる」「担ぎ替えのボタン」は外した。
+     RUN_BASE：土台（浅草公会堂の南西の通りの角の小さな建物。幅2.9m・高さ2.8m。雷門の通り抜けと仲見世の幅に収まる）。
+     RUN_START：出発の位置と向き（土台の元の場所の東。東を向く。最初にくっつく小さな建物 ffec7e78 が、目の前の左の道ばたに来る）。
+     ROUTE：祭りの道順。出発→公会堂の南の通りを東へ→雷門通りを東へ→雷門をくぐって仲見世を北へ→境内→浅草神社。
+       ゲームの判定（check）で、この土台が通れると確かめた道すじ（1m・15°の探索）を、ならして4mおきにした（fix3/t_route.py・route_smooth.py）。
+       進むを押しているだけで、担ぎ手がこの道順に沿って曲がる（routeSteer）。自分で曲がれば、その間は自分の向きのまま */
+  const RUN_BASE = 'bldg_8ba19f11';
+  const RUN_START = { x: -70, y: -258.4, h: -0.0873 };
+  const ROUTE = [[-80.0,-257.5],[-76.0,-257.8],[-72.0,-258.2],[-68.0,-258.5],[-64.1,-258.9],[-60.1,-259.4],[-56.2,-260.1],[-52.3,-261.3],[-48.5,-262.5],[-44.6,-263.5],[-40.7,-264.0],[-36.7,-264.4],[-32.7,-264.8],[-28.7,-265.1],[-24.7,-265.5],[-20.8,-265.8],[-16.8,-266.3],[-12.8,-266.8],[-8.9,-267.3],[-4.9,-267.2],[-1.1,-265.9],[2.2,-263.7],[5.0,-260.8],[7.1,-257.5],[8.7,-253.8],[9.8,-249.9],[10.6,-246.0],[10.9,-242.0],[10.9,-238.0],[11.3,-234.0],[12.7,-230.3],[15.1,-227.2],[18.3,-224.8],[21.9,-222.9],[25.5,-221.2],[29.1,-219.5],[32.7,-217.9],[36.4,-216.4],[40.3,-215.3],[44.2,-214.4],[48.1,-213.7],[52.1,-213.0],[56.0,-212.4],[60.0,-211.7],[63.9,-211.0],[67.8,-210.3],[71.8,-209.7],[75.8,-209.4],[79.8,-209.5],[83.8,-209.9],[87.7,-210.7],[91.5,-211.8],[95.3,-213.2],[99.0,-214.5],[102.8,-215.9],[106.6,-217.3],[110.2,-218.8],[113.8,-220.6],[117.2,-222.8],[120.4,-225.1],[123.7,-227.4],[127.1,-229.5],[130.7,-231.4],[134.4,-232.9],[138.1,-234.2],[142.0,-235.3],[145.9,-236.1],[149.9,-236.5],[153.9,-236.5],[157.8,-236.1],[161.8,-235.4],[165.5,-234.0],[168.2,-231.1],[169.1,-227.2],[169.2,-223.2],[168.8,-219.3],[168.5,-215.3],[168.5,-211.3],[168.7,-207.3],[169.1,-203.3],[169.5,-199.3],[170.0,-195.4],[170.7,-191.4],[171.4,-187.5],[171.8,-183.5],[172.2,-179.5],[172.5,-175.5],[172.9,-171.6],[173.2,-167.6],[173.6,-163.6],[173.9,-159.6],[174.3,-155.6],[174.6,-151.6],[175.0,-147.7],[175.3,-143.7],[175.7,-139.7],[176.0,-135.7],[176.4,-131.7],[176.5,-127.7],[176.6,-123.7],[176.7,-119.7],[177.0,-115.7],[177.4,-111.7],[177.7,-107.8],[178.0,-103.8],[178.4,-99.8],[178.7,-95.8],[179.1,-91.8],[179.4,-87.8],[179.8,-83.8],[180.1,-79.9],[180.5,-75.9],[180.8,-71.9],[181.2,-67.9],[181.5,-63.9],[181.9,-59.9],[182.2,-56.0],[182.6,-52.0],[182.9,-48.0],[183.3,-44.0],[183.6,-40.0],[184.0,-36.0],[184.3,-32.0],[184.7,-28.1],[185.0,-24.1],[185.4,-20.1],[185.7,-16.1],[186.1,-12.1],[186.4,-8.1],[186.8,-4.2],[187.1,-0.2],[187.5,3.8],[187.8,7.8],[188.2,11.8],[188.5,15.8],[188.9,19.8],[189.2,23.7],[189.6,27.7],[189.9,31.7],[190.3,35.7],[190.6,39.7],[190.9,43.7],[191.3,47.6],[191.7,51.6],[192.2,55.6],[193.4,59.4],[195.3,62.9],[197.5,66.2],[199.8,69.5],[202.3,72.7],[205.0,75.6],[207.9,78.3],[211.0,80.9],[214.1,83.4],[217.4,85.7],[220.9,87.6],[224.5,89.3],[228.2,90.8],[232.1,91.8],[236.0,92.4],[239.9,93.2],[243.2,95.5],[245.2,98.9],[246.7,102.6],[248.0,106.4],[249.1,110.2],[249.8,114.2],[250.3,118.2],[250.6,122.1],[251.0,126.1],[251.3,130.1],[251.7,134.1],[252.0,138.1],[252.4,142.1],[252.7,146.0],[253.1,150.0],[253.4,154.0],[253.7,158.0],[254.1,162.0],[254.4,166.0],[254.8,170.0],[255.1,173.9],[255.5,177.9],[255.9,181.9],[256.7,185.8],[257.8,189.7],[259.1,193.4],[260.2,196.5],[263.5,197.5],[266.0,198.0]];
+  const isRunBase = b => !!b && b.id.startsWith(RUN_BASE);
+  /* 道順に沿って曲がる：道順のいちばん近い点（RT.i）から、速さに合わせて6〜11m先の点へ向ける。道順から14m以上離れたら、
+     今の向きに近い（±40°）、いちばん先まで続く道の向きへ少しだけ寄せる（道なり）。自分で向きを変えている間と、離して0.5秒は何もしない。
+     回す速さは毎秒最大80°。回した先が当たるなら回さない（ぶつけて止めない） */
+  const RT = { i: 0, manualT: 0, scanT: 0 };
+  function routeSteer(dt) {
+    if (!S.b || S.intro || S.done || mode !== 'carry' || !raimonB || RT.off) return;
+    const now = performance.now();
+    if (rotHold.dir || stickTurn) { RT.manualT = now; return; }
+    if ((S.v || 0) < 0.5 || now - RT.manualT < 500 || dt <= 0) return;
+    let bi = RT.i, bd = Infinity;
+    for (let k = Math.max(0, RT.i - 8); k < Math.min(ROUTE.length, RT.i + 25); k++) { const d = Math.hypot(ROUTE[k][0] - S.x, ROUTE[k][1] - S.y); if (d < bd) { bd = d; bi = k; } }
+    /* 近くに無ければ、0.5秒ごとに道順の全体から探し直す */
+    if (bd > 14 && now - RT.scanT > 500) { RT.scanT = now; for (let k = 0; k < ROUTE.length; k++) { const d = Math.hypot(ROUTE[k][0] - S.x, ROUTE[k][1] - S.y); if (d < bd) { bd = d; bi = k; } } }
+    let want;
+    if (bd <= 14) {
+      RT.i = bi;
+      const t = ROUTE[Math.min(ROUTE.length - 1, bi + 2 + Math.round((S.v || 0) * 0.3))];
+      want = Math.atan2(t[1] - S.y, t[0] - S.x);
+    } else {
+      let best = -1;
+      for (let a = -40; a <= 40; a += 10) { const h = S.head + a * Math.PI / 180, l = run(S.x, S.y, h, 30) - Math.abs(a) * 0.04; if (l > best) { best = l; want = h; } }
     }
-    for (let r = GH - 1; r >= 0; r--) for (let c = GW - 1; c >= 0; c--) {
-      const i = r * GW + c; if (!clr[i]) continue; let v = clr[i];
-      if (c < GW - 1) v = Math.min(v, clr[i + 1] + 1);
-      if (r < GH - 1) { v = Math.min(v, clr[i + GW] + 1); if (c < GW - 1) v = Math.min(v, clr[i + GW + 1] + 1.414); if (c > 0) v = Math.min(v, clr[i + GW - 1] + 1.414); }
-      clr[i] = v;
-    }
+    let d = want - S.head; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const lim = 1.4 * dt, step = Math.max(-lim, Math.min(lim, d * Math.min(1, dt * 4)));
+    if (Math.abs(step) < 1e-4) return;
+    for (const f of [1, 0.5]) { const nh = S.head + step * f; if (!check(S.x, S.y, nh + S.rot)) { S.head = nh; return; } }
   }
-  const clrHeights = () => [...new Set(clear.values())].sort((p, q) => p - q);
-  function reachMap(hw, h) {
-    const wq = Math.ceil(hw * 2) / 2, low = clrHeights().filter(v => v < h).length, key = wq + '|' + low;
-    let m = reachCache.get(key); if (m) return m;
-    buildClr();
-    const need = wq / CELL, n = GW * GH, Q = new Int32Array(n); m = new Uint8Array(n);
-    const pass = i => clr[i] >= need && !(clear.size && clear.has(i) && clear.get(i) < h);
-    const g = goals[0]; let qt = 0;
-    for (let x = g.x - g.r; x <= g.x + g.r; x += CELL) for (let y = g.y - g.r; y <= g.y + g.r; y += CELL) {
-      if (Math.hypot(x - g.x, y - g.y) > g.r) continue; const i = idx(x, y); if (i >= 0 && !m[i] && pass(i)) { m[i] = 1; Q[qt++] = i; }
-    }
-    for (let qh = 0; qh < qt; qh++) {
-      const i = Q[qh], c = i % GW;
-      for (const j of [c > 0 ? i - 1 : -1, c < GW - 1 ? i + 1 : -1, i - GW, i + GW]) if (j >= 0 && j < n && !m[j] && pass(j)) { m[j] = 1; Q[qt++] = j; }
-    }
-    reachCache.set(key, m); return m;
+  /* 進む速さ（10/30 本人「もうちょい爽快感がほしい」）：担ぎ手が増えるほど速く。10人で RUN_V0、RUN_VN 人で RUN_V1（それより速くはしない） */
+  const RUN_V0 = 3.4, RUN_V1 = 5.5, RUN_VN = 220;
+  const runSpeed = () => RUN_V0 + (RUN_V1 - RUN_V0) * Math.pow(Math.min(1, Math.max(0, (team + JN.n - TEAM0) / (RUN_VN - TEAM0))), 0.6);
+
+  // ---------- くっつく（10/30 3分版。本人「塊魂って勝手にくっつくんだっけ？」） ----------
+  /* 担げる建物（要る人数 needOf ≤ 担ぎ手の数）に、神輿か、まわりを囲む担ぎ手が触れると、ボタンなしでその建物が浮いて神輿の上に乗る。
+     乗った瞬間に「ポン」と鳴り（SND.pon）、建物にいた人が担ぎ手に加わって数字が跳ね（joinAdd）、画面が少し揺れる。
+     土台は替えずに上へ積む（前の担ぎ替えは土台を替えていたので、大きくなるほど道につかえた）。積んだ建物は、つかえるかの判定に入れないので、
+     道の両側の建物にくっついていっても、通れる道幅は変わらない。担げる大きさは担ぎ手の数で決まるので、最初は小さな物置や小屋だけ。
+     届く範囲：神輿の足元の外周から ATT_R0 m。担ぎ手が増えると、まわりを囲む輪が広がるので少しずつ遠くまで（ATT_RK m／人、ATT_RMAX m まで）。
+     くっつかない建物：名所（宝蔵門・本堂・五重塔・浅草神社・二天門など）・雷門の両わき。境内の小さなお堂・仲見世の店（間をあけて。NAKA_GAP）はくっつく。
+     積む見た目：いちばん長い辺が ST_MAX m を超える建物は、縮めて乗せる（塔が空まで伸びて、道と担ぎ手が見えなくならないように）。
+     乗せた建物は、運び終えてやり直すときに元の場所へ戻す（restoreStack） */
+  const ATT_R0 = 2.2, ATT_RK = 0.03, ATT_RMAX = 7, ATT_GAP = 150, ST_MAX = 9;
+  const AT = { t: 0, last: 0, combo: 0, fly: [], log: [] };
+  /* 道順（ROUTE）から建物までの近さ（m）と、いちばん近い道順の点の番号。建物ごとに一度だけ数える */
+  function routeNear(b) {
+    if (b._rn) return b._rn;
+    let d = Infinity, k = -1;
+    for (let i = 0; i < ROUTE.length; i++) { const q = ROUTE[i]; if (Math.abs(q[0] - b.d.cx) > 45 || Math.abs(q[1] - b.d.cy) > 45) continue; const dd = distToPoly(q[0], q[1], b.polys[0]); if (dd < d) { d = dd; k = i; } }
+    return (b._rn = { d, k });
   }
-  /* 角を曲がる分：長い辺の2割（10/30 1割では、通しで遊んだ2回目に、担ぎ替えた先で道が無くなって降ろすのが5回あった） */
-  const hwOf = b => Math.min(b.d.W, b.d.L) / 2 + Math.max(b.d.W, b.d.L) * 0.2;
-  const reachKey = b => Math.ceil(hwOf(b) * 2) / 2 + '|' + clrHeights().filter(v => v < b.h).length;
-  function canReach(b) {
-    const m = reachMap(hwOf(b), b.h);
-    for (let dx = -3; dx <= 3; dx += 0.5) for (let dy = -3; dy <= 3; dy += 0.5) { const i = idx(S.x + dx, S.y + dy); if (i >= 0 && m[i]) return true; }
-    return false;
+  /* 道ばたの建物か：道順に沿って進めば、神輿の足元（半幅1.5m）＋担ぎ手の届く範囲が触れる所にある */
+  const roadside = (b, R) => raimonB && routeNear(b).d <= R + 1.5 + 0.8;
+  /* 仲見世の店：雷門から宝蔵門の前（192, 62）へ向かう線から12m以内（人力車を置かない所と同じ決め方）。くっつく間をあける（NAKA_GAP） */
+  const nearNaka = b => {
+    const ax = gate.x, ay = gate.y, dx = 192 - ax, dy = 62 - ay, l2 = dx * dx + dy * dy, t = Math.max(0, Math.min(1, ((b.d.cx - ax) * dx + (b.d.cy - ay) * dy) / l2));
+    return Math.hypot(b.d.cx - ax - dx * t, b.d.cy - ay - dy * t) < 12;
+  };
+  const attachable = (b, crewN) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && needOf(b) <= crewN;
+  /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
+     間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
+  const NAKA_GAP = 1800;
+  /* 積んだ塔のいちばん上（神輿の絵の中の高さ m）。土台の屋根の上から積む */
+  function stackTop() { if (!S.mesh) return 0; const L = S.stack || []; return L.length ? L[L.length - 1].top : (S.mesh.userData.roofY || (S.b ? S.b.h : 0)); }
+  /* 積んだ高さ（地面から。カメラの寄り引きに使う） */
+  function stackHeight() { return S.b ? Math.max(S.b.h, stackTop()) : 0; }
+  function restoreStack() {
+    hoverClear();
+    /* 積んだ建物の形と材質は、建物ごとに作ったものなので捨てる（縁取りの材質は共用なので残す） */
+    const drop = m => m && m.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== stackHullMat && !(S.mesh && S.mesh.userData.night && o.material === S.mesh.userData.night.hull) && o.material.isMeshLambertMaterial) o.material.dispose(); });
+    for (const s of S.stack || []) { liftOut(s.b, false); drop(s.m); }
+    for (const F of AT.fly) { scene.remove(F.m); liftOut(F.b, false); }
+    AT.fly.length = 0; S.stack = [];
   }
-  /* 積んだ高さ：今の建物の高さ＋屋根に乗せた建物の高さ（1棟ごとに0.4m浮かせて乗せる） */
-  function stackHeight() { if (!S.b) return 0; let h = S.b.h; for (const s of S.stack || []) h += s.b.h + 0.4; return h; }
-  /* SW：担ぎ替えの候補（b は光らせる1棟だけ）。shownT：その候補が光り始めた時刻。lit：ボタンが灯っているか。flips：灯る・暗くなるの回数（確かめ用）。
-     rung：太鼓を鳴らした候補（同じ候補では1回だけ）。lure：担ぎ手が足を止めて候補の方を向いている間（swapLure）。lureN：足を止めた回数。swaps：この町で担ぎ替えた回数 */
-  const SW = { t: 0, b: null, rot: 0, mesh: null, no: new Set(), shownT: 0, lit: false, flips: 0, rung: new Set(), ringT: 0, lure: null, lureN: 0, lureT: 0, lureDone: new Set(), swaps: 0, miss: 0, darkT: 0 };
-  const SW_HOLD = 2000, SW_LURE_MAX = 2;
-  const swapMat = new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  /* x, y：置いてみる場所（省けば今の場所）。足を止める前に、止まる所で置けるかを見るのに使う（swapLure） */
-  function swapFits(b, x, y) {
-    if (x === undefined) { x = S.x; y = S.y; }
-    const old = S.shape; useShape(shapeOf1(b));
-    /* その場に置けて、前か後ろに1.5m動けること（10/30 置けても身動きが取れない所で担ぎ替えて、はまった） */
-    let rot = null;
-    const hx = Math.cos(S.head), hy = Math.sin(S.head);
-    for (const r of [S.rot, S.rot + Math.PI / 2, S.rot - Math.PI / 2, 0, Math.PI / 2]) {
-      if (check(x, y, S.head + r)) continue;
-      if (check(x + hx * 1.5, y + hy * 1.5, S.head + r) && check(x - hx * 1.5, y - hy * 1.5, S.head + r)) continue;
-      rot = r; break;
-    }
-    useShape(old);
-    return rot;
+  /* 乗せる建物の見た目：町にあったときの形（写真付きの形か箱）と、神輿と同じ濃い縁取り。夜は神輿と同じだけ明るく */
+  const stackHullMat = new THREE.MeshBasicMaterial({ color: 0x3a2418, side: THREE.BackSide });
+  /* hover：くっつく前に浮かべる写し（hoverStep）。夜の明るさは決まった値にする（神輿の明かりの一覧に入れると、消した後も残るため） */
+  function stackLook(b, s, hover) {
+    const { cx, cy, a } = b.d, c = Math.cos(-a), sn = Math.sin(-a), local = localOf(b, 1);
+    const xf = (x, y, z, v) => { const dx = x - cx, dy = y - cy; v.set(dx * c - dy * sn, z, -(dx * sn + dy * c)); };
+    const g = new THREE.Group(), photo = photoOf(b), topH = photo ? photo.top : b.h, N0 = S.mesh && S.mesh.userData.night;
+    /* 浮かべる写しの縁取りは、夜でも濃い色のまま（神輿の縁取りは夜に橙色に灯るので、同じにすると光らせて見せることになる）。神輿に乗ったら神輿と同じにする（flyStep） */
+    const N = N0 && hover ? { list: { push: e => { e.m.emissiveIntensity = e.k * 0.8; } }, hull: stackHullMat } : N0;
+    /* 材質は作り直す（町の建物の材質は、夜に明かりの届く範囲の外を暗く沈める仕掛けが付いていて、積むと黒く見えた）。夜は神輿と同じだけ明るく（N.list） */
+    const mat = (map, col) => {
+      const m = new THREE.MeshLambertMaterial(map ? { map, side: THREE.DoubleSide } : { color: col, side: THREE.DoubleSide });
+      if (N) { if (map) { m.emissiveMap = map; m.emissive.setHex(0xffffff); N.list.push({ m, k: 0.42 }); } else { m.emissive.copy(m.color); N.list.push({ m, k: 0.35 }); } }
+      else if (!map) m.emissive.copy(m.color).multiplyScalar(0.12);
+      return m;
+    };
+    if (photo) [texGeo(photo.pos, photo.uv, xf), texGeo(photo.plain, null, xf)].forEach((geo, k) => { if (geo) g.add(new THREE.Mesh(geo, k ? mat(null, photo.mats[1].color) : mat(photo.mats[0].map))); });
+    else g.add(new THREE.Mesh(extrude(local, b.h), mat(null, new THREE.Color(b.col))));
+    const hg = photo ? texGeo(photoAll(photo), null, xf) : extrude(local, b.h);
+    hg.translate(0, -topH / 2, 0);
+    const hull = new THREE.Mesh(hg, N ? N.hull : stackHullMat);
+    hull.position.y = topH / 2; g.add(hull); g.userData.hull = hull;
+    hullScale({ m: hull, L: b.d.L, W: b.d.W, H: topH }, s);
+    g.scale.setScalar(s);
+    return { g, h: topH * s };
   }
-  /* 候補にしてよい建物か（置けるか・行けるかは別に見る）。3つ目の直し（10/30）：今担いでいるものより大きい（次の一段になる）建物だけ。
-     担ぐのに要る人数（needOf）が今の担ぎ手で足りること。何でも担げるようになった後（freeMode）も、今のより重い建物だけ */
-  function swapOK(b, crewN, cur, far) {
-    /* 一度「ひとつ降ろす」で降ろした建物は、その回のうちは勧めない（同じ建物への担ぎ替えと降ろすをくり返したため） */
-    /* ゴールの浅草神社の社殿は勧めない（10/30 神社の手前で社殿に担ぎ替えて「浅草神社が浅草神社でお祓い」になった） */
-    if (b === S.b || b.isLandmark || !selectable(b) || flatState.get(b) || SW.no.has(b) || b.id.startsWith('bldg_7d109a41')) return false;
-    const d = Math.hypot(b.d.cx - S.x, b.d.cy - S.y) - Math.max(b.d.L, b.d.W) / 2; if (d > far) return false;
-    const n = needOf(b); if (n > crewN) return false;
-    /* 自由モードは何でも積める遊びなので、大きさを問わない（10/30 本人の決定） */
-    return freeMode ? true : n >= cur * 1.2 + 2;
+  /* くっつける：建物は元の場所から浮いて、放物線で塔のいちばん上へ（0.55秒）。乗ったら神輿の絵の子にする */
+  function attach(b) {
+    const now = performance.now();
+    /* 手前で半透明にしていた建物なら、その写しを片付けてから（後で半透明を戻すときに、持ち上げた跡が元に戻らないように） */
+    if (ghosts.has(b)) { const gm = ghosts.get(b); scene.remove(gm); gm.geometry.dispose(); ghosts.delete(b); ghostHit.delete(b); }
+    /* 浮かんで揺れていた写し（hoverStep）があれば、それをそのまま飛ばす（浮いていた所から吸い寄せられる） */
+    const hv = HV.get(b); if (hv) { HV.delete(b); hvHalo(hv); }
+    liftOut(b, true);
+    const s = Math.min(1, ST_MAX / Math.max(b.d.L, b.d.W, b.h)), L = hv ? { g: hv.m, h: hv.h * s } : stackLook(b, s);
+    /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
+    const k = (S.stack || []).length + AT.fly.length, yaw = (hash(k + 0.7, b.d.cx) - 0.5) * 0.7 + (b.d.L * s > S.dim.L * 1.6 ? Math.PI / 2 : 0);
+    const ox = (hash(k, 3.1) - 0.5) * Math.min(1.2, S.dim.L * 0.25), oz = (hash(5.3, k) - 0.5) * Math.min(1, S.dim.W * 0.25);
+    const y0 = AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackTop();
+    const F = { b, m: L.g, t0: now, dur: 520, sx: b.d.cx, sy: b.d.cy, sz: hv ? hv.m.position.y : 0, sa: b.d.a, s, yaw, ox, oz, y0, y1: y0 + L.h + 0.15 };
+    if (!hv) { L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); L.g.scale.setScalar(1); scene.add(L.g); }
+    AT.fly.push(F);
+    AT.combo = now - AT.last < 1600 ? AT.combo + 1 : 0; AT.last = now;
+    /* 確かめ用：くっついたときの神輿の道順からの離れ（md）と、建物の道順からの離れ（bd）・届く範囲（R） */
+    if (raimonB) { let md = Infinity; for (const q of ROUTE) md = Math.min(md, Math.hypot(q[0] - S.x, q[1] - S.y)); AT.log.push({ id: b.id.slice(5, 13), md: +md.toFixed(1), bd: +routeNear(b).d.toFixed(1), R: +Math.min(ATT_RMAX, ATT_R0 + ATT_RK * (team + JN.n)).toFixed(1) }); }
   }
-  function swapShow(b, rot) {
-    if (b === SW.b) return;
-    if (SW.mesh) { scene.remove(SW.mesh); SW.mesh.geometry.dispose(); SW.mesh = null; }
-    SW.b = b; SW.rot = rot; SW.shownT = b ? performance.now() : 0; SW.miss = 0;
-    if (b) { SW.mesh = new THREE.Mesh(bldGeo(b, b.h + 0.1), swapMat); scene.add(SW.mesh); }
-    if (SW.lure && SW.lure.b !== b) swapLureEnd();
-    swapLamp();
+  /* 乗った瞬間（flyStep）：「ポン」、建物にいた人が加わって（要る人数の4分の1。1人以上）数字が跳ね、神輿全体が一度沈んで跳ね返り（S.sinkT）、カメラが一瞬寄る（S.kickT）。
+     続けてくっつくほど「ポン」が高く。担げない建物にぶつかったとき（弾かれる・横にがたつく・低いドン）と、動きも音も逆にした */
+  function landFx(F) {
+    const b = F.b, now = performance.now(), n = Math.max(1, Math.round(needOf(b) / 4));
+    joinAdd(n, i => ({ x: b.d.cx + (hash(i, b.d.cy) - 0.5) * b.d.L * 0.6, y: b.d.cy + (hash(b.d.cx, i) - 0.5) * b.d.W * 0.6, P: personOf(hash(b.d.cx + i, 1.9), hash(i, b.d.cy + 0.3)) }), now, 60);
+    SND.pon(AT.combo);
+    S.sinkT = now; S.kickT = now;
   }
-  /* ボタンの灯り：候補があれば灯る、無ければ暗い。暗→灯の瞬間に太鼓を一つ（同じ候補では1回だけ、続けて鳴るときは1.5秒あける） */
-  function swapLamp() {
-    const on = !!SW.b, el = $('swap');
-    if (SW.lit !== on) {
-      SW.lit = on; SW.flips++; el.classList.toggle('on', on);
-      const now = performance.now(); if (!on) SW.darkT = now;
-      /* 確かめ用：灯る・暗くなるの時刻（__swapLog があるときだけ。__soundLog と同じ） */
-      if (window.__swapLog) window.__swapLog.push([Math.round(now), on, SW.b ? SW.b.id.slice(5, 13) : null, +(S.v || 0).toFixed(1)]);
-      if (on && !SW.rung.has(SW.b) && now - SW.ringT > 1500) { SW.rung.add(SW.b); SW.ringT = now; try { SND.don(); } catch (e) { /* 音が出せない環境では鳴らさない */ } }
-    }
-    if (el.classList.contains('call') !== !!SW.lure) el.classList.toggle('call', !!SW.lure);
-  }
-  /* 4つ目の直し（10/30）：最初の1〜2回（この町でまだ一度も担ぎ替えていない間、2回まで）、候補のそばを進むと、担ぎ手が足を止めて（神輿がゆっくり止まる）候補の方を向く。
-     止まってからも進むを押し続けたら、1.6秒で引き止めるのをやめる。離してからもう一度押しても、バックしても、やめる */
-  function swapLure(now) {
-    const L = SW.lure;
-    if (L) {
-      if (L.b !== SW.b || hold.back || now - L.t0 > 9000) { swapLureEnd(); return; }
-      if (!L.stopT && Math.abs(S.v || 0) < 0.6) L.stopT = now;
-      if (!hold.on) L.rel = true;
-      else if (L.rel || (L.stopT && now - L.stopT > 1600)) { swapLureEnd(); return; }
-      if (L.stopT && now - L.stopT > 6000) swapLureEnd();
-      return;
-    }
-    if (!SW.b || SW.swaps || SW.lureN >= SW_LURE_MAX || !hold.on || hold.back || SW.lureDone.has(SW.b) || S.stuck || (S.v || 0) < 3) return;
-    if (now - (S.introEnd || 0) < 2500 || now - SW.lureT < 150) return;
-    SW.lureT = now;
-    /* 止まる所：今の速さで約0.3秒分先 */
-    const hc = Math.cos(S.head), hs = Math.sin(S.head), sd = (S.v || 0) * 0.3, sx = S.x + hc * sd, sy = S.y + hs * sd, cb = SW.b.d;
-    /* 止まる所から見て、候補の建物の中心が2m以上前にあるときだけ（横の後ろ寄りだと、止まっても画面の外で光っていて見えなかった。10/30 自動プレイの画面で確認） */
-    if ((cb.cx - sx) * hc + (cb.cy - sy) * hs < 2) return;
-    /* 止まる所でも置ける候補のときだけ足を止める（止まった所で置けず、押しても替わらない、をなくす） */
-    const rot = swapFits(SW.b, sx, sy);
-    if (rot === null) return;
-    SW.lure = { b: SW.b, t0: now, stopT: 0, rel: false }; SW.lureN++; SW.lureDone.add(SW.b);
-    swapLamp();
-  }
-  function swapLureEnd() { if (!SW.lure) return; SW.lure = null; swapLamp(); }
-  function swapScan(now) {
-    const un = !!(S.b && !S.done && !S.swapAnim && S.stack && S.stack.length && document.body.classList.contains('stuck'));
-    if ($('unstack').classList.contains('on') !== un) $('unstack').classList.toggle('on', un);
-    if (!S.b || S.intro || S.done || S.swapAnim || mode !== 'carry') { if (SW.b) swapShow(null); swapLureEnd(); return; }
-    /* 10/30 本人「進むを押しっぱなしだと担ぎ替えに一度も出会わない」：ボタンはいつも同じ所に置き、走っている間も、候補があれば灯す（swapLamp）。
-       前（案B）は止まって0.45秒たったときだけ出していた（走っている間に出すと候補が次々に変わって、出たり消えたりちらついたため）。
-       ちらつかないように、光らせるのは1棟だけ、一度光ったら2秒（SW_HOLD）は同じ建物のまま。見回しの間隔は前のまま（動いている間0.6秒・止まっている間0.4秒） */
-    /* 止まったか：最後に位置か向きが変わってから0.45秒（前は速さの数字が下がるのを待っていたが、下がり方が描き替えの回数で決まり、遅い機械ではなかなか出なかった） */
-    if (Math.abs(S.x - (SW.lx || 0)) + Math.abs(S.y - (SW.ly || 0)) > 0.02 || Math.abs(S.head - (SW.lh || 0)) > 0.002) { SW.lx = S.x; SW.ly = S.y; SW.lh = S.head; SW.movedT = now; }
-    const moving = hold.on || hold.back || now - (SW.movedT || 0) < 450;
-    /* 担ぎ替えてから6秒以内に、押しているのに1秒以上進めなくなったら、何も言わずに担ぎ替えを取り消す（勧められて選んだら詰んだ、をなくす。10/30 ゲームプログラマーの指摘） */
-    if (S.swapT && now - S.swapT < 6000 && (hold.on || hold.back) && S.stuck && now - (SW.movedT || 0) > 1000) { unswap(true); return; }
-    swapLure(now);
-    /* 10/30 案A（ゲームプログラマーの指摘）：光っている建物に押し当てて0.4秒たったら担ぎ替える（さっきまでつかえていた建物が獲物に変わる。塊魂の「くっつく」） */
-    if (SW.b && hold.on && S.stuck && distToPoly(S.x, S.y, SW.b.polys[0]) - Math.max(S.dim.L, S.dim.W) / 2 <= 2.5) {
-      if (!SW.pushT) SW.pushT = now;
-      if (now - SW.pushT > 400) { SW.pushT = 0; if (swapTo()) return; }
-    } else SW.pushT = 0;
-    /* 足を止めている間は、光を強く速く */
-    swapMat.opacity = SW.lure ? 0.35 + 0.4 * (0.5 - 0.5 * Math.cos(now / 520 * Math.PI * 2)) : 0.18 + 0.3 * (0.5 - 0.5 * Math.cos(now / 900 * Math.PI * 2));
-    if (now - SW.t < (moving ? 600 : 400)) return; SW.t = now;
-    /* 何でも担げるようになった後（freeMode）は、人数を問わず、そばの建物に担ぎ替えられる（高い建物から先に勧める） */
-    const crewN = freeMode ? Infinity : team + JN.n, cur = needOf(S.b);
-    /* 光っている候補：2秒たつまで（足を止めている間も）は、置けるかを見直さずにそのまま（近くにあって、人数が足りている間）。
-       2秒たったら、今の場所に置けて行けるかを見直す。置けるうちは、ずっと良い候補（要る人数が1.3倍以上・freeMode は高さ1.3倍以上）が来たときだけ替える */
-    /* 見直しで置けなかったのが1回だけなら、まだ灯したまま（道に沿って置ける・置けないが入れ替わると、暗→灯が0.7秒で戻る瞬きになった。10/30 押しっぱなしの自動プレイで測定）。
-       2回続けて置けなければ外す。暗くなってから1秒は灯し直さない（灯る→暗いは2秒、暗い→灯るは1秒より短くならない） */
-    let keep = null;
-    if (SW.b) {
-      if (!swapOK(SW.b, crewN, cur, 24)) swapShow(null);
-      else if (now - SW.shownT < SW_HOLD || SW.lure) return;
-      else {
-        const rot = swapFits(SW.b);
-        if (rot !== null && canReach(SW.b)) { SW.rot = rot; SW.miss = 0; keep = { b: SW.b, n: freeMode ? SW.b.h : needOf(SW.b) }; }
-        else if (!SW.miss) { SW.miss = 1; keep = { b: SW.b, n: freeMode ? SW.b.h : needOf(SW.b) }; }
-        else SW.miss = 0;
+  /* 毎こま：飛んでいる建物。神輿は動いているので、着く所は毎こま神輿の絵の中から求める */
+  const flyV = new THREE.Vector3();
+  function flyStep(now) {
+    for (let i = 0; i < AT.fly.length; i++) {
+      const F = AT.fly[i], q = Math.min(1, (now - F.t0) / F.dur), e = q * q * (3 - 2 * q);
+      if (!S.mesh) break;
+      S.mesh.updateMatrixWorld(); flyV.set(F.ox, F.y0, F.oz); S.mesh.localToWorld(flyV);
+      const sx = F.sx, sz = -F.sy;
+      F.m.position.set(sx + (flyV.x - sx) * e, F.sz + (flyV.y - F.sz) * e + Math.sin(q * Math.PI) * (6 + F.y0 * 0.25), sz + (flyV.z - sz) * e);
+      let da = S.mesh.rotation.y + F.yaw - F.sa; da = Math.atan2(Math.sin(da), Math.cos(da));
+      F.m.rotation.set(0, F.sa + da * e, 0); F.m.scale.setScalar(1 + (F.s - 1) * e);
+      if (q >= 1 && i === 0) {
+        /* 下から順に乗せる（先に飛んだ建物が先に乗る） */
+        scene.remove(F.m); S.mesh.add(F.m); F.m.position.set(F.ox, F.y0, F.oz); F.m.rotation.set(0, F.yaw, 0); F.m.scale.setScalar(F.s);
+        S.stack = S.stack || []; S.stack.push({ b: F.b, m: F.m, top: F.y1 });
+        { const N = S.mesh.userData.night, hl = F.m.userData.hull; if (N && hl) hl.material = N.hull; }
+        AT.fly.shift(); i--;
+        /* 鳳凰は塔のいちばん上へ */
+        const ph = S.mesh.userData.phoenix; if (ph) { if (ph.parent !== S.mesh) S.mesh.add(ph); ph.position.set(0, F.y1, 0); }
+        landFx(F);
       }
     }
-    if (!SW.b && !keep && now - SW.darkT < 1000) return;
-    /* 10/30 一通り遊んだら、一度も候補が出なかった（14m以内・★1〜3・1.3倍）。20m以内・1.2倍＋2人に広げ、難しさでは絞らない（今の場所に置けるかで決まる）。確かめるのは5棟まで */
-    const list = [];
-    for (const b of blds) { if (b !== SW.b && swapOK(b, crewN, cur, 20)) list.push({ b, n: freeMode ? b.h : needOf(b) }); }
-    list.sort((p, q) => q.n - p.n);
-    /* 今の場所に置けて、そこから浅草神社まで行ける建物だけ（canReach）。行けるかの塗り広げ（reachMap）は重いので、新しく作るのは1回の見回りで1つまで */
-    let fresh = 0;
-    for (const c of list.slice(0, 5)) {
-      if (keep && c.n < keep.n * 1.3) break;
-      const rot = swapFits(c.b); if (rot === null) continue;
-      if (!reachCache.has(reachKey(c.b)) && fresh++) continue;
-      if (!canReach(c.b)) continue;
-      swapShow(c.b, rot); return;
+  }
+  /* 見回し（0.09秒ごと）：届く範囲にある、担げる建物のうち、いちばん近い1棟をくっつける（続けては ATT_GAP ミリ秒あける） */
+  function attachScan(now) {
+    if (!S.b || S.intro || S.done || mode !== 'carry' || now - AT.t < 90) return;
+    AT.t = now;
+    if (now - AT.last < ATT_GAP) return;
+    const crewN = team + JN.n, R = Math.min(ATT_RMAX, ATT_R0 + ATT_RK * crewN), ori = S.head + S.rot, c = Math.cos(ori), s = Math.sin(ori);
+    const ext = Math.max(S.dim.L, S.dim.W) / 2 + R + 1, seen = new Set();
+    let best = null;
+    for (let i = Math.floor((S.x - ext) / BG); i <= Math.floor((S.x + ext) / BG); i++) for (let j = Math.floor((S.y - ext) / BG); j <= Math.floor((S.y + ext) / BG); j++) {
+      const a = bgrid.get(i * 100003 + j); if (!a) continue;
+      for (const b of a) {
+        if (seen.has(b)) continue; seen.add(b);
+        const [x0, y0, x1, y1] = b.bb; if (S.x + ext < x0 || S.x - ext > x1 || S.y + ext < y0 || S.y - ext > y1) continue;
+        if (!attachable(b, crewN) || (raimonB && now - AT.last < NAKA_GAP && nearNaka(b))) continue;
+        let dm = Infinity;
+        for (const [u, v] of S.samples) {
+          const px = S.x + u * c - v * s, py = S.y + u * s + v * c;
+          if (px < x0 - R || px > x1 + R || py < y0 - R || py > y1 + R) continue;
+          const dd = distToPoly(px, py, b.polys[0]); if (dd < dm) { dm = dd; if (dm <= 0) break; }
+        }
+        if (dm <= R && (!best || dm < best.d)) best = { b, d: dm };
+      }
     }
-    if (!keep) swapShow(null);
+    if (best) attach(best.b);
   }
-  /* 担ぎ替える：走っている間に押しても、その場で止まって替える（S.v＝0）。置けるかはこの場所で見直す（灯ってから少し進んでいるため）。
-     置けなければボタンを横に揺らして替えない。替えたら true */
-  function swapTo() {
-    const nb = SW.b; if (!nb || !S.b || S.done || S.intro || S.swapAnim) return false;
-    const rot = swapFits(nb);
-    if (rot === null) { const el = $('swap'); el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); setTimeout(() => el.classList.remove('nope'), 420); return false; }
-    SW.lure = null; SW.swaps++; S.v = 0;
-    const oldH = stackHeight();
-    swapShow(null);
-    const old = S.b, oldMesh = S.mesh, now = performance.now();
-    /* 5つ目の直し（10/30）：替えた瞬間から約1.9秒、カメラが少し上を向いて、前の建物が新しい建物の屋根に乗る所を見せる（frame の S.swapCam） */
-    S.swapCam = { t0: now, top: nb.h + 0.4 + oldH };
-    S.stack = S.stack || []; S.stack.push({ b: old });
-    liftOut(nb, true);
-    S.b = nb; S.rot = rot; useShape(shapeOf1(nb));
-    carryBody(nb);
-    const g = carryLook(nb); scene.add(g); S.mesh = g;
-    /* 新しい建物は元の場所から浮いて、0.9秒で神輿の所へ来る。その間、前の建物（その上に積んだ建物ごと）はその場に浮いたまま待ち、
-       着いたら新しい建物の屋根の上に乗る（frame の S.swapAnim） */
-    S.site = { x: nb.d.cx, y: nb.d.cy };
-    oldMesh.userData.stackOf = old; S.swapT = now;
-    S.swapAnim = { t0: now, dur: 900, sx: nb.d.cx, sy: nb.d.cy, sori: nb.d.a, top: oldMesh, topY: nb.h + 0.4 };
-    S.infoSig = null; showInfo();
-    SND.bigTaiko(); SND.cheer(); setTimeout(() => SND.cheer(), 500);
-    praise('担ぎ替え！');
-    return true;
+  /* ---------- くっつく前の見分け（10/30 本人「担ぎ替えるのがやっぱりまだわかりづらい」） ----------
+     担げる建物だけが、近づくと人の背丈くらいの高さ（HV_UP m）までふわっと浮き上がり、ゆっくり上下に揺れる。担げない建物は動かない（光らせる演出は前に消したので、動きで見せる）。
+     町の建物はまとめて描いているので、その建物だけ平らにして（setFlat 1）、同じ形の写し（stackLook）を浮かべる。くっつくときは、この写しがそのまま神輿の上へ飛ぶ。
+     神輿から HV_R m 以内の担げる建物のうち、近い HV_MAX 棟まで（見回しは0.25秒ごと）。外れたら、ゆっくり降りてから元に戻す。
+     担ぎ手が増えると、それまで動かなかった大きな建物も浮き始める（大きいものが担げるようになったのが見える） */
+  /* HV_AHEAD：道順の点（4mおき）でいくつ先まで浮かせるか（約60m先まで。次にくっつく建物が、いつも少し先に見えているように） */
+  const HV_R = 24, HV_MAX = 10, HV_UP = 1.7, HV_AHEAD = 15;
+  const HV = new Map();
+  let hvT = 0;
+  function hoverScan(now) {
+    if (now - hvT < 250) return; hvT = now;
+    const want = new Set();
+    if (S.b && !S.intro && !S.done && mode === 'carry') {
+      const crewN = team + JN.n, cand = [], R = Math.min(ATT_RMAX, ATT_R0 + ATT_RK * crewN);
+      const RR = raimonB ? 62 : HV_R;
+      for (let i = Math.floor((S.x - RR) / BG); i <= Math.floor((S.x + RR) / BG); i++) for (let j = Math.floor((S.y - RR) / BG); j <= Math.floor((S.y + RR) / BG); j++) {
+        const a = bgrid.get(i * 100003 + j); if (!a) continue;
+        for (const b of a) {
+          if (HV.has(b) ? !attachable(b, crewN) : (flatState.get(b) || !attachable(b, crewN))) continue;
+          /* 道ばたで、これから通る（道順の今の所より先にある）建物だけ。街区の奥の建物は浮かせない */
+          if (raimonB && (!roadside(b, R) || routeNear(b).k < RT.i - 3 || routeNear(b).k > RT.i + HV_AHEAD)) continue;
+          const d = distToPoly(S.x, S.y, b.polys[0]); if (raimonB || d <= HV_R) cand.push([d, b]);
+        }
+      }
+      cand.sort((p, q) => p[0] - q[0]);
+      for (const [, b] of cand) { if (want.size >= HV_MAX) break; want.add(b); }
+    }
+    for (const b of want) if (!HV.has(b)) {
+      const L = stackLook(b, 1, true); L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); scene.add(L.g);
+      /* 目印：建物の上に金色の光の玉（手前の建物の陰に入っても見えるように、いちばん手前に重ねて描く） */
+      const halo = haloSprite(false); scene.add(halo);
+      setFlat(b, 1); HV.set(b, { m: L.g, h: L.h, k: 0, ph: hash(b.d.cx, b.d.cy) * 6.283, out: false, halo });
+    }
+    for (const [b, H] of HV) H.out = !want.has(b);
   }
-  /* 指で押した瞬間に替える（ジョイスティックを押さえたまま、別の指で押しても効くように pointerdown で）。キーボードで押したとき（detail 0）は click で */
-  $('swap').addEventListener('pointerdown', e => { e.preventDefault(); swapTo(); });
-  $('swap').addEventListener('click', e => { if (e.detail === 0) swapTo(); });
-  $('swap').addEventListener('contextmenu', e => e.preventDefault());
-  /* ひとつ降ろす：今の建物はその場で元の場所へ戻し、屋根に乗せていた建物（その上に積んだ分ごと）を担ぎ直す */
-  /* quiet：担ぎ替えた直後に動けなくなったときの取り消し（何も言わず、その建物はまた勧めてよい） */
-  function unswap(quiet) {
-    if (!S.b || S.done || S.intro || S.swapAnim || !S.stack || !S.stack.length) return;
-    const cur = S.b, curMesh = S.mesh, prev = S.stack.pop();
-    if (!quiet) SW.no.add(cur);
-    S.swapT = 0;
-    const top = curMesh.children.find(o => o.userData.stackOf === prev.b);
-    if (top) curMesh.remove(top);
-    scene.remove(curMesh); liftOut(cur, false);
-    S.b = prev.b; useShape(shapeOf1(prev.b));
-    for (const r of [S.rot, S.rot + Math.PI / 2, S.rot - Math.PI / 2, 0, Math.PI / 2]) if (!check(S.x, S.y, S.head + r)) { S.rot = r; break; }
-    carryBody(prev.b);
-    S.mesh = top || carryLook(prev.b); scene.add(S.mesh);
-    S.site = { x: prev.b.d.cx, y: prev.b.d.cy };
-    S.stuck = check(S.x, S.y, S.head + S.rot); if (!S.stuck) hideMsg();
-    S.infoSig = null; showInfo(); if (!quiet) thud();
-  }
-  $('unstack').onclick = () => unswap(false);
-  /* 案A（10/30 本人「a.bで」）：積んだ建物は、勢いよく（秒速3m以上で）ぶつかると、いちばん上の1棟が落ちる。落ちた建物は傾きながら下へ消え、元の場所に戻る。
-     はじき飛ばし（joinLose）と同じく、続けてぶつけても1.5秒の間は落ちない。高く積むほど、ゆっくり丁寧に運ぶ必要が出る */
-  const falling = [];
-  function stackDrop() {
-    if (!S.b || S.intro || S.done || mode !== 'carry' || !S.stack || !S.stack.length) return;
-    const now = performance.now(); if ((S.spd || 0) < HIT_SPD || now - (S.dropAt || 0) < 1500) return;
-    S.dropAt = now;
-    /* いちばん上＝最初に積んだ建物（S.stack[0]）。その見た目は、次に積んだ建物の見た目（なければ今の神輿）の子 */
-    const top = S.stack.shift(), parent = S.stack.length ? findStackMesh(S.stack[0].b) : S.mesh;
-    const m = parent && parent.children.find(o => o.userData.stackOf === top.b);
-    if (m) {
-      m.updateMatrixWorld(true); const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3(); m.matrixWorld.decompose(wp, wq, ws);
-      parent.remove(m); scene.add(m); m.position.copy(wp); m.quaternion.copy(wq);
-      falling.push({ m, b: top.b, t0: now, y0: wp.y, side: hash(now % 991, 1.3) < 0.5 ? 1 : -1, q0: wq.clone() });
-    } else liftOut(top.b, false);
-    S.infoSig = null; showInfo();
-    SND.boom(1); praise('落ちた…', true);
-  }
-  function findStackMesh(b) { let m = S.mesh; while (m) { const c = m.children.find(o => o.userData.stackOf); if (!c) return null; if (c.userData.stackOf === b) return c; m = c; } return null; }
-  /* 毎こま：落ちていく建物（0.9秒で傾きながら地面の下へ）。落ちきったら元の場所に戻す */
-  function fallStep(now) {
-    for (let i = falling.length - 1; i >= 0; i--) {
-      const F = falling[i], q = Math.min(1, (now - F.t0) / 900);
-      F.m.position.y = F.y0 - q * q * (F.y0 + 30);
-      F.m.quaternion.copy(F.q0); F.m.rotateZ(F.side * q * 1.2);
-      if (q >= 1) { scene.remove(F.m); liftOut(F.b, false); falling.splice(i, 1); }
+  function hoverStep(now, dt) {
+    for (const [b, H] of HV) {
+      H.k += ((H.out ? 0 : 1) - H.k) * (1 - Math.exp(-dt / (H.out ? 0.25 : 0.35)));
+      if (H.out && H.k < 0.02) { scene.remove(H.m); hvHalo(H); HV.delete(b); setFlat(b, 0); continue; }
+      const e = H.k * H.k * (3 - 2 * H.k);
+      H.m.position.y = e * (HV_UP + Math.sin(now / 1000 * 2.6 + H.ph) * 0.35);
+      const hk = 0.03 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1) * (0.75 + 0.25 * Math.sin(now / 1000 * 4 + H.ph));
+      H.halo.position.copy(V(b.d.cx, b.d.cy, H.m.position.y + H.h + 2)); H.halo.scale.set(hk, hk, 1); H.halo.material.opacity = 0.9 * e;
+      H.m.rotation.z = Math.sin(now / 1000 * 1.9 + H.ph) * 0.02 * e;
     }
   }
-  window.addEventListener('keydown', e => { if (e.key === 'Enter' && SW.b && !e.repeat) { e.preventDefault(); swapTo(); } });
+  function hvHalo(H) { if (H.halo) { scene.remove(H.halo); H.halo.material.dispose(); H.halo = null; } }
+  function hoverClear() { for (const [b, H] of HV) { scene.remove(H.m); hvHalo(H); setFlat(b, 0); } HV.clear(); }
+  /* ぶつかった所（はみ出した足元の点）に立っている、担げる建物（無ければ null）。ぶつかったら弾かれる代わりに、その建物をくっつける */
+  function touchAttachable(res) {
+    if (res.x === undefined) return null;
+    const c = Math.cos(res.ori), s = Math.sin(res.ori), crewN = team + JN.n;
+    for (const [u, v] of S.samples) {
+      const px = res.x + u * c - v * s, py = res.y + u * s + v * c;
+      if (onRoad(px, py)) continue;
+      for (const [ox, oy] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]) { const b = bldAt(px + ox, py + oy, 0.5, bb => bb === S.b); if (b && attachable(b, crewN)) return b; }
+    }
+    return null;
+  }
+  /* 積んだ塔は、上ほど大きくぐらぐら揺れる（速いほど大きく） */
+  function stackSway(now) {
+    const L = S.stack; if (!L || !L.length) return;
+    const tt = now / 1000, sp = 0.35 + Math.min(1, (S.spd || 0) / 6);
+    for (let i = 0; i < L.length; i++) { const a = 0.006 * (i + 1) * sp / Math.sqrt(1 + i * 0.15); L[i].m.rotation.x = Math.sin(tt * 2.1 + i * 0.7) * a; L[i].m.rotation.z = Math.cos(tt * 1.7 + i) * a; }
+  }
   /* ほめる（10/30 案5）：右上の担ぎ手の数の下に、大きく「＋3人」などを出して消す。10人の節目を越えたら太鼓も */
   /* bad：悪い知らせ（落ちた）は灰色で下へ沈む字にする（10/30 ほめるときと同じ赤い跳ねる字で、損をしたのに褒められたように見えた） */
   function praise(txt, bad) {
@@ -3246,10 +3276,13 @@ function start(DATA, isAsakusa) {
       }
     }
     /* 壁に沿って滑る（10/30 ゲームプログラマーの指摘・案B）：前へ進むときに、少し斜めに当たっただけで止まっていた。
-       向きを±12°まで振った進み方で抜けられるなら、そちらへ進み、速さは壁に沿う分（振った角のcos）だけ残す。真正面から当たったとき・桁下の高さでは止まる */
+       向きを振った進み方で抜けられるなら、そちらへ進み、速さは壁に沿う分（振った角のcos）だけ残す。真正面から当たったとき・桁下の高さでは止まる。
+       3分版（本人「軽くこすった程度では止まらず壁に沿って滑る」）：振る角を±12°から±24°まで広げた */
     if (res && ds > 0 && res.kind !== 'height') {
       const a = h + Math.PI / 2;
-      outer2: for (const dh of [4, -4, 8, -8, 12, -12]) for (const sh of [0, 0.25, -0.25]) {
+      /* 勢いよく（秒速 BOUNCE_SPD m 以上で）大きな角度でぶつかったときは滑らせず、弾く（滑らせるのは±8°まで） */
+      const DH = (S.spd || 0) >= BOUNCE_SPD ? [4, -4, 8, -8] : [4, -4, 8, -8, 12, -12, 18, -18, 24, -24];
+      outer2: for (const dh of DH) for (const sh of [0, 0.25, -0.25]) {
         const hh = h + dh * Math.PI / 180, hx = S.x + Math.cos(hh) * ds + Math.cos(a) * sh, hy = S.y + Math.sin(hh) * ds + Math.sin(a) * sh;
         if (!check(hx, hy, hh + S.rot)) { nx = hx; ny = hy; S.head = hh; res = null; S.v = (S.v || 0) * Math.cos(dh * Math.PI / 180); break outer2; }
       }
@@ -3263,6 +3296,11 @@ function start(DATA, isAsakusa) {
       S.stuck = res;
       /* どちら向きに進んでぶつかったか（はじき飛ばす向き。joinLose） */
       S.hitDir = ds < 0 ? -1 : 1;
+      /* 3分版：ぶつかった建物が担げるなら、弾かれずにくっつける（ドンは鳴らさない） */
+      const tb = ds > 0 && touchAttachable(res);
+      if (tb && performance.now() - AT.last > (raimonB && nearNaka(tb) ? NAKA_GAP : 100)) { attach(tb); S.v = (S.v || 0) * 0.5; return false; }
+      /* 担げない建物に勢いよく（秒速 BOUNCE_SPD m 以上で）ぶつかったら、弾かれて少し後ろへ戻る（holdStep が S.bounceV を使う） */
+      if (ds > 0 && (S.spd || 0) >= BOUNCE_SPD) S.bounceV = Math.min(6, (S.spd || 0) * 0.6);
       bump(res);
       return false;
     }
@@ -3273,7 +3311,7 @@ function start(DATA, isAsakusa) {
     return true;
   }
   function move(d) {
-    if (!S.b || S.intro || S.done || S.swapAnim) return;
+    if (!S.b || S.intro || S.done) return;
     if (Math.abs(d) > 0.2) holdHint(false);
     let left = d;
     while (Math.abs(left) > 1e-6) {
@@ -3320,8 +3358,7 @@ function start(DATA, isAsakusa) {
        10/30 本人「一番最初に浅草公会堂の説明が出るのはいらない。初めて遊ぶときに説明が最初に入ると邪魔」：1回目の運び（初めて浅草神社に着くまで。arriveN が0の間）は出さない */
     if (tourOff || arriveN === 0 || !S.b || !S.toured || S.intro || S.done || mode !== 'carry') { if (tour.L) tourReset(); return; }
     const el = $('tour');
-    /* 担ぎ替えの候補が光っている間は、説明の文を出さない（ボタンと神輿に札が重なった。10/30 ゲームプログラマーの指摘）。止まっていても動いているのと同じ扱い */
-    const pushing = hold.on || hold.back || rotHold.dir !== 0 || !!SW.b;
+    const pushing = hold.on || hold.back || rotHold.dir !== 0;
     if (pushing) tour.still = 0; else if (!tour.still) tour.still = now;
     if (tour.L) {
       const reading = el.classList.contains('read');
@@ -3752,8 +3789,12 @@ function start(DATA, isAsakusa) {
     function oops(n) { log('oops', { n }); if (!ctx) return; oopsVoice(ctx, bus.fx, ctx.currentTime + 0.04, n); }
     /* 魂振りの音は setScene('tamafuri') でまとめて予約する（tamafuriSfx）。ここは記録だけ残す（動画用の音の記録が 'taiko' を使うため） */
     function bigTaiko() { log('taiko'); }
-    /* 担ぎ替えのボタンが灯った合図（10/30）：太鼓を一つ「どん」。ぶつかったドン（boom）より高く短く、曲は下げない */
-    function don() { log('don'); if (!ctx) return; const t = ctx.currentTime + 0.01; tone(t, 168, 74, 0.42, 'sine', 0.62, bus.fx); tone(t, 336, 150, 0.12, 'triangle', 0.12, bus.fx); noiseHit(t, 0.07, 'lowpass', 900, 0.7, 0.28, bus.fx); }
+    /* 建物がくっついた（10/30 3分版）：「ポン」。短く上がる音。続けてくっつくほど半音ずつ高く（k：続けた数。1オクターブまで）。曲は下げない */
+    function pon(k) {
+      log('pon', { k }); if (!ctx) return;
+      const t = ctx.currentTime + 0.005, f = 540 * Math.pow(2, Math.min(12, k || 0) / 12);
+      tone(t, f, f * 1.9, 0.11, 'sine', 0.5, bus.fx, 0.002); tone(t + 0.008, f * 2, f * 2.9, 0.06, 'triangle', 0.1, bus.fx, 0.002); noiseHit(t, 0.03, 'bandpass', 2600, 2, 0.12, bus.fx);
+    }
     function rumble(t, dur, f, g) {
       const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f; lp.Q.value = 0.7;
@@ -4075,7 +4116,7 @@ function start(DATA, isAsakusa) {
       if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, don, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
+    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, pon, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
 
@@ -4088,8 +4129,8 @@ function start(DATA, isAsakusa) {
     if (!S.quietBump) S.shake = 1;
     if (!quiet && !S.quietBump && now - S.lastThud > 450) {
       thud(); S.lastThud = now;
-      /* 10/30 本人「乱暴に行くと減ってく」：勢いよくぶつかると、飛び入りの人がはじき飛ばされる。積んだ建物があれば、いちばん上が落ちる（案A） */
-      stackDrop();
+      /* 10/30 本人「乱暴に行くと減ってく」：勢いよくぶつかると、飛び入りの人がはじき飛ばされる（3分版：少しすると走って戻ってくる。joinStep）。
+         前の「積んだ建物のいちばん上が落ちる」（stackDrop）は、3分版では失敗で減らしたままにしないので外した */
       joinLose();
       /* 10/28 本人「ちょっと壁に当たっただけで曲が止まる」：こすっただけなら曲は止めない（ドンの間だけ曲を下げる＝boom の duck）。
          曲がつかえた場面（ずっこけ）に替わるのは、押しているのに0.6秒進めないとき（stuckWatch） */
@@ -4097,12 +4138,9 @@ function start(DATA, isAsakusa) {
     if (!quiet && mode === 'carry') rotHint(true);
     // つかえた所の数は数える（赤い印は描かない。本人「いらない」）
     if ((res.kind === 'width' || res.kind === 'height') && !pins.some(p => Math.hypot(p.position.x - S.x, -p.position.z - S.y) < 4)) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.3, 16), pinMat); p.position.copy(V(S.x, S.y, 0.2)); pins.push(p); }
-    // 半分・神輿：文字の札は出さない（本人「文章で説明しようとするな」）。止まる・鳴る・揺れるだけ。選び直す・大きさの3つは、押しても進めない時間で出す（stuckWatch）
-    // 実物大だけ、札を出す
-    if (sizeMode !== 'full') { $('msg').style.display = 'none'; return; }
-    /* 札は「つっかえた」だけ。何でつかえたか（幅・高さ・建物・道の外）と、道幅や桁下に対する神輿の大きさの数字は出さない
-       （10/29 本人「何でつっかえたのかはいらない。つっかえただけで良い。道幅に対しての神輿の大きさの情報もいらない」） */
-    const m = $('msg'); m.innerHTML = 'つっかえた'; m.style.display = 'block';
+    /* 文字の札は出さない（本人「文章で説明しようとするな」）。止まる・弾かれる・鳴る・揺れるだけ。
+       前は実物大のとき「つっかえた」を出していた。3分版は失敗で止めない形なので外した（ぶつかるたびに字が出た） */
+    $('msg').style.display = 'none';
   }
   function hideMsg() { $('msg').style.display = 'none'; $('again').classList.remove('big'); document.body.classList.remove('stuck'); for (const el of $('diffSel').children) el.classList.remove('no'); }
   // 本当につかえたときは、「建物を選び直す」を大きくし、その下に大きさの3つのボタン（実物大・半分・神輿）を出す。
@@ -4168,17 +4206,15 @@ function start(DATA, isAsakusa) {
     const gn = $('goalNav');
     /* 担ぎ手の数＝組の人数＋飛び入り（10/30 見えている人数と同じ） */
     const ppl = team + JN.n;
-    /* 次の建物まで あと○人（10/30 案3）：段の建物のうち、今の人数ではまだ担げない、いちばん近い（要る人数の少ない）もの */
-    let nx = Infinity; if (!freeMode) for (const r of reachGlow) if (r.st >= 0 && !r.done && r.need > ppl && r.need < nx) nx = r.need;
-    /* 積んだら（何でも担げるようになった後はいつも）、積んだ高さも出す（案B） */
-    const sh0 = stackHeight(), hL = freeMode || (S.stack && S.stack.length) ? `<span class="next">積んだ高さ ${fmt(sh0)}m</span>` : '';
-    /* 10/30 案A：「次の建物まで あと○人」は、担いでいる間は出さない（選ぶ画面の段の数字で、担ぎ替えとは別。「25人集めるまで何も起きない」と読まれた）。
-       担ぎ替えまでの人数は、神輿のまわりのうすい人の形で見せる（joinStep） */
-    const nextL = hL; void nx;
+    /* 3分版：右上は担ぎ手の数だけ（前の「積んだ高さ」の行は外した。積んだ塔は見れば分かる）。
+       人数が増えたら、数字を跳ねさせる（#info.pop。字は書き直すたびに作り直されるので、そのたびに跳ねる） */
+    const nextL = '';
     // たたんだとき：担ぎ手の人数だけ（進んだ道は「浅草神社まで あと○m」と重なるので出さない）。押せば開く（PCもスマホも）
-    const sig = (S.infoOpen ? 'o' : 'c') + ppl + ',' + b.id + ',' + (S.stack ? S.stack.length : 0);
+    const sig = (S.infoOpen ? 'o' : 'c') + ppl + ',' + b.id;
     if (S.infoSig === sig && $('info').innerHTML) { if (gn && !S.infoOpen) gn.style.top = ''; return; }   // 中身が変わらないときは書き直さない（毎こま呼ばれるため）
     S.infoSig = sig;
+    if (S.infoPpl !== undefined && ppl > S.infoPpl) { const inf = $('info'); inf.classList.add('pop'); clearTimeout(inf._pop); inf._pop = setTimeout(() => inf.classList.remove('pop'), 420); }
+    S.infoPpl = ppl;
     if (!S.infoOpen) { $('info').innerHTML = `担ぎ手 <b class="ppl">${fmt(ppl)}人</b> ▾${nextL}`; if (gn) gn.style.top = ''; return; }
     /* 開いたときも、建物の名前と担ぎ手（飛び入り）だけ。10/30 本人（スマホで遊んで）「一気に情報量が多い」→ 寸法・重さ・入っている店は出さない */
     $('info').innerHTML = `<b>${lmName(b)}</b><br><b class="ppl">担ぎ手 ${fmt(ppl)}人</b>${JN.n ? `（飛び入り ${fmt(JN.n)}人）` : ''} ▴${nextL}`;
@@ -4206,16 +4242,17 @@ function start(DATA, isAsakusa) {
     if (kIs(e, KEY_L) && !e.repeat) startRot(1);
     if (kIs(e, KEY_R) && !e.repeat) startRot(-1);
   });
-  // 押している間進む（秒速15m）。道は決めないので、交差点でも止まらない。止まるのはつかえたときだけ。
+  // 押している間進む（3分版：秒速は担ぎ手の数で決まる。runSpeed）。交差点でも止まらない。止まるのはつかえたときだけ。
   // つかえた後も押し続けていれば、向きを変えたり下がったりした所で、また進んでみる。
-  const HOLD_SPEED = 15, BACK_SPEED = 6;
+  /* BOUNCE_SPD：これより速くぶつかると弾かれる（step）。BOUNCE_MS：弾かれて後ろへ戻っている間（この間は、押していてもゆっくり前へ戻る） */
+  const BACK_SPEED = 6, BOUNCE_SPD = 4, BOUNCE_MS = 420;
   const hold = { on: false, locked: false, lockAt: null, back: false, k: 1 };   // k：速さの割合（ジョイスティックの倒し具合。キーは1）
   const poseNow = () => ({ x: S.x, y: S.y, h: S.head });
   // 最初に押したら、選び直す・地図も出す（運び出しの直後は「押している間 進む」だけにしている）
   const firstPush = () => { if (S.intro) return; document.body.classList.remove('calm1', 'calm2'); };
   /* お祓い（拍子木→一本締め）と魂振りは飛ばせない（10/25 本人「お祓いは飛ばすことできなくて良い」）。その間に進む（スペース・↑）を押しても何もしない。
      花火の間に押したら、花火を飛ばして帰り道へ */
-  function startHold() { holdHint(false); if (S.done && (S.done.phase === 'harai' || S.done.phase === 'tamafuri')) return; if (S.done && S.done.phase === 'hanabi') { S.done.skipF = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
+  function startHold() { holdHint(false); if (S.done && (S.done.phase === 'harai' || S.done.phase === 'tamafuri' || S.done.phase === 'result')) return; if (S.done && S.done.phase === 'hanabi') { S.done.skipF = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; $('hold').classList.add('on'); SND.unlock(); }
   function stopHold() { hold.on = false; $('hold').classList.remove('on'); }
   function startBack() { rotHint(false); if (!S.b || mode !== 'carry') return; firstPush(); hold.back = true; $('back').classList.add('on'); SND.unlock(); }
   function stopBack() { hold.back = false; $('back').classList.remove('on'); }
@@ -4224,9 +4261,10 @@ function start(DATA, isAsakusa) {
   function holdStep(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.v = 0; return; }
     const sk = S.speedK || 1;   // 重い建物ほど少しゆっくり
-    /* 担ぎ手が担ぎ替えの候補の前で足を止めている間（swapLure）は、押していても止まる。止まり方は離したときよりゆっくり（約0.3秒の下がり） */
-    const target = SW.lure ? 0 : hold.on ? HOLD_SPEED * sk * hold.k : hold.back ? -BACK_SPEED * sk * hold.k : 0;
-    const tau = SW.lure ? 0.3 : target === 0 ? 0.11 : 0.17 * (1 + 0.6 * (S.heavy || 0));
+    const target = hold.on ? runSpeed() * sk * hold.k : hold.back ? -BACK_SPEED * sk * hold.k : 0;
+    /* 弾かれた直後（S.bounceT から BOUNCE_MS の間）は、立ち上がりをゆっくりにして、後ろへ戻る動きを見せる */
+    const bouncing = performance.now() - (S.bounceT || 0) < BOUNCE_MS;
+    const tau = bouncing ? 0.32 : target === 0 ? 0.11 : 0.17 * (1 + 0.6 * (S.heavy || 0));
     S.v = (S.v || 0) + (target - (S.v || 0)) * (1 - Math.exp(-dt / tau));
     if (target === 0 && Math.abs(S.v) < 0.15) { S.v = 0; return; }
     if (S.v < 0) { move(S.v * dt); if (S.stuck) S.v = 0; return; }
@@ -4239,6 +4277,8 @@ function start(DATA, isAsakusa) {
       hold.locked = false; $('hold').classList.add('on'); return;
     }
     move(S.v * dt);
+    /* 3分版：勢いよくぶつかったら弾かれる（後ろへ戻ってから、押していればまた進む。止めたままにしない） */
+    if (S.stuck && S.bounceV) { S.v = -S.bounceV; S.bounceV = 0; S.bounceT = S.recoilT = performance.now(); return; }
     if (S.stuck) { S.v = 0; if (hold.on) { hold.locked = true; hold.lockAt = poseNow(); $('hold').classList.remove('on'); } }
   }
   const hb = $('hold');
@@ -4319,22 +4359,37 @@ function start(DATA, isAsakusa) {
   window.addEventListener('keyup', e => { if (kIs(e, KEY_L) || kIs(e, KEY_R)) stopRot(); });
   /* 押したボタンにフォーカスを残さない（あとで Enter・スペースを押すと、そのボタンがまた押されることがあった。「やり直す」は運んでいる建物ごと片付ける。10/30 ゲームプログラマーの指摘） */
   document.addEventListener('click', e => { const bt = e.target && e.target.closest && e.target.closest('button'); if (bt) setTimeout(() => bt.blur(), 0); }, true);
-  $('again').onclick = () => {
+  /* 運んでいる建物（とくっつけた建物）を、担ぎ手ごと片付けて元の場所へ戻す（「やり直す」・着いた後の「もう一回」で使う）。
+     前は次の建物を選ぶまで、道の上に担ぎ手ごと残り、元の場所は空いた跡のままだった（直す係 第2回・2-4） */
+  function clearCarry() {
+    if (!S.b) return;
+    if (S.mesh) { scene.remove(S.mesh); S.mesh = null; }
+    if (S.crew) { scene.remove(S.crew); S.crew = null; }
+    if (S.shadow) { scene.remove(S.shadow); S.shadow = null; }
+    liftOut(S.b, false); restoreStack();
+    trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
+    for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset(); jpPole.count = 0;
+    S.b = null; S.rec = null; S.stuck = null; S.slide = null; S.scaleAnim = null;
+  }
+  /* やり直す（3分版。本人「「もう一回」で即やり直し」）：片付けて、担ぎ手を10人に戻し、同じ出発からすぐ担ぎ直す（町の画面には戻らない）。
+     浅草でない町（土台が無い）は、前と同じく町の画面へ */
+  function restartRun() {
+    const base = raimonB && blds.find(isRunBase);
+    if (HB.on) hanabiStop(true);
+    /* 前の回の塔の高さを、次の高さ比べに細い線で残す */
+    if (S.done && S.done.phase === 'result' && S.towerH) prevTowerH = S.towerH;
+    hcmpHide();
+    const dn = $('done'); dn.classList.remove('on', 'result'); dn.style.display = 'none';
     $('info').innerHTML = ''; goGoalReset(); document.body.classList.remove('intro', 'calm1', 'calm2'); S.intro = null; $('skip').style.display = 'none';
-    $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none';
-    hideMsg(); enterPick(true);
-    /* 担いでいた建物は、担ぎ手ごと片付けて元の場所へ戻す（お祓いの後の finishDone と同じ片付け方）。
-       前は次の建物を選ぶまで、道の上に担ぎ手ごと残り、元の場所は空いた跡のままだった（直す係 第2回・2-4） */
-    if (S.b) {
-      if (S.mesh) { scene.remove(S.mesh); S.mesh = null; }
-      if (S.crew) { scene.remove(S.crew); S.crew = null; }
-      if (S.shadow) { scene.remove(S.shadow); S.shadow = null; }
-      liftOut(S.b, false); restoreStack(); swapShow(null); S.swapAnim = null;
-      trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
-      for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset();
-      S.b = null; S.rec = null; S.stuck = null; S.slide = null; S.scaleAnim = null;
-    }
-  };
+    hideMsg(); tourReset();
+    S.done = null; S.camOrbit = 0; S.v = 0; hold.locked = false;
+    clearCarry();
+    team = TEAM0; arriveN = 0;
+    if (!base) { $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; enterPick(true); return; }
+    choose(base, 'site');
+  }
+  $('again').onclick = () => restartRun();
+  $('doneAgain').onclick = () => restartRun();
 
   // ---------- 見物人：道の両端に並ぶ（神輿のまわり70mだけ） ----------
   const MAX_CROWD = 3000;
@@ -4376,6 +4431,7 @@ function start(DATA, isAsakusa) {
       for (const p of crowdSpots) { const k = Math.floor(p.x / JOIN_CELL) + ',' + Math.floor(p.y / JOIN_CELL), q = best.get(k); if (!q || p.jh < q.jh) best.set(k, p); }
       for (const p of best.values()) p.j = true;
       JN.wait = crowdSpots.filter(p => p.j && !JN.keys.has(spotKey(p)));
+      forceSumo();
     }
     crowdLayout();
     let near = 0; for (const q of crowdSpots) if (Math.hypot(q.x - S.x, q.y - S.y) < 40) near++;
@@ -4415,15 +4471,20 @@ function start(DATA, isAsakusa) {
      囲み方：担ぎ手の並ぶ範囲（足元の外接長方形を前後2.3m・左右1.7m広げた所。buildCrew と同じ）の外に、0.6mおきの輪を内から順に埋める。建物の中に立つ人は隠す。
      減る：壁や建物に勢いよくぶつかる（ドンが鳴る）と、速さに応じて外側の人がはじき飛ばされ、後ろの道に落ちて、提灯を掲げて待つ。一度離れてから戻れば拾い直せる（JN.drop）。
      人力車：担ぐたびに、ランダムで3割ほどの人力車のそばに、担ぎ手の一団（8〜16人）が待っている。近くを通ると一度に加わる（r.jn）。
-     増えたら：掛け声が太くなる（SND.setJoin）・曲が厚くなる（joinInten）・着いたときの点（joinScore）と花火（hanabiTier・hanabiPlan）が上がる。人数は右上の担ぎ手の数に足す */
+     増えたら：掛け声が太くなる（SND.setJoin）・曲が厚くなる（joinInten）・花火（hanabiTier・hanabiPlan）が大きくなる。人数は右上の担ぎ手の数に足す */
   /* 10/30 上手な運転で通しで遊んだら、最初の330mで82人加わり、1回目で組が179人になった（2〜4回目が余裕すぎた）。待つ人を14m四方に1人→22m四方に1人に減らした */
   /* 勢いよくぶつかった、の境目（秒速）。10/30 速さに立ち上がりを付けたので3→7に（短く押して寄せれば、ぶつけても落ちない） */
-  const HIT_SPD = 7;
+  /* 3分版：速さの上限を秒速5.5mにしたので、弾かれる速さ（BOUNCE_SPD）と同じ4mに（7のままだと、だれも飛ばなかった） */
+  const HIT_SPD = 4;
   /* はじき飛ばされた人の動き（ミリ秒）：飛ぶ時間と、落ちてから「あおむけ→起き上がる→尻もちのまま→立ち上がった」までの区切り */
   const DROP_FLY = 750, DROP_SIT = [260, 560, 1500, 1850];
+  /* 3分版：落ちてから立ち上がるまで（DROP_FLY＋DROP_SIT[3]＝2.6秒）の少し後に、走って戻り始める */
+  const DROP_BACK = DROP_FLY + DROP_SIT[3] + 250;
   /* 10/30 案E：神輿の足元から10m以内なら道を進むだけで両側の人がほぼ全員入った。4.5mにして、道の端へ寄せないと拾えないようにした（寄せるとぶつける危険＝攻めると得、ぶつけると損） */
-  const JOIN_R = 4.5, JOIN_CELL = 22, JOIN_MAX = 400, JOIN_WAIT_MAX = 300, RKJ_R = 8, RKJ_RATE = 0.3, RKJ_N = [8, 16], LAMP_MAX = 200, JOIN_SLOTS = 1200;
-  const JN = { n: 0, list: [], keys: new Set(), wait: [], drop: [], lastCue: 0, slots: [], slotKey: '', mask: [], maskKey: '' };
+  /* 3分版（本人「難しさはいらない」）：道の端まで寄せなくても、そばを通れば走って来るように JOIN_R を4.5→7.5mに。人力車の一団も8→14mから来る。
+     道順のそばの人力車（RKJ_ROUTE m 以内）には、いつも一団が待つ（人力車がまとめて連れて来るのを、毎回見られるように） */
+  const JOIN_R = 7.5, JOIN_CELL = 22, JOIN_MAX = 400, JOIN_WAIT_MAX = 300, RKJ_R = 14, RKJ_RATE = 0.3, RKJ_N = [8, 16], LAMP_MAX = 200, JOIN_SLOTS = 1200, RKJ_ROUTE = 22;
+  const JN = { n: 0, list: [], keys: new Set(), wait: [], drop: [], lastCue: 0, slots: [], slotKey: '', mask: [], maskKey: '', pmask: [], pmaskKey: '' };
   /* 待つ人の目印：頭の上に掲げた小さな提灯（赤く灯る） */
   /* 10/30 拾う距離を4.5mにしたので、遠くから見つけやすいよう提灯を大きく（半径0.22→0.36m） */
   const jlGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.68, 12); jlGeo.translate(0, 2.4, 0);
@@ -4435,6 +4496,18 @@ function start(DATA, isAsakusa) {
   const jnBody = new THREE.InstancedMesh(crewGeoR, hapMat, JB_MAX), jnLamp = new THREE.InstancedMesh(jlGeo, jlMat, LAMP_MAX);
   for (const m of [jwLamp, jnBody, jnLamp]) { m.frustumCulled = false; m.count = 0; scene.add(m); }
   const spotKey = p => p.x.toFixed(1) + ',' + p.y.toFixed(1);
+  /* 道順（ROUTE）のそばの人力車か（浅草だけ） */
+  const onRouteRk = r => !!raimonB && ROUTE.some(q => Math.hypot(q[0] - r.x0, q[1] - r.y0) < RKJ_ROUTE);
+  /* 力士は1人で5人分の、めったにいない飛び入り。3分版では毎回会えるように、道順のそばの決まった所（SUMO_AT から10m以内のいちばん近い待つ人）は力士にする */
+  const SUMO_AT = [[-30, -268], [100, -212]];
+  function forceSumo() {
+    if (!raimonB) return;
+    for (const [x, y] of SUMO_AT) {
+      let best = null, bd = 10;
+      for (const p of JN.wait) { const d = Math.hypot(p.x - x, p.y - y); if (d < bd) { bd = d; best = p; } }
+      if (best && (!best.P || best.P.t !== 'sumo')) best.P = { t: 'sumo', c2: 0x2a2a3a, v: 0.31, u: 0.95 };
+    }
+  }
   /* 曲の厚み：重さに、飛び入りの人数を足す（40人で一番厚く） */
   const joinInten = () => Math.min(1, (S.heavy || 0) + JN.n / 40);
   function joinReset() {
@@ -4445,7 +4518,7 @@ function start(DATA, isAsakusa) {
     if (PT) { for (const m of PT.list) { m.count = 0; m.visible = false; } PT.n = 0; }
     SND.setJoin(0);
     /* 人力車の一団：担ぐたびに選び直す（どの人力車にいるかはランダム） */
-    for (const r of rickshaws) r.jnHide = null, r.jn = Math.random() < RKJ_RATE ? RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)) : 0;
+    for (const r of rickshaws) r.jnHide = null, r.jn = Math.random() < RKJ_RATE || onRouteRk(r) ? RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)) : 0;
   }
   /* 加わった人の立つ所（神輿の中の座標 u：前、v：左）。輪ごとに、前の辺の真ん中から左回りに0.6mおき。
      少ないうちも偏らないよう、輪の中は黄金比でとびとびに埋める */
@@ -4472,7 +4545,7 @@ function start(DATA, isAsakusa) {
     if (!S.b || S.intro || S.done || mode !== 'carry' || !JN.list.length) return;
     const now = performance.now(), sp = S.spd || 0; if (sp < HIT_SPD || now - (JN.lostAt || 0) < 1500) return;
     JN.lostAt = now;
-    const f = 0.06 + 0.24 * Math.min(1, (sp - HIT_SPD) / 8), kWant = Math.min(JN.n, Math.max(1, Math.round(JN.n * f)));
+    const f = 0.06 + 0.24 * Math.min(1, (sp - HIT_SPD) / 3), kWant = Math.min(JN.n, Math.max(1, Math.round(JN.n * f)));
     /* ぶつかった反対側（hx, hy）：前へ進んでぶつかったら後ろ、バックでぶつかったら前（S.hitDir は step が決める） */
     const back = (S.hitDir || 1) < 0, hx = (back ? 1 : -1) * Math.cos(S.head), hy = (back ? 1 : -1) * Math.sin(S.head), rr = S.rot || 0;
     const ext = Math.abs(Math.cos(rr)) * S.dim.L / 2 + Math.abs(Math.sin(rr)) * S.dim.W / 2 + 2.3;
@@ -4499,24 +4572,29 @@ function start(DATA, isAsakusa) {
     loseShow(kN);
     /* 前に落ちた人の近く（4m以内）なら、同じ一団にまとめる（提灯が1つで済み、拾うのも一度で） */
     const D0 = JN.drop.find(D => Math.hypot(D.x - cx, D.y - cy) < 4);
-    if (D0) { for (const q of m) { q.ex += D0.x - cx; q.ey += D0.y - cy; } D0.n += kN; D0.m.push(...m); D0.t0 = now; D0.armed = false; }
-    else JN.drop.push({ x: cx, y: cy, n: kN, m, t0: now, armed: false });
+    if (D0) { for (const q of m) { q.ex += D0.x - cx; q.ey += D0.y - cy; } D0.n += kN; D0.m.push(...m); D0.t0 = now; }
+    else JN.drop.push({ x: cx, y: cy, n: kN, m, t0: now });
     SND.setJoin(JN.n); SND.setIntensity(joinInten());
     S.infoSig = null; showInfo();
   }
   /* 加わる：k 人。from(i) は走り出す所と格好（{ x, y, P }）。力士は5人分に数える */
-  function joinAdd(k, from, now, gap) {
+  /* back：はじき飛ばされた人が戻ってきた（ほめる字・太鼓・歓声は出さない。遠くからは走るぶん時間をかける） */
+  function joinAdd(k, from, now, gap, back) {
     const F = Array.from({ length: k }, (_, i) => from(i)), pow = F.reduce((a, f) => a + powOf(f.P), 0), sumo = F.some(f => f.P && f.P.t === 'sumo');
     /* ほめる（案5）：「＋○人」を跳ねさせ、10人の節目を越えたら大太鼓も。
        力士だけは「力士！＋5人力」と字で出す（10/30 本人「誰が何人はいらない」→「力士は書いてもいい。結構特別だし、それが報酬だから」） */
     const before = team + JN.n;
-    praise(sumo ? `力士！＋${fmt(pow)}人力` : `＋${fmt(pow)}人`);
-    if ((sumo || Math.floor((before + pow) / 10) > Math.floor(before / 10)) && !S.done) SND.bigTaiko();
+    /* 「力士！」は力士が1人で来たときだけ（10/31 建物から出た人の中に力士がいて「力士！＋26人力」と出て、字が二つ重なったように見えた） */
+    if (!back) praise(sumo && k === 1 ? `力士！＋${fmt(pow)}人力` : `＋${fmt(pow)}人`);
+    if (!back && (sumo || Math.floor((before + pow) / 10) > Math.floor(before / 10)) && !S.done) SND.bigTaiko();
     JN.n += pow;
-    for (let i = 0; i < k && JN.list.length < JOIN_MAX; i++) { const f = F[i]; JN.list.push({ sx: f.x, sy: f.y, t0: now + i * gap, P: f.P || personOf(hash(f.x, i), hash(i, f.y)) }); }
+    for (let i = 0; i < k && JN.list.length < JOIN_MAX; i++) {
+      const f = F[i], dur = back ? Math.max(900, Math.min(2800, Math.hypot(f.x - S.x, f.y - S.y) / 7 * 1000)) : undefined;
+      JN.list.push({ sx: f.x, sy: f.y, t0: now + i * gap, dur, P: f.P || personOf(hash(f.x, i), hash(i, f.y)) });
+    }
     JN.maskKey = '';
     SND.setJoin(JN.n); SND.setIntensity(joinInten());
-    if (now - JN.lastCue > 350) { JN.lastCue = now; SND.cheer(); }
+    if (!back && now - JN.lastCue > 350) { JN.lastCue = now; SND.cheer(); }
     S.infoSig = null; showInfo();
   }
   /* はじき飛ばされて減った（joinLose）：右上の担ぎ手の数を赤くして揺らし、神輿の所（画面の上の位置）に赤い「−3」を浮かべて消す */
@@ -4636,7 +4714,7 @@ function start(DATA, isAsakusa) {
     const c = { c1: 0x888888, c2: 0x333333, c3: 0x1a1614, c4: 0xffffff, c5: 0x333333, sk: pick(SKIN_JP, r(1)) };
     let m = 0, h = 1;
     const on = (...ks) => { for (const k of ks) m += 2 ** (AVB[k] - 1); };
-    if (P.t === 'sumo') { c.c2 = P.c2; c.c3 = 0x15120f; c.sk = 0xe2b48a; }
+    if (P.t === 'sumo') { c.c2 = P.c2; c.c3 = 0x15120f; c.sk = 0xe2b48a; on('ARML', 'ARMR'); }
     else if (P.t === 'kimono') { c.c1 = P.c; c.c2 = P.c2; c.c3 = pick(HAIR_JP, r(2)); c.c4 = pick(KANZ_C, r(3)); on('KIMONO', 'HSHORT', 'HBUN'); if (r(4) < 0.7) on('KANZASHI'); }
     else if (P.t === 'overseas') {
       c.c1 = P.c; c.c3 = P.c2; c.sk = pick(SKIN_ALL, r(5)); on('CAS', 'ARML', 'SHOEW', 'HSHORT');
@@ -4656,6 +4734,16 @@ function start(DATA, isAsakusa) {
     f[18] = m;
     return (P.A = { f, h, k: P.t === 'sumo' ? 'sumo' : P.t === 'kimono' ? 'kim' : P.t === 'overseas' ? 'ovr' : 'loc' });
   }
+  /* 担いでいる人の形：下ろした腕の代わりに、担ぎ棒の側の腕を上げる（up：1＝右の腕・棒が右、2＝左の腕）。右の腕を上げるときは、スマホで撮る手も下ろす */
+  const bitOf = k => 1 << (AVB[k] - 1);
+  function avUp(P, up) {
+    const A = avOf(P), L = P.Au || (P.Au = []);
+    if (L[up]) return L[up];
+    const f = A.f.slice(); let m = f[18] | 0;
+    if (up === 1) { m &= ~(bitOf('ARMR') | bitOf('PHONE')); m |= bitOf('UPR'); } else { m &= ~bitOf('ARML'); m |= bitOf('UPL'); }
+    f[18] = m;
+    return (L[up] = { f, h: A.h, k: A.k });
+  }
   /* 町の人を、カメラからこれより遠い（m）と簡単な形に */
   const PT_LOD = 50;
   let PT = null;
@@ -4664,10 +4752,10 @@ function start(DATA, isAsakusa) {
     const N = JB_MAX + JOIN_WAIT_MAX, mk = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, N); m.count = 0; m.frustumCulled = false; scene.add(m); return m; };
     const av = geo => { const m = avMesh(geo, N); scene.add(m); return m; };
     /* 10/30 人の形の作り直し：町の人（loc）・海外の方（ovr）・着物の人（kim）・遠くの町の人（lo）・力士（sumo）・車夫（笠 shK・鉢巻き shB）の7つ（前は部品ごとに10個） */
-    PT = { loc: av(AV_GEO.loc), ovr: av(AV_GEO.ovr), kim: av(AV_GEO.kim), lo: av(avLoGeo), sumo: av(avSumoGeo), shK: mk(shafuP('kasa', true), drvMat), shB: mk(shafuP('band', true), drvMat) };
-    /* 担ぎ替えまで、あと何人か：神輿のまわりの輪の空いた所に、うすい白い人の形（案A。字の「あと○人」の代わり）。胴と頭を一つの形に */
-    const ghostMat = new THREE.MeshBasicMaterial({ color: 0xfff4dc, transparent: true, opacity: 0.28, depthWrite: false });
-    PT.ghost = mk(personGeo([{ geo: cylG(0.2, 0.24, 1.3, 0.65, 8) }, { geo: new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.5, 0) }]), ghostMat);
+    PT = { loc: av(AV_GEO.loc), ovr: av(AV_GEO.ovr), kim: av(AV_GEO.kim), lo: av(avLoGeo), sumo: av(avSumoGeo), shK: mk(shafuP('kasa', true), drvMat), shB: mk(shafuP('band', true), drvMat),
+      /* 担いでいる車夫（担ぎ棒の側の腕を上げる。1＝右・2＝左） */
+      shK1: mk(shafuP('kasa', 1), drvMat), shK2: mk(shafuP('kasa', -1), drvMat), shB1: mk(shafuP('band', 1), drvMat), shB2: mk(shafuP('band', -1), drvMat) };
+    /* 3分版：担ぎ替えまでの人数を見せていた、うすい白い人の形（PT.ghost）は、担ぎ替えをやめたので外した */
     PT.list = Object.values(PT); PT.n = 0; PT.N = N;
     return PT;
   }
@@ -4675,7 +4763,8 @@ function start(DATA, isAsakusa) {
   function ptAdd(m) { if (m.count >= m.instanceMatrix.count) return; const i = m.count++; m.setMatrixAt(i, tmpM); }
   /* tilt：足もとを軸に、後ろへ倒す角度（rad。はじき飛ばされて転ぶ・尻もちをつく人） */
   const ptE = new THREE.Euler(0, 0, 0, 'YXZ');
-  function ptPut(P, x, y, z, face, s, tilt) {
+  /* up：担いでいる人（1＝右の腕・2＝左の腕を上げる。avUp）。0 なら腕を下ろした形 */
+  function ptPut(P, x, y, z, face, s, tilt, up) {
     tmpP.copy(V(x, y, z));
     /* 力士は体を左右に揺らす（歩く・走るときは大きく） */
     let roll = 0;
@@ -4685,10 +4774,10 @@ function start(DATA, isAsakusa) {
       roll = Math.sin(performance.now() * 0.009 + (P.v || 0) * 6.283) * 0.12 * P.sw;
     }
     if (tilt || roll) tmpQ.setFromEuler(ptE.set(roll, face, tilt || 0, 'YXZ')); else tmpQ.setFromAxisAngle(upY, face);
-    const T = PT, k = (s || 1) * (P.t === 'sumo' ? 1.12 : 1), A = P.t === 'shafu' ? null : avOf(P);
+    const T = PT, k = (s || 1) * (P.t === 'sumo' ? 1.12 : 1), A = P.t === 'shafu' ? null : up ? avUp(P, up) : avOf(P);
     tmpS.set(k, k * (A ? A.h : 1), k); tmpM.compose(tmpP, tmpQ, tmpS);
     T.n++;
-    if (P.t === 'shafu') { ptAdd(P.k ? T.shK : T.shB); return; }
+    if (P.t === 'shafu') { ptAdd(up ? T[(P.k ? 'shK' : 'shB') + up] : P.k ? T.shK : T.shB); return; }
     if (P.t === 'sumo') { avAdd(T.sumo, A); return; }
     const cp = camera.position, dx = x - cp.x, dy = y + cp.z, dz = cp.y - z;
     avAdd(dx * dx + dy * dy + dz * dz > PT_LOD * PT_LOD ? T.lo : T[A.k], A);
@@ -4712,13 +4801,13 @@ function start(DATA, isAsakusa) {
         JN.wait.splice(i, 1); JN.keys.add(spotKey(p));
         joinAdd(grp, k => ({ x: p.x + (k ? (hash(p.x, k) - 0.5) * 1.6 : 0), y: p.y + (k ? (hash(k, p.y) - 0.5) * 1.6 : 0), P: k ? personOf(P0.u, hash(p.x + k, p.y - k)) : P0 }), now, 140);
       }
-      /* はじき飛ばされた人：一度 JOIN_R＋4m より離れてから、また近づいたら戻る。そばにいたままでも、5秒たてば戻る（ぶつけてすぐバックしただけでは戻らない） */
+      /* はじき飛ばされた人：3分版（本人「人が何人か飛ぶが、少しすると走って戻ってくる（減ったままにしない）」）。
+         飛んで落ちて、起き上がって立ち上がったら（DROP_BACK）、どこにいても神輿へ走って戻る。前は一度離れてから近づき直さないと戻らなかった */
       for (let i = JN.drop.length - 1; i >= 0; i--) {
         const D = JN.drop[i];
-        if (!D.armed) { if ((now - D.t0 > 900 && !within(D.x, D.y, JOIN_R + 4)) || now - D.t0 > 5000) D.armed = true; continue; }
-        if (!within(D.x, D.y, JOIN_R)) continue;
+        if (now - D.t0 < DROP_BACK) continue;
         JN.drop.splice(i, 1);
-        joinAdd(D.m.length, k => { const q = D.m[k]; return { x: q.ex, y: q.ey, P: q.P }; }, now, 60);
+        joinAdd(D.m.length, k => { const q = D.m[k]; return { x: q.ex, y: q.ey, P: q.P }; }, now, 60, true);
       }
       /* 人力車の一団：一度に加わる */
       for (const r of rickshaws) {
@@ -4744,7 +4833,7 @@ function start(DATA, isAsakusa) {
     updN(jwLamp.instanceMatrix, w);
     /* 半纏の人：帰り道からは出さない（担ぎ手と一緒に散ったことにする）。選ぶ画面でも出さない */
     const L = JN.list, ph = S.done && S.done.phase;
-    if (ph === 'back' || ph === 'home') { jnBody.count = jnLamp.count = 0; ptDone(); return; }
+    if (ph === 'back' || ph === 'home') { jnBody.count = jnLamp.count = 0; jpPole.count = 0; ptDone(); return; }
     let n = 0, nl = 0;
     /* put：組の担ぎ手（半纏）。putP：町の人（その人の格好） */
     const put = (x, y, z, face) => {
@@ -4752,9 +4841,9 @@ function start(DATA, isAsakusa) {
       tmpP.copy(V(x, y, z)); tmpQ.setFromAxisAngle(upY, face); tmpS.set(1, 1, 1);
       tmpM.compose(tmpP, tmpQ, tmpS); jnBody.setMatrixAt(n, tmpM); n++;
     };
-    const putP = (P, x, y, z, face, lamp, tilt) => {
+    const putP = (P, x, y, z, face, lamp, tilt, up) => {
       if (PT.n >= PT.N - 2) return;
-      ptPut(P, x, y, z, face, 1, tilt);
+      ptPut(P, x, y, z, face, 1, tilt, up);
       if (lamp && nl < LAMP_MAX) jnLamp.setMatrixAt(nl++, tmpM);
     };
     const hopAt = (x, y) => Math.max(0, Math.sin(now * 0.011 + hash(y, x) * 6.283)) * 0.6;
@@ -4772,28 +4861,25 @@ function start(DATA, isAsakusa) {
         if (JN.mask[i]) continue;
         const p = sl[i]; put(px + p.u * c - p.v * sn, py + p.u * sn + p.v * c, bob * 0.6, ori);
       }
+      /* 10/30 本人「いろんな人たちが来てくれるのはうれしいんだけど、みんな神輿を担いでほしいな」：加わった人は、飛び入りの担ぎ棒（poleSlots）の所へ走って行き、
+         担ぎ手と同じく棒の側の腕を上げて、神輿と一緒に上下に弾んで担ぐ。前は神輿のまわりの輪に立っているだけだった */
+      const PS = poleSlots(), pk = key + ',' + PS.key;
+      if (JN.pmaskKey !== pk) { JN.pmaskKey = pk; for (let i = 0; i < L.length; i++) { const p = PS.slots[i]; JN.pmask[i] = !p || crewBlocked(px + p.u * c - p.v * sn, py + p.u * sn + p.v * c); } }
+      const ext = PS.ext; for (let r = 0; r < ext.length; r++) { ext[r][0] = Infinity; ext[r][1] = -Infinity; }
       for (let i = 0; i < L.length; i++) {
-        const p = sl[i + over], tx = px + p.u * c - p.v * sn, ty = py + p.u * sn + p.v * c;
+        const p = PS.slots[i]; if (!p) break;
+        const tx = px + p.u * c - p.v * sn, ty = py + p.u * sn + p.v * c;
         const J = L[i], q = Math.max(0, Math.min(1, (now - J.t0) / (J.dur || 1100))), e = q * q * (3 - 2 * q);
         const x = J.sx + (tx - J.sx) * e, y = J.sy + (ty - J.sy) * e;
         J.x = x; J.y = y;
-        if (q >= 1 && JN.mask[i + over]) continue;
-        const hop = q < 1 ? Math.abs(Math.sin(q * Math.PI * 4)) * 0.35 : bob * 0.6;
-        putP(J.P, x, y, hop, q < 1 ? Math.atan2(ty - J.sy, tx - J.sx) : ori);
+        if (q >= 1 && JN.pmask[i]) continue;
+        if (q >= 1 && p.row >= 0) { const E = ext[p.row]; if (p.u < E[0]) E[0] = p.u; if (p.u > E[1]) E[1] = p.u; }
+        /* 外を囲む人（row −2）は、神輿のほうを向いて、自分の拍子で少し跳ねる */
+        const hop = q < 1 ? Math.abs(Math.sin(q * Math.PI * 4)) * 0.35 : p.row === -2 ? bob * 0.4 + Math.max(0, Math.sin(now * 0.009 + i * 1.7)) * 0.18 : bob * 0.6;
+        putP(J.P, x, y, hop, q < 1 ? Math.atan2(ty - J.sy, tx - J.sx) : p.face !== undefined ? ori + p.face : ori, false, 0, q >= 1 ? p.up : 0);
       }
-    }
-    /* 担ぎ替えまで、あと何人か（担いでいる間だけ。何でも担げるようになった後は出さない）：輪の続きにうすい人の形を置く。人が加わると埋まっていく。24人分まで */
-    if (carrying && !freeMode) {
-      const gn = Math.min(24, Math.max(0, Math.ceil(needOf(S.b) * 1.2 + 2) - (team + JN.n)));
-      if (gn) {
-        const sl = joinSlots();
-        for (let i = 0; i < gn; i++) {
-          const p = sl[over + L.length + i]; if (!p) break;
-          tmpP.copy(V(px + p.u * c - p.v * sn, py + p.u * sn + p.v * c, 0)); tmpQ.setFromAxisAngle(upY, ori); tmpS.setScalar(1); tmpM.compose(tmpP, tmpQ, tmpS);
-          ptAdd(PT.ghost);
-        }
-      }
-    }
+      polesDraw(PS, px, py, ori, bob);
+    } else jpPole.count = 0;
     /* はじき飛ばされた人（10/30 本人「減るのがよく見ないと分からない」）：神輿の方を向いたまま、ぶつかった反対側へ放物線で飛ぶ（DROP_FLY。後ろへ一回転）。
        落ちたらあおむけに転がり、起き上がって尻もちをついたまま少し座り込み、立ち上がってから、神輿のほうを向いて跳ねて待つ。1人目が提灯を掲げる（立ってから） */
     for (const D of JN.drop) for (let i = 0; i < D.m.length; i++) {
@@ -4827,6 +4913,66 @@ function start(DATA, isAsakusa) {
     jnBody.count = n; jnLamp.count = nl;
     updN(jnBody.instanceMatrix, n); updN(jnLamp.instanceMatrix, nl);
     ptDone();
+  }
+  /* ---------- 飛び入りの担ぎ棒（10/30 本人「みんな神輿を担いでほしい」。10/31 本人「周りに集まるけど担いでる感じがない。もうちょい中心に寄っていって欲しい」） ----------
+     加わった人は、神輿の近くから詰めて入る。棒を前後に長く伸ばすのはやめ、棒の本数を増やす：
+       1. 神輿の真下の元の担ぎ棒の、組の担ぎ手が立っていない所（神輿の下）
+       2. 台座の左右に平行に並べた担ぎ棒（片側 JP_ROWS 本まで、1.1mおき）。長さは元の担ぎ棒と同じ。前後の端を短い横棒でつなぐ
+       並ぶ間は0.5m（肩が触れるくらい）。近い所（棒の列が内側・前後のまん中）から順に埋めるので、人が多いほど神輿の下に人の塊ができる。
+       3. それでも入りきらない人は、棒の外を囲んで神輿のほうを向き、手を上に伸ばして一緒に揺れる（担ごうとしている人）。
+     立つ所の順番は人数で変わらない（後から加わった人ほど外側）ので、人が増えても前の人は動かない。
+     棒の絵は、立っている人（建物の中で隠れた人は除く）の前後の端まで */
+  const JP_ROWS = 5, JP_DV = 1.1, JP_DU = 0.5;
+  const JP = { key: '', slots: [], rows: [], ext: [] };
+  function poleSlots() {
+    const L2 = S.dim.L / 2, W2 = S.dim.W / 2, uv = S.crewUV || [], key = L2.toFixed(2) + ',' + W2.toFixed(2) + ',' + uv.length;
+    if (JP.key === key) return JP;
+    JP.key = key; JP.rows = []; JP.slots = []; JP.uu = L2 + 0.9;
+    const U = L2 + 2, vv = Math.max(0.5, W2 * 0.6), cand = [];
+    /* 1. 元の担ぎ棒（神輿の下）の空いている所。棒の左（+v）は右の腕（up 1） */
+    for (const pv of [vv, -vv]) for (const dv of [0.35, -0.35]) for (let u = -U + 0.3; u <= U - 0.3 + 1e-6; u += JP_DU) {
+      const v = pv + dv; let used = false;
+      for (let i = 0; i < uv.length; i += 2) if (Math.abs(uv[i] - u) < 0.32 && Math.abs(uv[i + 1] - v) < 0.3) { used = true; break; }
+      if (!used) cand.push({ u, v, row: -1, up: dv > 0 ? 1 : 2, sc: Math.abs(u) * 0.7 });
+    }
+    /* 2. 台座の左右の担ぎ棒 */
+    for (let k = 0; k < JP_ROWS; k++) for (const sg of [1, -1]) {
+      const pv = sg * (W2 + 0.6 + JP_DV * k), r = JP.rows.length; JP.rows.push(pv);
+      for (const dv of [0.28, -0.28]) for (let u = -U + 0.3; u <= U - 0.3 + 1e-6; u += JP_DU) cand.push({ u, v: pv + dv, row: r, up: dv > 0 ? 1 : 2, sc: 3 + Math.abs(pv) * 1.0 + Math.abs(u) * 0.7 });
+    }
+    cand.sort((p, q) => p.sc - q.sc);
+    JP.slots = cand;
+    /* 3. 外を囲む人：棒の列の外側の長方形の輪（0.55mおき）。神輿のほうを向き、腕を上げる */
+    const A0 = U + 0.5, B0 = W2 + 0.6 + JP_DV * (JP_ROWS - 1) + 0.8;
+    for (let k = 0; JP.slots.length < JOIN_MAX; k++) {
+      const a = A0 + k * 0.55, b = B0 + k * 0.55, per = 4 * (a + b), m = Math.floor(per / 0.55), ring = [];
+      for (let i = 0; i < m; i++) {
+        let t = i / m * per, u, v;
+        if (t < b) { u = a; v = t; } else if ((t -= b) < 2 * a) { u = a - t; v = b; } else if ((t -= 2 * a) < 2 * b) { u = -a; v = b - t; } else if ((t -= 2 * b) < 2 * a) { u = -a + t; v = -b; } else { t -= 2 * a; u = a; v = -b + t; }
+        ring.push({ u, v, row: -2, up: i % 2 ? 1 : 2, face: Math.atan2(-v, -u), o: (i * 0.6180339887) % 1 });
+      }
+      ring.sort((p, q) => p.o - q.o);
+      for (const p of ring) JP.slots.push(p);
+    }
+    JP.ext = JP.rows.map(() => [0, 0]);
+    return JP;
+  }
+  const jpPole = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), woodMat, 2 * JP_ROWS + 2);
+  jpPole.count = 0; jpPole.frustumCulled = false; scene.add(jpPole);
+  const jpQ = new THREE.Quaternion();
+  function polesDraw(PS, px, py, ori, bob) {
+    const c = Math.cos(ori), sn = Math.sin(ori), y = LIFT + bob - 0.2, pr = 0.18;
+    jpQ.setFromAxisAngle(upY, ori);
+    let n = 0, vmin = Infinity, vmax = -Infinity;
+    const put = (u, v, lu, lv) => { tmpP.copy(V(px + u * c - v * sn, py + u * sn + v * c, y)); tmpS.set(lu, pr * 2, lv); tmpM.compose(tmpP, jpQ, tmpS); jpPole.setMatrixAt(n++, tmpM); };
+    PS.rows.forEach((v, r) => {
+      const E = PS.ext[r]; if (!(E[1] >= E[0])) return;
+      const u0 = E[0] - 0.45, u1 = E[1] + 0.45; put((u0 + u1) / 2, v, u1 - u0, pr * 2);
+      if (v < 0) vmin = Math.min(isFinite(vmin) ? vmin : 0, v); else vmax = Math.max(isFinite(vmax) ? vmax : 0, v);
+    });
+    /* 横棒：外側の棒どうしを、元の横棒の位置でつなぐ（立っている棒が片側だけなら、元の担ぎ棒の所まで） */
+    if (n) { const a = isFinite(vmin) ? vmin : -0.5, b = isFinite(vmax) ? vmax : 0.5; for (const u of [-PS.uu, PS.uu]) put(u, (a + b) / 2, pr * 2, b - a); }
+    jpPole.count = n; if (n) jpPole.instanceMatrix.needsUpdate = true;
   }
   /* 描き終わったこま：送り直しの印。0人の形は描かない（描く回数を減らす） */
   function ptDone() { for (const m of PT.list) avDone(m); }
@@ -5333,6 +5479,8 @@ function start(DATA, isAsakusa) {
       { name: '浅草神社の東', x: 300, y: 238, R: 20, n: 2 },
       { name: '浅草寺の西（西参道の外の道）', x: 55, y: 170, R: 25, n: 2 },
       { name: '浅草公会堂の近く', x: 95, y: -62, R: 16, n: 1 },
+      /* 3分版の道順（雷門通りを東へ）のそば。雷門通りは人力車がよく客待ちをしている通り */
+      { name: '雷門通り（浅草公会堂の南）', x: 70, y: -220, R: 14, n: 2 },
     ];
     if (anchor) T.push({ name: '出発点の近く（隅田川寄りの通り）', x: anchor.x, y: anchor.y, R: 80, n: 2 });
     const dSeg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)); return Math.hypot(px - ax - dx * t, py - ay - dy * t); };
@@ -5680,7 +5828,8 @@ function start(DATA, isAsakusa) {
   const STAGE_IDS = [
     /* 最初の一棟：浅草公会堂の西の小さな建物（8トン・9人、浅草神社まで約290m）。10/30 一通り遊んだら、浅草寺の西のお堂（約130m）では
        境内を運ぶだけで担ぎ替えに出会わなかった。町なかの通りを通るここからなら、1回目で3回担ぎ替えた */
-    ['cec7bda9'],
+    /* 10/30 3分版：最初の一棟は、3分版の土台（RUN_BASE。浅草公会堂の南西の通りの角の小さな建物）。開いて空から降りたら、この棟を10人で担ぎ始める（firstCarry） */
+    ['8ba19f11'],
     /* 10/30 通しで遊んだら、2〜4回目が浅草寺の境内の短い道ばかりで、担ぎ替えにも出会わず似た回が続いた（本人「2は直そう」）。
        2段目〜4段目を、浅草神社から200〜420mの町なかの建物に替えた。境内の二天門・お堂・宝蔵門の南の店などは外した。宝蔵門・五重塔は名所なので残す。
        どれも、担いで（位置×向き）道すじを探し、浅草神社まで行けると確かめた建物（fix3/t_reach.py。浅草寺の西側の3階建てなど、出られない建物は外した）。
@@ -5735,11 +5884,12 @@ function start(DATA, isAsakusa) {
     for (const id8 of ids) { const b = blds.find(q => q.id.startsWith('bldg_' + id8)); if (b) makeGlow(b, st); }
   });
   /* 光るか：組で担げて（要る人数 ≤ 組の人数）、この開いている間にまだお祓いを済ませていない */
-  const glowOn = r => !freeMode && r.need <= team && !r.done;
+  /* 3分版の土台（1段目）は要る人数が11人だが、最初の10人で担ぎ始めるので、いつも光らせる */
+  const glowOn = r => (r.need <= team || r.st === 0) && !r.done;
   /* 段の建物で光るものが一つも無いとき（組が段の境目に届かなかったとき）の代わり：難しさ★1で、組で担げるいちばん大きな建物を3棟まで光らせる（st＝−1） */
   const autoGlowDone = new Set();
   function ensureAutoGlow() {
-    if (freeMode || reachGlow.some(r => r.st >= 0 && glowOn(r))) return;
+    if (reachGlow.some(r => r.st >= 0 && glowOn(r))) return;
     if (reachGlow.some(r => r.st < 0 && glowOn(r))) return;
     const D = window.MIKOSHI_DIFF || {};
     const cand = blds.filter(b => !b.isLandmark && selectable(b) && D[b.id.slice(5, 13)] === 1 && !stageOf.has(b) && !autoGlowDone.has(b) && !reachGlow.some(r => r.b === b) && needOf(b) <= team)
@@ -6055,8 +6205,7 @@ function start(DATA, isAsakusa) {
   /* 着いたときの点（10/30 本人「人がいっぱいいればいるほど点数が上がる。1番この点数を影響した方がおもろい」）：花火の段（hanabiTier）に使う。
      着いたときの飛び入りの人数がほぼ全部。実物大で運んだら5人分、300トン以上は3人分・1,000トン以上は6人分を足すだけ。ぶつかった罰は、はじき飛ばされて人が減ることで済ませる。
      前はこの点で番付（横綱〜十両）を札に出していたが、10/30 本人「何が元になっている値なのか分かりづらい。点数に関係しているのが人数なら、出すのは人数だけでよい」で外した */
-  /* 着いた後は、着いた時点の飛び入りの人数（S.arrJ）で数える（神社の人が加わって JN.n が増えても、花火は変えない） */
-  const joinScore = () => { const ton = S.weight ? S.weight.ton : 0, j = S.done && S.arrJ != null ? S.arrJ : JN.n; return j + (S.k >= 0.999 ? 5 : 0) + (ton >= 1000 ? 6 : ton >= 300 ? 3 : 0); };
+  /* 3分版：点（joinScore）は外し、着いたときの担ぎ手の数（S.arrCrew）で花火を決める（hanabiTier） */
   let arriveN = 0;
   function arrive(gl) {
     record();
@@ -6082,12 +6231,9 @@ function start(DATA, isAsakusa) {
        前は「〇〇が浅草神社でお祓いを受けました／担ぎ手／道のり／積んだ高さ（スカイツリーの比べ）」と番付の判、題（お祓い・魂振り・元の場所へ）を出していた。
        数字は、境内の人が輪に着くたびに増える（shrineCount） */
     $('doneInfo').innerHTML = `<b class="doneN" id="teamCnt">${fmt(team)}人</b>`;
-    /* 最後の段（朱色）の建物でお祓いを済ませたら、町じゅうの建物が担げるようになる。これは遊び方が変わる知らせなので、札に残す */
-    /* 10/30 案C：3回着いたら何でも担げる（最後の段まで5回かかり、審査員が数分で積み上げに届かなかった）。最後の段の建物で着いたときも */
-    if (!freeMode && (arriveN >= 3 || [b, ...(S.stack || []).map(s => s.b)].some(x => stageOf.get(x) === STAGE_LAST))) {
-      freeMode = true; $('doneInfo').innerHTML += '<div class="doneFree">町じゅうの建物が担げる！</div>';
-    }
-    const el = $('done'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
+    /* 3分版：花火の大きさは、着いたときの担ぎ手の数で決める（hanabiTier。境内の人が加わる前の数） */
+    S.arrCrew = team;
+    const el = $('done'); el.classList.remove('result'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; hideMsg();
     /* 右上の情報は着いたら消す（同じ数字を金の札で見せている） */
     $('info').style.display = 'none'; goGoalReset();
@@ -6119,7 +6265,7 @@ function start(DATA, isAsakusa) {
         const tier = hanabiTier(b);
         /* 曲は先に帰り道の場面にしてから、その拍を拾って打ち上げの時刻を決める */
         if (tier) SND.setScene('back');
-        if (tier && hanabiStart(tier, S.weight.ton)) {
+        if (tier && hanabiStart(tier, hbTon())) {
           D.phase = 'hanabi'; D.t0 = now; D.tier = tier;
           /* 花火の間は、上の札（担ぎ手の人数）を消して空をあける。花火のあと、元の場所へ収まるまで、また出す */
           $('done').classList.remove('on');
@@ -6135,6 +6281,7 @@ function start(DATA, isAsakusa) {
       if (D.skipF || cut || hanabiOver()) { hanabiStop(!!D.skipF || cut); toBack(now); $('done').classList.add('on'); }
       return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
+    if (D.phase === 'result') return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     if (D.phase === 'back') {                        // 来た道を、記録の逆再生で1.5倍速
       const tt = D.T - (el * 1.5);
       let i = 0; while (i < D.rec.length - 1 && D.rec[i + 1].t >= tt) i++;
@@ -6184,6 +6331,8 @@ function start(DATA, isAsakusa) {
   let backSeen = 0;
   function toBack(now) {
     const D = S.done;
+    /* 3分版（浅草）：帰り道・元の場所へ収まる・町の画面へ、は通らずに、結果（toResult）へ。ほかの町は前のまま */
+    if (raimonB) { toResult(now); return; }
     /* 担ぎ替えたとき・2回目からの運び：来た道は戻らず、すぐ収まりに（来た道の途中で建物が替わっているため。桜井さん「帰り道は行きより面白くない」。
        10/30 5回運ぶと毎回同じ帰り道（400mの道で10秒以上）を見ることになった。来た道を戻るのは、開いて最初の1回だけ） */
     /* 10/30 案D：1回目も戻らない（着いてから次に動けるまでを短く） */
@@ -6197,6 +6346,45 @@ function start(DATA, isAsakusa) {
     D.rec = S.rec.slice().reverse(); D.T = D.rec.length ? D.rec[0].t : 0;
     $('skip').style.display = 'block';
   }
+  /* 3分版：花火（上がらなければ魂振り）のあと、積んだ塔と担ぎ手の数を見せる（phase 'result'）。カメラは塔の上まで入るように引いて、
+     まわりをゆっくり回る（frame）。札（#done.result）に「もう一回」が出て、押すとすぐ同じ出発からやり直す（restartRun） */
+  function toResult(now) {
+    const D = S.done; D.phase = 'result'; D.t0 = now;
+    $('skip').style.display = 'none';
+    const el = $('done'); el.style.display = 'block'; el.classList.add('result'); requestAnimationFrame(() => el.classList.add('on'));
+    SND.setScene('back');
+    /* 高さ比べ：カメラが引いてスカイツリーが入ってから（1.6秒後）出す */
+    const H = stackHeight() + LIFT; S.towerH = H;
+    clearTimeout(hcmpT); hcmpT = setTimeout(() => { if (S.done && S.done.phase === 'result') hcmpShow(H); }, 1600);
+  }
+  /* ---------- スカイツリーと高さ比べ（10/30 本人「ばかばかしくて。高さをスカイツリーと比較するのは楽しいかも」） ----------
+     前は着いたときの札に「スカイツリーの何分の1」を数字と一緒に出していて、情報が多すぎた。今回は札は人数だけのまま、
+     花火のあとにカメラを引いて、積んだ塔と遠くのスカイツリーを同じ画面に入れ（frame の resCam）、右下に細い縦の2本で高さを比べる。字は一言だけ。
+     スカイツリーは PLATEAU の町の範囲（東は x=620 まで）の外なので、634m の簡単な形を置く。位置は押上（北緯35.7101・東経139.8107）を
+     ゲームの座標に直した所（x=(139.8107−139.7945)×90,489.332≈1,466、y=(35.7101−35.713)×110,953.698≈−322）。霧はかけない（担いでいる間も遠くに見える）。
+     夜は「粋」の水色の明かりのように薄く光らせる */
+  const SKY = { x: 1466, y: -322, h: 634 };
+  if (isAsakusa) {
+    const prof = [[34, 0], [30, 60], [24, 200], [19, 330], [25, 335], [25, 352], [17, 358], [15, 440], [19, 444], [19, 452], [11, 456], [9, 495], [4, 500], [1.4, 634], [0.01, 634]];
+    const mat = new THREE.MeshLambertMaterial({ color: 0xdfe7ef, fog: false });
+    if (NIGHT) mat.emissive.setHex(0x5f86b8);
+    const sky = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 12), mat);
+    sky.position.copy(V(SKY.x, SKY.y, 0)); scene.add(sky);
+  }
+  let hcmpT = 0, prevTowerH = 0;
+  function hcmpShow(H) {
+    const el = $('hcmp'), top = Math.max(SKY.h, H, prevTowerH);
+    el.querySelector('.sky').style.height = (SKY.h / top * 100).toFixed(1) + '%';
+    el.querySelector('.me').style.height = Math.max(1.5, H / top * 100).toFixed(1) + '%';
+    const pv = el.querySelector('.prev'); pv.style.display = prevTowerH ? 'block' : 'none';
+    /* 前の回の高さ：塔の棒の下から測った位置（棒の高さに対する割合） */
+    if (prevTowerH) pv.style.bottom = (prevTowerH / H * 100).toFixed(1) + '%';
+    const over = H >= SKY.h, n = Math.round(SKY.h / H);
+    $('hcmpTxt').textContent = over ? 'スカイツリー超え！' : n <= 1 ? 'スカイツリーとほぼ同じ' : `スカイツリーの1/${n}`;
+    el.classList.toggle('over', over);
+    el.style.display = 'flex'; requestAnimationFrame(() => el.classList.add('on'));
+  }
+  function hcmpHide() { clearTimeout(hcmpT); const el = $('hcmp'); el.classList.remove('on', 'over'); el.style.display = 'none'; }
   // 縮めて担いだ建物を下ろしてから、元の大きさの建物に替えるまでの待ち（担ぎ手が散る0.5秒の後）
   const GROW_WAIT = 550;
   function finishDone() {
@@ -6210,7 +6398,7 @@ function start(DATA, isAsakusa) {
     const el = $('done'); el.classList.remove('on'); setTimeout(() => { el.style.display = 'none'; }, 500);
     trailPts.length = 0; trailGeo.setFromPoints([]); pins.forEach(pn => scene.remove(pn)); pins.length = 0;
     S.b = null; $('info').innerHTML = '';
-    for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset(); swapShow(null); S.swapAnim = null; restoreStack();
+    for (const m of crowdAll) { m.count = 0; avDone(m); } joinReset(); restoreStack(); jpPole.count = 0;
     enterPick(true); Object.assign(mapCam, homeView());
     opening = { t0: null, dur: 2400, fromPos: from.pos, fromLook: from.look };
     refreshDoneMarks();
@@ -6251,10 +6439,14 @@ function start(DATA, isAsakusa) {
        前は難しい重い建物を実物大で運んだときだけで、実物大で着ける1,035棟のうち33棟しか上がらなかった */
   /* 10/30 本人「最後に浅草神社にいっぱいいた方が点数が高くて、花火も上がる」：段は重さでなく、着いたときの飛び入りの人数による点（joinScore）で決める。
      6未満 2発（'s2'）、16未満 3発（'s3'）、30未満 小、50未満 中、50以上 大。4段目の光る建物は20点足す */
+  /* 10/30 3分版（本人「担ぎ手の数に応じた花火」）：着いたときの担ぎ手の数（S.arrCrew）で決める。HB_TIERS 人以上で 3発・小・中・大（それ未満は2発）。
+     打ち上げる数を決める重さ（hanabiStart の ton）も、担ぎ手1人を HB_TON トンとして数える（土台の小さな建物の重さでは発数が増えないので） */
+  const HB_TIERS = [45, 80, 125, 180], HB_TON = 14;
+  const hbTon = () => Math.max(S.weight ? S.weight.ton : 0, (S.arrCrew || 0) * HB_TON);
   function hanabiTier(b) {
     if (!NIGHT || !b) return 0;
-    const p = joinScore() + (stageOf.get(b) === STAGE_LAST ? 20 : 0);
-    return p >= 50 ? 3 : p >= 30 ? 2 : p >= 16 ? 1 : p >= 6 ? 's3' : 's2';
+    const p = S.arrCrew || 0;
+    return p >= HB_TIERS[3] ? 3 : p >= HB_TIERS[2] ? 2 : p >= HB_TIERS[1] ? 1 : p >= HB_TIERS[0] ? 's3' : 's2';
   }
   /* 色（和火の金・赤・緑・青・紫・銀・桃・橙）。[割れた時の色, 消える前の色] */
   const FWC = {
@@ -7135,7 +7327,9 @@ function start(DATA, isAsakusa) {
   function homeView() {
     const b = waitFocus, g = goals[0]; if (!b || !g) return Object.assign({}, HOME);
     const span = Math.hypot(b.d.cx - g.x, b.d.cy - g.y) + 50, port = innerWidth < innerHeight;
-    return { x: (b.d.cx + g.x) / 2, y: (b.d.cy + g.y) / 2 - 10, dist: Math.max(230, Math.min(800, span * (port ? 2.8 : 1.8))), pitch: HOME.pitch };
+    /* 縦長の画面は横幅が狭く、3分版の土台（神社から西へ約370m）が画面の外に出ていた（10/31）。東西の離れが横幅に入る遠さまで引く */
+    const wide = port ? (Math.abs(b.d.cx - g.x) / 2 + 60) / (Math.tan(camera.fov * Math.PI / 360) * innerWidth / innerHeight) : 0;
+    return { x: (b.d.cx + g.x) / 2, y: (b.d.cy + g.y) / 2 - 10, dist: Math.max(230, Math.min(port ? 1500 : 800, Math.max(span * (port ? 2.8 : 1.8), wide))), pitch: HOME.pitch };
   }
   // yaw：見ている点のまわりに横へ回す（ふだんは0。動画で使う）
   const mapPos = () => { const hd = mapCam.dist * Math.cos(mapCam.pitch), yw = mapCam.yaw || 0; return V(mapCam.x + Math.sin(yw) * hd, mapCam.y - Math.cos(yw) * hd, mapCam.dist * Math.sin(mapCam.pitch)); };
@@ -7319,7 +7513,8 @@ function start(DATA, isAsakusa) {
   let t0 = performance.now(), peek = null, lastGhost = 0; // peek：試験で好きな所から見るとき
   function frame(t) {
     const dt = Math.min(0.05, (t - t0) / 1000); const tPrev = t0; t0 = t;
-    if (falling.length) fallStep(performance.now());
+    /* 3分版：道順に沿って曲がる（押している間）・くっつく建物が飛んで乗る */
+    routeSteer(Math.min(0.1, (t - tPrev) / 1000));
     updateGate(dt); sizeTags(); updateReach(t); updateWaiting(t); updPickHint(); rotStep(); updateNav(t); if (mode === 'carry') { tourStep(performance.now()); updateTourArrow(); } if (document.body.classList.contains('unfollow') === camFollow) document.body.classList.toggle('unfollow', !camFollow); holdStep(Math.min(0.2, (t - tPrev) / 1000));   // 押している間の進み方は、実際に経った時間で
     /* 押しても進めない時間を数え、本当につかえたときだけ選び直す・大きさを出す */
     stuckWatch(Math.min(0.2, (t - tPrev) / 1000));
@@ -7370,14 +7565,6 @@ function start(DATA, isAsakusa) {
         I.px = px; I.py = py; I.p = I.shrink ? Math.min(1, el / (I.shrink * 0.5)) : p;
         if (pm >= 1) endIntro();
       }
-      /* 担ぎ替え：新しい建物が元の場所から放物線で神輿の所へ来る。担ぎ手・飛び入り・影は神輿の所（S.x, S.y）のまま。着いたら前の建物を屋根に乗せる */
-      let arc = 0;
-      if (S.swapAnim && !DS) {
-        const A = S.swapAnim, q = Math.min(1, (performance.now() - A.t0) / A.dur), e = q * q * (3 - 2 * q);
-        let da = ori - A.sori; da = Math.atan2(Math.sin(da), Math.cos(da));
-        px = A.sx + (px - A.sx) * e; py = A.sy + (py - A.sy) * e; ori = A.sori + da * e; arc = Math.sin(q * Math.PI) * Math.max(8, S.dim.h * 0.6);
-        if (q >= 1) { scene.remove(A.top); S.mesh.add(A.top); A.top.position.set(0, A.topY, 0); A.top.rotation.set(0, 0, 0); S.swapAnim = null; }
-      }
       if (DS && DS.visK !== undefined) vk = DS.visK;
       S.visK = vk;
       if (S.mesh.userData.body && S.mesh.userData.body.scale.x !== vk) { S.mesh.userData.body.scale.setScalar(vk); if (S.mesh.userData.hull) hullScale(S.mesh.userData.hull, vk); }
@@ -7404,15 +7591,19 @@ function start(DATA, isAsakusa) {
       const amp = 0.12 + 0.18 * Math.min(1, S.spd / 6);
       let bob = Math.abs(Math.sin(S.phase)) * amp * big, roll = Math.sin(S.phase / 2) * 0.012 * big * (0.5 + Math.min(1, S.spd / 6));
       if (DS && DS.bob !== undefined) { bob = DS.bob * big; roll = DS.roll * big; }
+      /* 3分版：建物が乗った瞬間（S.sinkT）は、神輿全体（担ぎ手・担ぎ棒ごと）が一度沈んで跳ね返る。
+         担げない建物に弾かれたとき（S.recoilT）は、前を持ち上げるように縦に何度かあおられ、横にもがたつく（くっつくときと見分けがつくように） */
+      let pitch = 0;
+      { const nowS = performance.now(), ts = nowS - (S.sinkT || -1e9), tr = nowS - (S.recoilT || -1e9);
+        if (ts < 900) bob += -0.55 * Math.exp(-ts / 170) * Math.cos(ts / 1000 * Math.PI * 2 * 2.6);
+        if (tr < 900) { const k = Math.exp(-tr / 210); pitch = 0.15 * k * Math.sin(tr / 1000 * Math.PI * 2 * 3.4); roll += 0.07 * k * Math.sin(tr / 1000 * Math.PI * 2 * 5.1); } }
       if (!S.intro && !S.done) {
         /* つかえて曲がずっこけた後、また動き出したら（0.8秒より後）担ぐ場面に戻す */
         if (SND.scene() === 'stuck' && S.spd > 2 && performance.now() - (S.stuckT || 0) > 800) SND.setScene('carry');
         SND.carry(S.phase, S.spd, S.weight ? S.weight.ton : 100, hz);
       }
-      S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift + arc));
-      S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, 0, 'YXZ');
-      /* 担ぎ替えの途中は、担ぎ手から下は神輿の所に置いたまま */
-      if (S.swapAnim) { px = S.x; py = S.y; ori = S.head + S.rot; }
+      S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift));
+      S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, pitch, 'YXZ');
       if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
       /* 見えている位置・向き・倍率と担ぎ手の広がり（人力車が次のこまで逃げる判定に使う） */
@@ -7422,10 +7613,8 @@ function start(DATA, isAsakusa) {
       /* 運び出しの最初（担ぎ手がまだ見えないこま）も、担ぎ棒だけは人力車・建物の手前で止める */
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob);
-      swapScan(performance.now());
-      /* 案A：積んだ塔は、上ほど大きくぐらぐら揺れる（速いほど大きく） */
-      { let m = S.mesh, i = 0; const tt = performance.now() / 1000, sp = 0.35 + Math.min(1, (S.spd || 0) / 6);
-        while (m) { const c = m.children.find(o => o.userData.stackOf); if (!c) break; i++; const a = 0.007 * i * sp; c.rotation.set(Math.sin(tt * 2.1 + i * 0.7) * a, 0, Math.cos(tt * 1.7 + i) * a); m = c; } }
+      /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -7453,12 +7642,14 @@ function start(DATA, isAsakusa) {
         camera.lookAt(V(mapCam.x, mapCam.y, 0));
       }
       if (hoverReq && !ptrs.size) { camera.updateMatrixWorld(); mouseHover(pickAt(hoverReq.x, hoverReq.y)); hoverReq = null; }
+      glowGhosts(performance.now());
     } else if (S.b) {
       // 始めの位置：神輿が画面の真ん中より少し下に来て、担ぎ棒と担ぎ手が見えるくらい。ズームで引ける。
       // 見えている大きさ（縮む・戻る途中も）に合わせて寄る・引く
       /* 積んだ塔も画面に入るように、積んだ分の半分だけ大きく見て引く（10/30 塔の上が切れて道も隠れた。ゲームプログラマーの指摘） */
       /* 10/30 カメラの寄り・引き：60m積んだ塔の上が画面の端にかかったので、積んだ分は0.5→0.7、見る高さは0.4→0.5に（前より少し引いて、塔の上に空をあける） */
-      const vk = S.visK || 1, vh0 = S.b.h * vk, stX = Math.max(0, stackHeight() - S.b.h), vh = vh0 + stX * 0.5, size = Math.max(S.b.d.L * vk, S.b.d.W * vk, vh0 + LIFT + stX * 0.7);
+      /* 3分版：くっつけて積んだ塔は高くなるので、積んだ高さ（stX）は14mまではそのまま、その先は3割だけ見て引く（塔の上は画面から出てもよい。道と担ぎ手を見せる） */
+      const vk = S.visK || 1, vh0 = S.b.h * vk, stX0 = Math.max(0, stackHeight() - S.b.h), stX = stX0 <= 14 ? stX0 : 14 + (stX0 - 14) * 0.3, vh = vh0 + stX * 0.5, size = Math.max(S.b.d.L * vk, S.b.d.W * vk, vh0 + LIFT + stX * 0.7);
       /* 寄り・引き（CAM）：小さい建物は低い目線で寄り、大きい建物・高く積んだ塔ほど高い所から引く。
          size は直接使わず、S.camSz でなめらかに追う（担ぎ替え・積んだときに急に跳ばない）。運び出しの間はその場の大きさ。
          ＋／−（camZoom）は、その上に倍率として効く */
@@ -7467,42 +7658,51 @@ function start(DATA, isAsakusa) {
         if (S.camSz === undefined || S.intro) S.camSz = tg; else S.camSz += (tg - S.camSz) * (1 - Math.exp(-cdt / CAM.tau)); }
       const wq = Math.max(0, Math.min(1, (S.camSz - CAM.s0) / (CAM.s1 - CAM.s0))), wide = wq * wq * (3 - 2 * wq);
       /* ＋で寄りきっても9mより近づかない（寄りの17mに0.3倍を掛けると約5mで、カメラが担ぎ手の輪の中に入った） */
-      const D = Math.max(9, Math.max(CAM.dnMin + (CAM.dfMin - CAM.dnMin) * wide, S.camSz * (CAM.dn + (CAM.df - CAM.dn) * wide)) * (isSm() ? CAM.sm : 1) * camZoom);
+      /* 3分版：建物が乗った瞬間（S.kickT）、カメラが一瞬だけ1割ほど寄って戻る */
+      const kick = S.kickT && performance.now() - S.kickT < 700 ? 1 - 0.1 * Math.exp(-(performance.now() - S.kickT) / 180) : 1;
+      const D = Math.max(9, Math.max(CAM.dnMin + (CAM.dfMin - CAM.dnMin) * wide, S.camSz * (CAM.dn + (CAM.df - CAM.dn) * wide)) * (isSm() ? CAM.sm : 1) * camZoom) * kick;
       const camH = CAM.hn + (CAM.hf - CAM.hn) * wide, lookH = CAM.ln + (CAM.lf - CAM.ln) * wide;
       /* お祓い（5.9秒）の間は、画面が止まって見えないように、神輿のまわりをゆっくり回る（毎秒0.08rad、5.9秒で約27°。8秒だった時と同じ角度）。済んだら少しずつ元の向きへ戻す */
-      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)); if (S.done && S.done.phase === 'harai') S.camOrbit = (S.camOrbit || 0) + 0.08 * cdt; else if (S.camOrbit) S.camOrbit *= Math.max(0, 1 - 0.8 * cdt); }
+      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)); if (S.done && S.done.phase === 'harai') S.camOrbit = (S.camOrbit || 0) + 0.08 * cdt; else if (S.done && S.done.phase === 'result') S.camOrbit = (S.camOrbit || 0) + 0.14 * cdt; else if (S.camOrbit) S.camOrbit *= Math.max(0, 1 - 0.8 * cdt); }
       /* 真後ろから少し右へずらして、斜め上から。
          10/30 ゲームプログラマーの指摘（案B）：向きを変えるたびに町ごと回って道の向きがつかみにくかったので、カメラの向きは神輿の向きを約0.6秒遅れで追う。
          右へのずらしは0.35→0.1rad、見下ろしは約51°→約41°、見る所は前へ0.15D→0.3D（曲がり角が早く見える） */
-      /* 担ぎ手が担ぎ替えの候補の前で足を止めている間（swapLure）は、カメラの向きを候補の方へ少し回す（候補の向きとのずれの半分、最大約20°）。
-         その建物の方を向く感じ。寄せ・戻しは約0.5秒でなめらかに（S.lureW） */
-      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), lb = SW.lure && SW.b;
-        S.lureW = (S.lureW || 0) + ((lb ? 1 : 0) - (S.lureW || 0)) * (1 - Math.exp(-cdt / 0.5));
-        if (lb) { let a = Math.atan2(lb.d.cy - S.y, lb.d.cx - S.x) - S.head; a = Math.atan2(Math.sin(a), Math.cos(a)); S.lureAt = { x: lb.d.cx, y: lb.d.cy, a: Math.max(-0.35, Math.min(0.35, a * 0.5)) }; }
-        if (S.lureW < 0.005 && !lb) S.lureAt = null; }
-      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), hd = S.head + (S.lureAt && !S.intro && !S.done ? S.lureAt.a * S.lureW : 0);
+      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), hd = S.head;
         if (S.camHead === undefined || S.intro) S.camHead = S.head; else { let d = hd - S.camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); S.camHead += d * (1 - Math.exp(-cdt / 0.6)); } }
-      const ca = S.camHead + Math.PI + 0.1 + (S.camOrbit || 0);
+      /* 3分版：最初の1棟が乗るまでは、カメラを右後ろへ少し回す（目の前の左の道ばたで浮いている最初の建物が、神輿の陰に隠れないように） */
+      { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), want = raimonB && !S.done && !(S.stack && S.stack.length) && !AT.fly.length ? 0.42 : 0.1;
+        if (S.camSide === undefined || S.intro) S.camSide = want; else S.camSide += (want - S.camSide) * (1 - Math.exp(-cdt / 0.8)); }
+      const ca = S.camHead + Math.PI + S.camSide + (S.camOrbit || 0);
       let cx0 = S.intro && S.intro.px !== undefined ? S.intro.px : S.x, cy0 = S.intro && S.intro.py !== undefined ? S.intro.py : S.y;
       if (!camFollow && !S.intro) { cx0 = camPan.x; cy0 = camPan.y; }   // 地図のようにドラッグで動かしている間は、神輿を追わない
       const back = V(cx0 + Math.cos(ca) * D * 0.85, cy0 + Math.sin(ca) * D * 0.85, D * camH + vh * 0.25);
       const look = V(cx0 + Math.cos(S.camHead) * D * 0.3, cy0 + Math.sin(S.camHead) * D * 0.3, (vh + LIFT) * lookH);
-      /* 足を止めている間は、見る所も候補の方へ3割寄せる（S.lureW は camHead の所で決める） */
-      if (S.lureW > 0.005 && S.lureAt && camFollow && !S.intro && !S.done) look.lerp(V(S.lureAt.x, S.lureAt.y, look.y), 0.3 * S.lureW);
-      /* 担ぎ替えた瞬間（S.swapCam。swapTo）：約1.9秒、見る所を積んだ塔の上の方まで上げ、カメラも少し上げる（前の建物が屋根に乗る所を見せる）。
-         0.35秒で上がり、1.3秒から0.6秒かけて戻す */
-      if (S.swapCam && !S.done && !S.intro) {
-        const el = performance.now() - S.swapCam.t0, sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
-        const w = Math.min(sm(el / 350), 1 - sm((el - 1300) / 600));
-        const up = Math.max(0, (S.swapCam.top * vk + LIFT) * 0.62 - look.y);
-        look.y += up * w; back.y += up * 0.35 * w;
-        if (el > 1900) S.swapCam = null;
+      /* 3分版の結果（result）：積んだ塔がてっぺんまで入るところまで引いて、塔のまわりをゆっくり回る */
+      const resCam = S.done && S.done.phase === 'result';
+      /* 高さ比べ（10/31 直し）：自分の塔を手前にはっきり（画面の高さの半分ほど）、その奥にスカイツリーが見える角度で。
+         塔から H×2.3m 離れ、スカイツリーと反対の側から少しずつ横へ回り込み、二つが画面の横幅の左右に並んで入る所（塔は左寄り・スカイツリーは右寄り。縦長の画面ほど回り込みは小さい）で止める。
+         遠近で比べは正確にならないが、正確な比べは右下の札が受け持つ。結果を出してすぐ（0.6秒）は塔のまわりを回り、そのあとゆっくり移る */
+      if (resCam && performance.now() - S.done.t0 > 600 && raimonB) {
+        const H = stackHeight() + LIFT, dx = SKY.x - S.x, dy = SKY.y - S.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L;
+        let nx = uy, ny = -ux; if (ny > 0) { nx = -nx; ny = -ny; }
+        const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), d1 = Math.max(70, H * 2.3), ang = (x, y, cx, cy) => Math.atan2(y - cy, x - cx);
+        let cx = S.x, cy = S.y;
+        for (let a = 0.04; a <= 1.4; a += 0.02) {
+          cx = S.x + d1 * (-Math.cos(a) * ux + Math.sin(a) * nx); cy = S.y + d1 * (-Math.cos(a) * uy + Math.sin(a) * ny);
+          const sp = ang(SKY.x, SKY.y, cx, cy) - ang(S.x, S.y, cx, cy);
+          if (Math.abs(Math.atan2(Math.sin(sp), Math.cos(sp))) >= hh * 0.9) break;
+        }
+        const at = ang(S.x, S.y, cx, cy), as = ang(SKY.x, SKY.y, cx, cy), mid = at + Math.atan2(Math.sin(as - at), Math.cos(as - at)) / 2;
+        back.copy(V(cx, cy, H * 0.3 + d1 * 0.12)); look.copy(V(cx + Math.cos(mid) * d1, cy + Math.sin(mid) * d1, H * 0.5));
+      } else if (resCam) {
+        const H = stackHeight() + LIFT, D2 = Math.max(28, H * 1.45 + 12) * (isSm() ? 1.5 : 1);
+        back.copy(V(S.x + Math.cos(ca) * D2 * 0.9, S.y + Math.sin(ca) * D2 * 0.9, H * 0.4 + D2 * 0.25)); look.copy(V(S.x, S.y, H * 0.56));
       }
       /* 花火の間は、ゴールの西の上から、浅草神社と神輿ごしに東の隅田川の空を見る所へ、ゆっくり引く（HB.cam）。花火のあと帰り道に戻るときも、ゆっくり戻す */
       const hbCam = S.done && S.done.phase === 'hanabi' && HB.cam;
       if (hbCam) { back.copy(HB.cam.pos); look.copy(HB.cam.look); S.hbLeft = 0; }
       else if (S.hbLeft === 0) S.hbLeft = t;
-      const slow = hbCam || (S.hbLeft && t - S.hbLeft < 2500);
+      const slow = hbCam || resCam || (S.hbLeft && t - S.hbLeft < 2500);
       if (S.intro) {
         // 町の引きから、神輿の後ろへゆっくり寄る
         const q = Math.min(1, S.intro.p || 0), e = q * q * (3 - 2 * q);
@@ -7555,8 +7755,6 @@ function start(DATA, isAsakusa) {
   /* 待つ担ぎ手：1段目は今すぐ。2〜4段目は町の画面が出てから、1段ずつ間をあけて用意する（置き場所を探す手間を分ける） */
   setupWaitFocus();
   if (!TS) Object.assign(mapCam, homeView());
-  /* 担ぎ替えの「行けるか」に使う道の端からの距離は、町が出て落ち着いてから作っておく */
-  setTimeout(buildClr, 5000);
   setTimeout(hanabiWarm, 3600);
   enterPick();
   requestAnimationFrame(frame);
@@ -7573,7 +7771,9 @@ function start(DATA, isAsakusa) {
     waiting: () => waitCrews.map(w => ({ id: w.b.id.slice(5, 13), st: w.st, n: w.spots.length, vis: w.state !== 'hide' && w.body.visible, x: +w.spots[0].x.toFixed(1), y: +w.spots[0].y.toFixed(1) })), waitMs: () => waitCrews.ms,
     glow: () => reachGlow.map(r => ({ id: r.b.id.slice(5, 13), st: r.st, vis: r.g.visible, y: +r.g.position.y.toFixed(2) })),
     /* 段取りの案内と花火の確かめ用 */
-    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, free: v => { if (v != null) freeMode = v; return freeMode; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, unswap, stackDrop: sp => { S.spd = sp; S.dropAt = 0; stackDrop(); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([, m]) => m && m.isInstancedMesh).map(([k, m]) => [k, m.count])), crowdNF: () => crowdAll.map(m => m.count), crewLod: () => crewBody.geometry === crewGeoLo, swapC: () => SW.b && [SW.b.id.slice(5, 13), needOf(SW.b), SW.rot], swapTo, swapUI: () => ({ lit: SW.lit, cls: $('swap').className, lure: !!SW.lure, lureStop: !!(SW.lure && SW.lure.stopT), lureN: SW.lureN, swaps: SW.swaps, flips: SW.flips, b: SW.b && SW.b.id.slice(5, 13), v: +(S.v || 0).toFixed(2), cam: !!S.swapCam, lureW: +(S.lureW || 0).toFixed(2) }), stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]), flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), score: S.b ? joinScore() : null,drop: JN.drop.map(D => [D.n, D.armed, +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwLamp.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, S.weight.ton),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
+    stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([, m]) => m && m.isInstancedMesh).map(([k, m]) => [k, m.count])), crowdNF: () => crowdAll.map(m => m.count), crewLod: () => crewBody.geometry === crewGeoLo, stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]),
+    /* 3分版の確かめ用：道順・くっついた数・速さ・結果の札・やり直す */
+    ROUTE, RUN_START, routeI: () => RT.i, runSpeed, attached: () => ({ n: (S.stack || []).length, fly: AT.fly.length, top: +stackTop().toFixed(1), last: Math.round(AT.last) }), restartRun, arrCrew: () => S.arrCrew, hovering: () => HV.size, glowAt: (x, y, t) => { camera.updateMatrixWorld(); const b = glowAt(x, y, t); return b && b.id.slice(5, 13); }, rayAt: (x, y) => { camera.updateMatrixWorld(); raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera); const b = marchHit(raycaster.ray.origin, raycaster.ray.direction, 3000, q => !selectable(q)); return b && b.id.slice(5, 13); }, hoverId: () => hover && hover.id && hover.id.slice(5, 13), ghostN: () => ghosts.size, attLog: () => AT.log, poles: () => jpPole.count, assistOff: v => { RT.off = !!v; }, flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), drop: JN.drop.map(D => [D.n, Math.round(performance.now() - D.t0), +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwLamp.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, hbTon()),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }
 </script>

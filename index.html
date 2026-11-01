@@ -170,6 +170,7 @@
   #best { left:12px; bottom:14px; background:rgba(244,239,230,.9); border-radius:8px; padding:5px 9px; font-size:12px; line-height:1.5; display:none; max-width:70vw; }
   /* お祓いを受けた建物の数は、町の画面でいつも出す（0棟でも）。いちばん大きい建物は、受けたことがあるときだけ */
   body[data-mode=pick] #best { display:block; }
+  body.run3 #best, body.run3 #pickHint { display:none !important; }
   #bestBig { display:none; margin-top:3px; padding-top:3px; border-top:1px solid rgba(43,36,32,.18); }
   #best.has #bestBig { display:block; }
   #bestCnt b { font-size:13px; }
@@ -286,6 +287,10 @@
   /* 次の回へ切り替えるときに、画面を一瞬暗くする（legNext） */
   #legFade { position:fixed; inset:0; background:#0b0a10; opacity:0; pointer-events:none; z-index:30; transition:opacity .35s ease; }
   #legFade.on { opacity:1; }
+  /* 次の町会が呼んでいる（1・2回目に着いたあと。legNext） */
+  #legCall { position:fixed; left:50%; top:22%; transform:translate(-50%,-50%); background:rgba(200,50,42,.94); color:#fff; font-size:24px; font-weight:800; letter-spacing:.06em; padding:12px 28px; border-radius:26px; box-shadow:0 3px 16px rgba(0,0,0,.45); white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .4s; z-index:40; }
+  #legCall.on { opacity:1; }
+  body.sm #legCall { font-size:18px; padding:10px 18px; top:26%; }
   @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(200,50,42,.75); } 50% { box-shadow:0 0 0 14px rgba(200,50,42,0); } }
   #hold.glow, #back.glow, #rot button.glow { animation:glow 1s ease-in-out infinite; }
   /* 10/31 本人（iPhone）：「浅草神社まで」の札が画面のまん中寄りに出て、神輿に重なった。上の端（担ぎ手の数の札の下）へ */
@@ -498,7 +503,7 @@
 <div id="gateBox" class="hud"><span>雷門の提灯</span></div>
 <canvas id="mini" class="hud" width="340" height="340"></canvas>
 <div id="tour"></div>
-<div id="goalNav"><span id="goalLeg"></span><span id="goalArrow">➤</span><span id="goalText"></span></div><div id="legFade"></div>
+<div id="goalNav"><span id="goalLeg"></span><span id="goalArrow">➤</span><span id="goalText"></span></div><div id="legFade"></div><div id="legCall"></div>
 <div id="msg"></div>
 <div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div><button id="doneAgain">もう一回</button></div>
 <div id="hcmp"><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
@@ -707,6 +712,11 @@ function start(DATA, isAsakusa) {
   // 雷門は別に作る（二つの塊と大提灯）。担ぐ候補にも、まとめた建物にも入れない。
   const raimonMeta = DATA.meta.landmarks && DATA.meta.landmarks.raimon;
   const raimonB = raimonMeta ? blds.find(b => b.id === raimonMeta.id) : null;
+  /* RUN3：浅草で、開いたらすぐ決まった建物を担ぐ遊び方（浅草神社に3回着く形。?noAuto=1 のときは前の「選ぶ画面」から）。
+     11/01 本人「始めた時に、光ってる建物あるけど多分最初の名残？」：選ぶ画面の名残（段の建物の光・そのまわりで待つ担ぎ手・名所の名前の札・
+     お祓いを受けた印の旗・左下の棟数の札・「建物を選ぼう」の案内）は、この遊び方ではどの場面でも出さない */
+  const RUN3 = !!raimonB && !new URLSearchParams(location.search).get('noAuto');
+  if (RUN3) document.body.classList.add('run3');
   if (raimonB) blds.splice(blds.indexOf(raimonB), 1);
   // 雷門の下を通れるようにする。通り抜け（幅5.4m）を道にして、前後の道までつなぐ。左右の塊は通れない。
   // 通り抜けの高さは、大提灯をたたんだときの下の端（天井6.3m − 提灯3.9m×0.22 ≒ 5.4m）。神輿の大きさなら通れて、実物大はつかえる。
@@ -4512,7 +4522,7 @@ function start(DATA, isAsakusa) {
     clearCarry();
     team = TEAM0; arriveN = 0;
     /* 3回着く形：1回目（南の雷門通り）から。切り替えの途中なら暗くしたのを戻す */
-    setLeg(0); $('legFade').classList.remove('on');
+    setLeg(0); $('legFade').classList.remove('on'); chokaiClear();
     if (!base) { $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; enterPick(true); return; }
     choose(base, 'site');
   }
@@ -5055,6 +5065,15 @@ function start(DATA, isAsakusa) {
         const p = rkjPos(r, i); if (r.jnHide[i]) continue;
         putP(rkjPerson(r, i), p.x, p.y, hopAt(p.x, p.y), Math.atan2(py - p.y, px - p.x), i === 1 || i === 6);
       }
+    }
+    /* 次の町会の人：手を上げて跳ね、3人に1人は提灯を掲げる。呼んでいる間（call）は手前のカメラの方、移ってくる間は神輿の方を向く */
+    if (CH.spots.length) {
+      const D = S.done, st = D && D.st, cw = D && D.phase === 'call' && st;
+      for (const q of CH.spots) {
+        const hop = Math.abs(Math.sin(now * 0.011 + q.ph)) * 0.55, tx = cw ? st.x - Math.cos(st.h) * 26 : px, ty = cw ? st.y - Math.sin(st.h) * 26 : py;
+        putP(q.P, q.x, q.y, hop, Math.atan2(ty - q.y, tx - q.x), q.lamp, 0, 1);
+      }
+      for (const p of CH.poles) p.g.position.y = Math.max(0, Math.sin(now * 0.006 + p.ph)) * 0.6;
     }
     jnBody.count = n; jnLamp.count = nl;
     updN(jnBody.instanceMatrix, n); updN(jnLamp.instanceMatrix, nl);
@@ -6067,7 +6086,7 @@ function start(DATA, isAsakusa) {
   let reachLastT = 0;
   function updateReach(t) {
     if (!reachGlow.length) return;
-    const on = mode === 'pick' && !S.intro && !TS, p = 0.5 - 0.5 * Math.cos(t / GLOW_MS * Math.PI * 2);
+    const on = mode === 'pick' && !S.intro && !TS && !RUN3, p = 0.5 - 0.5 * Math.cos(t / GLOW_MS * Math.PI * 2);
     const pt = 0.5 - 0.5 * Math.cos(t / 2400 * Math.PI * 2);   /* 担いでいる間の通りがかりの光は前のまま */
     glowFillMat.opacity = 0.05 + 0.43 * p; glowLineMat.opacity = 0.22 + 0.78 * p; tourGlowMat.opacity = 0.15 + 0.35 * pt;
     /* 朱色は加算すると金色より暗く見えるので、少し濃く */
@@ -6253,7 +6272,7 @@ function start(DATA, isAsakusa) {
   function updateWaiting(t) {
     if (!waitCrews.length) return;
     WAIT_T.value = (t / 1000) % 3600;
-    const show = mode === 'pick' && !TS;
+    const show = mode === 'pick' && !TS && !RUN3;
     for (const w of waitCrews) {
       /* 選んだ建物の担ぎ手は、運び出しの初め（担ぎ手が集まりきるまで）だけ、建物へ寄りながら残る（今の段の建物のときだけ） */
       let walk = -1;
@@ -6272,7 +6291,7 @@ function start(DATA, isAsakusa) {
   function sizeTags() {
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1);
     /* 題字の画面の間は、札を一つも出さない（字は題字と「触ってはじめる」だけ） */
-    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && !HB.on && (mode === 'pick' || !!sp.userData.always); }
+    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && !HB.on && ((mode === 'pick' && !RUN3) || !!sp.userData.always); }
     /* つかえたときの札とボタン（上のまん中）に重なる札（「ゴール：浅草神社でお祓い」など）は、その間だけ隠す。
        前はボタンの間に札が半分隠れて挟まり、ごちゃついて見えた（直す係 第2回・2-3） */
     if (mode !== 'carry' || !document.body.classList.contains('stuck')) return;
@@ -6406,42 +6425,119 @@ function start(DATA, isAsakusa) {
     $('skip').style.display = 'none'; S.camOrbit = 0;
     thud();
   }
-  /* 次の回へ：画面を0.35秒暗くし、暗い間に、次の回の出発の所へ神輿（積んだ塔ごと）と担ぎ手を移す。
-     明けると、出発の所の上から浅草神社のほうを見下ろした画から、神輿の後ろへカメラが降りてくる（運び出しと同じ S.intro。2.2秒）。
-     動かせるようになって4.2秒後に「ゴールの浅草神社に向かおう！」が出て、上の札（何回目か＋あと○m）へ吸い込まれる（endIntro → goGoalShow）。
-     新しい回の出だしで＋や−が出ないように、速さ・ぶつかった印・進んだ道のりは choose と同じく全部消す（加わるのは動いてから1.5m） */
-  const LEG_FADE = 350;
+  /* ---------- 次の町会に呼ばれる（11/01 本人「2、3回目で遠くになったことが分かりづらい。何かしら理由をつけて、遠くからもう一回始める感じにしてほしい」。
+     本人が選んだ理由は「別の町会に呼ばれる」。三社祭では町会ごとに神輿を出すので、着いたら次の町会が「うちの町からも担いでくれ」と待っている） ----------
+     1・2回目に着いて、お祓いと小さな花火が済んだら（legNext）：
+       call（1.8秒）：次の出発の所へカメラを切り替え、そろいの色の服の町会の人たちが、提灯を高く掲げ、手を上げて跳ねて待っているのを見せる。
+                      字は一言だけ「北の町会が呼んでいます」（実在の町会名は書かない。提灯にも字は無い）。
+       move（3秒）：カメラが神輿の後ろの上（高さ110m）へ上がり、神輿が塔ごと、次の回の道順を逆にたどって出発の所まで早送りで移るのを追う。
+                    浅草神社から離れていく金色の線を地面に引く。
+       着いたら（legArrive2）：待っていた町会の人が駆け寄って加わり（＋○人。飛び入りに足す）、カメラが神輿の真後ろへ降りる（1.6秒）。
+         動かせるようになったら、今までどおり上の札（回数の丸＋あと○m）。進む前の−は出ない（joinLose は担ぎ始めの1.5秒は減らさない）。
+     町会の人の服の色は回ごとに替える（2回目は藍、3回目は緑）。人数は、2回目32人、3回目40人（見て「大勢待っている」と分かるくらい） */
+  const LEG_CALL = 1800, LEG_MOVE = 3000, CHOKAI_N = [0, 32, 40], CHOKAI_C = [0, 0x2c4fa0, 0x2a8a52];
+  const CH = { spots: [], poles: [], ribbon: null, fadeT: 0 };
+  function legStartOf(k) { const L = LEGS[k], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
+  const chokaiPoleMat = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+  function chokaiClear() {
+    CH.spots.length = 0;
+    for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
+    CH.poles.length = 0;
+    if (CH.ribbon) { scene.remove(CH.ribbon); CH.ribbon.geometry.dispose(); CH.ribbon.material.dispose(); CH.ribbon = null; }
+    CH.fadeT = 0; $('legCall').classList.remove('on');
+  }
+  /* 待つ所：出発の所の左右（神輿の通り道と、真後ろのカメラの前をあける）。前へ1〜6m・横へ3.5〜7.2mの、歩ける所 */
+  function chokaiShow(k, st) {
+    chokaiClear();
+    const c = Math.cos(st.h), sn = Math.sin(st.h), col = CHOKAI_C[k] || 0x2c4fa0, want = CHOKAI_N[k] || 30;
+    for (let r = 0; r < 6 && CH.spots.length < want; r++) for (let j = 0; j < 5 && CH.spots.length < want; j++) for (const sd of [1, -1]) {
+      if (CH.spots.length >= want) break;
+      const u = 1 + r * 1.0 + (hash(r, j + sd) - 0.5) * 0.3, v = sd * (3.5 + j * 0.9 + (hash(j, r - sd) - 0.5) * 0.25);
+      const x = st.x + u * c - v * sn, y = st.y + u * sn + v * c;
+      if (!onRoad(x, y) || crewBlocked(x, y)) continue;
+      CH.spots.push({ x, y, ph: hash(x, y) * 6.283, lamp: (r + j) % 3 === 0, P: { t: 'local', c: col, v: hash(y, x) } });
+    }
+    /* 高く掲げた提灯（高張提灯）：左右の前の列に2本ずつ */
+    for (const sd of [1, -1]) for (const u of [1.5, 4]) {
+      const v = sd * 3.2, x = st.x + u * c - v * sn, y = st.y + u * sn + v * c;
+      if (!onRoad(x, y)) continue;
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4.6, 6), woodMat); pole.position.y = 2.3; g.add(pole);
+      const lan = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.0, 14), chokaiPoleMat); lan.position.y = 4.9; g.add(lan);
+      if (NT.glowTex) { const h = new THREE.Sprite(new THREE.SpriteMaterial({ map: NT.glowTex, color: 0xffa050, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); h.scale.set(3.2, 3.2, 1); h.position.y = 4.9; g.add(h); }
+      g.position.copy(V(x, y, 0)); scene.add(g); CH.poles.push({ g, ph: hash(x, u) * 6.283 });
+    }
+  }
+  /* 浅草神社から離れていく線（地面の上の金色の帯。幅3m。早送りで進んだ所まで描く） */
+  function chokaiRibbon(path) {
+    const pos = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const [ax, ay] = path[i], [bx, by] = path[i + 1], L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * 1.5, ny = (bx - ax) / L * 1.5;
+      const A = V(ax + nx, ay + ny, 0.35), B = V(ax - nx, ay - ny, 0.35), C = V(bx + nx, by + ny, 0.35), Dd = V(bx - nx, by - ny, 0.35);
+      for (const p of [A, B, C, B, Dd, C]) pos.push(p.x, p.y, p.z);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setDrawRange(0, 0);
+    /* 地面に貼る（建物には隠れる。前は手前に重ねて描いていて、着いたあと神輿と塔の上に金色の帯がかぶった） */
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    m.renderOrder = 6; m.frustumCulled = false; scene.add(m); CH.ribbon = m;
+  }
+  /* 着いてから線を消す（カメラが神輿の後ろへ降りる1.2秒で薄く） */
+  function chokaiRibbonStep(now) {
+    if (!CH.ribbon || !CH.fadeT) return;
+    const q = (now - CH.fadeT) / 1200;
+    if (q >= 1) { scene.remove(CH.ribbon); CH.ribbon.geometry.dispose(); CH.ribbon.material.dispose(); CH.ribbon = null; CH.fadeT = 0; return; }
+    CH.ribbon.material.opacity = 0.9 * Math.min(1, 1 - q);
+  }
   function legNext() {
     const D = S.done; if (!D || D.next) return; D.next = true;
-    const fd = $('legFade'); fd.classList.add('on');
-    setTimeout(() => {
-      if (!S.done || S.done !== D) { fd.classList.remove('on'); return; }
-      if (HB.on) hanabiStop(true);
-      /* まだ駆け寄っている途中の境内の人と、はじき飛ばされて道にいる人は、ここで加わったことにする */
-      const A = D.add; if (A) { while (A.i < A.list.length) JN.n += A.list[A.i++].w; }
-      for (const Dp of JN.drop.splice(0)) { JN.n += Dp.n; for (const q of Dp.m) if (JN.list.length < JOIN_MAX) JN.list.push({ sx: S.x, sy: S.y, t0: 0, P: q.P }); }
-      hoverClear(); clearGhosts();
-      setLeg(LEG + 1);
-      const st = legStart(), g = goals[0];
-      S.x = st.x; S.y = st.y; S.head = st.h; S.rot = 0;
-      S.v = 0; S.spd = 0; S.lastPos = null; S.bounceV = 0; S.bounceT = 0; S.recoilT = 0; S.sinkT = 0; S.kickT = 0; S.shake = 0; S.hitDir = 1; S.hardHit = false; S.dist = 0; S.lastThud = 0;
-      S.stuck = null; S.noGo = 0; S.noGoPose = null; hold.locked = false; S.lockSince = 0; S.slide = null;
-      JN.lostAt = 0; JN.maskKey = ''; JN.pmaskKey = ''; AT.combo = 0; AT.last = 0;
-      S.rec = []; S.recWall = performance.now(); trailPts.length = 0;
-      /* 新しい道すじのそばの人力車に、一団を待たせる */
-      for (const r of rickshaws) { r.jnHide = null; if (!r.jn && onRouteRk(r)) r.jn = RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)); }
-      S.done = null; S.camOrbit = 0; S.camSide = undefined; S.camHead = undefined; camFollow = true;
-      for (const id of ['praise', 'lose']) $(id).classList.remove('on', 'bad');
-      const dn = $('done'); dn.classList.remove('on'); dn.style.display = 'none';
-      $('skip').style.display = 'none';
-      $('dialWrap').style.display = 'flex'; $('rot').style.display = 'flex'; $('again').style.display = 'block'; $('info').style.display = '';
-      goGoalReset(); S.infoSig = null;
-      document.body.classList.add('intro', 'calm1', 'calm2');
-      showInfo(); refreshCrowd(true);
-      const c = Math.cos(st.h), sn = Math.sin(st.h), mx = st.x + (g.x - st.x) * 0.45, my = st.y + (g.y - st.y) * 0.45;
-      S.intro = { t0: performance.now(), dur: 2200, shrink: 0, sx: S.x, sy: S.y, sori: S.head + S.rot, from: { pos: V(st.x - c * 60, st.y - sn * 60, 140), look: V(mx, my, 0) } };
-      fd.classList.remove('on');
-    }, LEG_FADE);
+    if (HB.on) hanabiStop(true);
+    /* まだ駆け寄っている途中の境内の人と、はじき飛ばされて道にいる人は、ここで加わったことにする */
+    const A = D.add; if (A) { while (A.i < A.list.length) JN.n += A.list[A.i++].w; }
+    for (const Dp of JN.drop.splice(0)) { JN.n += Dp.n; for (const q of Dp.m) if (JN.list.length < JOIN_MAX) JN.list.push({ sx: S.x, sy: S.y, t0: 0, P: q.P }); }
+    hoverClear();
+    const k = LEG + 1, st = legStartOf(k), R = LEGS[k].route, path = [[S.x, S.y]];
+    for (let i = R.length - 1; i >= 0; i--) path.push(R[i]);
+    path.push([st.x, st.y]);
+    const cum = [0]; for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+    chokaiShow(k, st); chokaiRibbon(path);
+    const c = Math.cos(st.h), sn = Math.sin(st.h);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; for (const [x, y] of path) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, E = Math.max(80, x1 - x0, y1 - y0) * (innerWidth < innerHeight ? 1.5 : 1);
+    D.phase = 'call'; D.t0 = performance.now(); D.k = k; D.st = st; D.path = path; D.cum = cum; D.seg = 0;
+    D.callCam = { pos: V(st.x - c * 26, st.y - sn * 26, 14), look: V(st.x + c * 4, st.y + sn * 4, 2) };
+    D.moveCam = { pos: V(mx - c * E * 0.45, my - sn * E * 0.45, E * 1.15 + 40), look: V(mx, my, 0) };
+    camSnap = true;
+    const dn = $('done'); dn.classList.remove('on'); dn.style.display = 'none';
+    goGoalReset(); for (const id of ['praise', 'lose']) $(id).classList.remove('on', 'bad');
+    $('legCall').textContent = `${LEGS[k].name}の町会が呼んでいます`; $('legCall').classList.add('on');
+  }
+  /* 次の出発の所に着いた：次の回を始める（choose と同じく、速さ・ぶつかった印・進んだ道のりを消す）。町会の人が加わる */
+  function legArrive2(now) {
+    const D = S.done, k = D.k, st = D.st;
+    hoverClear(); clearGhosts();
+    setLeg(k);
+    S.x = st.x; S.y = st.y; S.head = st.h; S.rot = 0;
+    S.v = 0; S.spd = 0; S.lastPos = null; S.bounceV = 0; S.bounceT = 0; S.recoilT = 0; S.sinkT = 0; S.kickT = 0; S.shake = 0; S.hitDir = 1; S.hardHit = false; S.dist = 0; S.lastThud = 0;
+    S.stuck = null; S.noGo = 0; S.noGoPose = null; hold.locked = false; S.lockSince = 0; S.slide = null;
+    JN.lostAt = 0; JN.maskKey = ''; JN.pmaskKey = ''; AT.combo = 0; AT.last = 0;
+    S.rec = []; S.recWall = now; trailPts.length = 0;
+    /* 新しい道すじのそばの人力車に、一団を待たせる */
+    for (const r of rickshaws) { r.jnHide = null; if (!r.jn && onRouteRk(r)) r.jn = RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)); }
+    S.done = null; S.camOrbit = 0; S.camHead = undefined; camFollow = true;
+    for (const id of ['praise', 'lose']) $(id).classList.remove('on', 'bad');
+    $('skip').style.display = 'none';
+    $('dialWrap').style.display = 'flex'; $('rot').style.display = 'flex'; $('again').style.display = 'block'; $('info').style.display = '';
+    goGoalReset(); S.infoSig = null;
+    document.body.classList.add('intro', 'calm1', 'calm2');
+    showInfo(); refreshCrowd(true);
+    /* カメラは上から神輿の真後ろへ降りる。神輿は担いだまま（keep：運び出しの「浮く・担ぎ手が集まる」はしない） */
+    S.intro = { t0: now, dur: 1600, shrink: 0, sx: S.x, sy: S.y, sori: S.head + S.rot, from: { pos: camera.position.clone(), look: camLook.clone() }, keep: true };
+    /* 待っていた町会の人が駆け寄って加わる（＋○人） */
+    const sp = CH.spots.slice(); CH.spots.length = 0;
+    if (sp.length) joinAdd(sp.length, i => ({ x: sp[i].x, y: sp[i].y, P: sp[i].P }), now, 35);
+    for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
+    CH.poles.length = 0;
+    $('legCall').classList.remove('on'); CH.fadeT = now;
   }
   // 毎こま：お祓いの後の流れ。返り値 {px,py,ori,lift,shake} で神輿の絵を動かす（null なら普段どおり）
   function doneStep(now) {
@@ -6490,6 +6586,27 @@ function start(DATA, isAsakusa) {
       return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
     }
     if (D.phase === 'result') return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
+    if (D.phase === 'call') {
+      if (el > LEG_CALL) { D.phase = 'move'; D.t0 = now; }
+      return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
+    }
+    if (D.phase === 'move') {
+      /* 道に沿って早送り（ゆっくり出て、ゆっくり着く）。向きは道の向き、最後の2割で出発の向きへ回す */
+      const q = Math.min(1, el / LEG_MOVE), e = q * q * (3 - 2 * q), P = D.path, C = D.cum, dd = e * C[C.length - 1];
+      while (D.seg < C.length - 2 && C[D.seg + 1] < dd) D.seg++;
+      const i = D.seg, f = Math.min(1, Math.max(0, (dd - C[i]) / Math.max(1e-6, C[i + 1] - C[i])));
+      const x = P[i][0] + (P[i + 1][0] - P[i][0]) * f, y = P[i][1] + (P[i + 1][1] - P[i][1]) * f;
+      let dir = Math.atan2(P[i + 1][1] - P[i][1], P[i + 1][0] - P[i][0]);
+      if (q > 0.8) { let da = D.st.h - dir; da = Math.atan2(Math.sin(da), Math.cos(da)); dir += da * Math.min(1, (q - 0.8) / 0.2); }
+      S.x = x; S.y = y; S.head = dir; S.rot = 0;
+      /* カメラは神輿の後ろの上（高さ110m・後ろ60m）から、進む先を見て一緒に動く（縦長の画面でも神輿と後ろに伸びる線が入るように） */
+      /* 最後の2割で神輿が出発の向きへ回るときは、カメラも一緒に神輿のまわりを回って、真後ろへ（上を通り越して真上から見下ろす画にならないように） */
+      { const pd = q > 0.8 ? dir : Math.atan2(P[i + 1][1] - P[i][1], P[i + 1][0] - P[i][0]), cc = Math.cos(pd), ss = Math.sin(pd), hk = innerWidth < innerHeight ? 1.25 : 1;
+        D.moveCam = { pos: V(x - cc * 60 * hk, y - ss * 60 * hk, 110 * hk), look: V(x + cc * 30, y + ss * 30, 0) }; }
+      if (CH.ribbon) CH.ribbon.geometry.setDrawRange(0, Math.min((P.length - 1) * 6, (i + 1) * 6));
+      if (q >= 1) { legArrive2(now); return null; }
+      return { px: x, py: y, ori: dir, lift: 1, shake: 0 };
+    }
     if (D.phase === 'back') {                        // 来た道を、記録の逆再生で1.5倍速
       const tt = D.T - (el * 1.5);
       let i = 0; while (i < D.rec.length - 1 && D.rec[i + 1].t >= tt) i++;
@@ -7550,7 +7667,7 @@ function start(DATA, isAsakusa) {
   // yaw：見ている点のまわりに横へ回す（ふだんは0。動画で使う）
   const mapPos = () => { const hd = mapCam.dist * Math.cos(mapCam.pitch), yw = mapCam.yaw || 0; return V(mapCam.x + Math.sin(yw) * hd, mapCam.y - Math.cos(yw) * hd, mapCam.dist * Math.sin(mapCam.pitch)); };
   // 開いた直後：空の高い所から雷門のあたりへ降りてくる（クリック・タップ・キーで飛ばせる）。題字の画面があるときは、触ってから
-  const OPEN0 = () => ({ t0: null, dur: 2600, fromPos: V(HOME.x - 150, HOME.y - 1500, 1700), fromLook: V(HOME.x, HOME.y + 300, 0) });
+  const OPEN0 = () => ({ t0: null, dur: RUN3 ? 1 : 2600, fromPos: V(HOME.x - 150, HOME.y - 1500, 1700), fromLook: V(HOME.x, HOME.y + 300, 0) });
   // ---------- 題字の画面（本人の決定 10/23） ----------
   // 「ビル神輿」と「触ってはじめる」の後ろで、ゲームの画面そのままのカメラの画を4つ、順に切り替えてくり返す（動画のファイルは使わない）。
   //  1 上空から浅草寺のまわり（本堂・五重塔・仲見世・雷門）をゆっくり／2 六角堂を神輿にして担ぎ手が担いで進むのを、横から寄って追う（五重塔を背に）／
@@ -7561,7 +7678,14 @@ function start(DATA, isAsakusa) {
   const TTL = window.__title || { on: false };
   let TS = TTL.on ? { cut: -1, t0: 0, lit: null, demo: null, look: new THREE.Vector3(), fd: 400, ready: false, leaving: 0 } : null;
   let opening = TS ? null : OPEN0();
-  const endOpening = () => { if (opening) { opening = null; $('skip').style.display = 'none'; if (autoFirst) firstCarry(); } };
+  const endOpening = () => { if (opening) { opening = null; $('skip').style.display = 'none'; if (autoFirst) { firstCarry(); if (RUN3 && S.intro) skyIntro(); } } };
+  /* 11/01 本人「最初はまっすぐ神輿のほうに行けばよいと思うよ」：RUN3 では、題字のあと町の全体を見下ろす画（空から降りる2.6秒）を通らず、
+     出発の所の真上（高さ180m、少し後ろ）から、神輿の後ろへまっすぐ降りる（2.2秒。運び出しの S.intro のカメラ）。前は 2.6秒＋2.6秒 */
+  function skyIntro() {
+    const c = Math.cos(S.head), sn = Math.sin(S.head);
+    S.intro.from = { pos: V(S.x - c * 40, S.y - sn * 40, 180), look: V(S.x + c * 10, S.y + sn * 10, 0) };
+    S.intro.dur = 2200;
+  }
   /* 10/30 案2「最初はいきなり担いでいる所から」（桜井さん「最初の3分」）：開いて最初の1回だけ、空から降りたら選ぶ画面を出さず、
      最初の段の小さなお堂を10人で担ぎ始める（運び出しの動き→「ゴールの浅草神社に向かおう！」はふだんと同じ） */
   let autoFirst = !new URLSearchParams(location.search).get('noAuto');
@@ -7769,9 +7893,9 @@ function start(DATA, isAsakusa) {
         /* はじめの35%はカメラが建物へ寄る間（大きさはそのまま）、残りで縮む */
         if (I.shrink) vk = 1 + (S.k - 1) * ez(Math.max(0, Math.min(1, (el - I.shrink * 0.35) / (I.shrink * 0.65))));
         /* 浮く */
-        lift = ez(Math.min(1, p / 0.22));
+        lift = I.keep ? 1 : ez(Math.min(1, p / 0.22));
         /* 担ぎ手が集まる */
-        gather = ez(Math.min(1, p / 0.32));
+        gather = I.keep ? 1 : ez(Math.min(1, p / 0.32));
         /* 道へ運び出す */
         const m = ez(Math.max(0, (pm - 0.3) / 0.7));
         px = I.sx + (S.x - I.sx) * m; py = I.sy + (S.y - I.sy) * m;
@@ -7830,7 +7954,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -7935,7 +8059,10 @@ function start(DATA, isAsakusa) {
       const hbCam = S.done && S.done.phase === 'hanabi' && HB.cam;
       if (hbCam) { back.copy(HB.cam.pos); look.copy(HB.cam.look); S.hbLeft = 0; }
       else if (S.hbLeft === 0) S.hbLeft = t;
-      const slow = hbCam || resCam || (S.hbLeft && t - S.hbLeft < 2500);
+      /* 次の町会に呼ばれる場面（legNext）：call は次の出発の所を写し、move は上がって全体を見下ろす */
+      const lgCam = S.done && S.done.leg ? (S.done.phase === 'call' ? S.done.callCam : S.done.phase === 'move' ? S.done.moveCam : null) : null;
+      if (lgCam) { back.copy(lgCam.pos); look.copy(lgCam.look); }
+      const slow = hbCam || resCam || lgCam || (S.hbLeft && t - S.hbLeft < 2500);
       if (S.intro) {
         // 町の引きから、神輿の後ろへゆっくり寄る
         const q = Math.min(1, S.intro.p || 0), e = q * q * (3 - 2 * q);

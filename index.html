@@ -159,7 +159,8 @@
   #hcmp.over #hcmpTxt { font-size:24px; color:var(--red); }
   body.sm #hcmp { right:auto; left:12px; bottom:16px; padding:8px 12px 6px; }
   body.sm #hcmp .bars { height:110px; }
-  body.sm #hcmpTxt { font-size:15px; }
+  body.sm #hcmpTxt { font-size:15px; line-height:1.25; }
+  body.sm #hcmpTxt span { display:block; text-align:center; }
   body.sm #hcmp.over #hcmpTxt { font-size:20px; }
   /* 結果の間は、札を左へ（まん中の積んだ塔を札で隠さない）。PCは左上の地図の下、スマホは上の左 */
   #done.result { left:16px; top:218px; transform:none; }
@@ -2961,13 +2962,18 @@ function start(DATA, isAsakusa) {
        1回目（南）：雷門通り（幅約25m）の西から東へ→雷門をくぐる→仲見世を北へ→境内→浅草神社（約670m。前の版の1回だけの道すじ ROUTE_S のまま）。
          出発してすぐの右の道ばたに小さな店が続くので、10人で出ても数秒でくっつき始める（first：最初の1棟だけは10人から積める。要る人数25人）。
        2回目（北）：境内の北の広場の入り口（x=143, y=290）から南へ→本堂の西を回り、本堂と宝蔵門の間を東へ→浅草神社（約250m）。
+         11/02 本人「2回目が短すぎる（約33秒）」：境内の外の西の通りから出る形にした。浅草寺の西の、小さな店が両側に並ぶ通り（x=−125, y=255）から東へ進み、
+         境内の北西から入って本堂の北を回り→浅草神社（約410m。1回目と同じく60〜90秒）。2回目は3〜5階建てまで積めるので、道ばたの店が次々くっつく。
+         ゴールまでのいちばん近い道（ゲームの判定 check で探した道）をそのまま道順にしたので、近道して短くなることはない（fix3/t7_route.py）。
+         言問通り（北）から出る案は、通りから境内へ南に抜けるすき間があり、近道すると約185m（30秒ほど）で着いてしまうのでやめた
          言問通りから出る案は、高い塔を積んで引いたカメラが通りの両側のビルの上に来て、半透明の建物で画面の半分がふさがったのでやめた
-       3回目（東）：馬道通り（幅約22m。x=307, y=−6）を北へ→二天門の南のわきを抜けて境内へ→浅草神社（約260m）。高くなった塔で二天門のわきを抜けるのを締めにした */
+       3回目（東）：馬道通り（幅約22m。x=307, y=−6）を北へ→二天門の南のわきを抜けて境内へ→浅草神社（約260m）。高くなった塔で二天門のわきを抜けるのを締めにした。
+         11/02 3回目に大きなビルが積めるようにしたので、道順を通りの東側（30〜48mのビルが並ぶ側）へ寄せた（fix3/t7_route.py。出発の所は同じ。約270m） */
   const ROUTE_S = [[-38.4,-208.7],[-34.9,-210.6],[-31.5,-212.8],[-28.0,-214.7],[-24.3,-216.1],[-20.4,-217.1],[-16.5,-217.7],[-12.5,-218.2],[-8.5,-218.6],[-4.5,-218.9],[-0.5,-219.3],[3.4,-219.6],[7.4,-220.0],[11.4,-220.3],[15.4,-220.7],[19.4,-221.0],[23.4,-221.4],[27.3,-221.7],[31.3,-222.1],[35.3,-222.4],[39.3,-222.8],[43.3,-223.1],[47.3,-223.5],[51.3,-223.8],[55.2,-224.2],[59.2,-224.5],[63.2,-224.9],[67.2,-225.2],[71.2,-225.6],[75.2,-225.9],[79.1,-226.2],[83.1,-226.6],[87.1,-226.9],[91.1,-227.3],[95.1,-227.6],[99.1,-228.0],[103.1,-228.3],[107.0,-228.7],[111.0,-229.0],[115.0,-229.4],[119.0,-229.7],[123.0,-230.1],[127.0,-230.4],[131.0,-230.8],[134.9,-231.1],[138.9,-231.5],[142.9,-231.8],[146.9,-232.2],[150.9,-232.5],[154.9,-232.9],[158.8,-233.2],[162.8,-233.3],[166.5,-231.9],[168.4,-228.4],[168.9,-224.5],[168.7,-220.5],[168.4,-216.5],[168.3,-212.5],[168.6,-208.5],[168.9,-204.5],[169.3,-200.5],[169.8,-196.5],[170.2,-192.6],[170.6,-188.6],[170.9,-184.6],[171.3,-180.6],[171.6,-176.6],[172.0,-172.6],[172.3,-168.7],[172.7,-164.7],[173.0,-160.7],[173.4,-156.7],[173.7,-152.7],[174.1,-148.7],[174.4,-144.8],[175.0,-140.8],[175.7,-136.9],[176.2,-132.9],[176.3,-128.9],[176.3,-124.9],[176.5,-120.9],[176.8,-116.9],[177.2,-112.9],[177.5,-108.9],[177.9,-105.0],[178.2,-101.0],[178.5,-97.0],[178.9,-93.0],[179.2,-89.0],[179.6,-85.0],[179.9,-81.1],[180.3,-77.1],[180.6,-73.1],[181.0,-69.1],[181.3,-65.1],[181.7,-61.1],[182.0,-57.1],[182.4,-53.2],[182.7,-49.2],[183.1,-45.2],[183.4,-41.2],[183.8,-37.2],[184.1,-33.2],[184.5,-29.3],[184.8,-25.3],[185.2,-21.3],[185.5,-17.3],[185.9,-13.3],[186.2,-9.3],[186.6,-5.3],[186.9,-1.4],[187.3,2.6],[187.6,6.6],[188.0,10.6],[188.3,14.6],[188.7,18.6],[189.0,22.6],[189.4,26.5],[189.7,30.5],[190.1,34.5],[190.4,38.5],[190.8,42.5],[191.1,46.5],[191.5,50.4],[192.0,54.4],[193.0,58.3],[194.8,61.8],[197.0,65.2],[199.3,68.5],[201.6,71.7],[204.2,74.8],[207.1,77.5],[210.1,80.1],[213.3,82.5],[216.7,84.6],[220.3,86.5],[223.9,88.1],[227.6,89.6],[231.4,90.7],[235.4,91.4],[239.3,92.1],[242.6,94.3],[244.9,97.6],[246.5,101.2],[247.9,105.0],[249.0,108.8],[249.8,112.7],[250.3,116.7],[250.7,120.7],[251.0,124.7],[251.4,128.7],[251.7,132.6],[252.1,136.6],[252.4,140.6],[252.8,144.6],[253.1,148.6],[253.5,152.6],[253.8,156.6],[254.1,160.5],[254.5,164.5],[254.8,168.5],[255.2,172.5],[255.6,176.5],[256.1,180.4],[256.9,184.4],[258.1,188.2],[259.4,191.9],[260.5,194.9],[263.5,197.5],[266.0,198.0]];
   const LEGS = [
     { name: '南', route: ROUTE_S, first: 'bldg_ca9fd48b', st: { x: -36, y: -213.5, h: -0.12 } },
-    { name: '北', route: [[143.1,289.7],[146.3,287.3],[149.5,284.9],[152.7,282.5],[155.9,280.1],[159.1,277.7],[162.3,275.3],[165.5,272.8],[168.7,270.4],[171.9,268.0],[175.0,265.6],[178.2,263.2],[181.4,260.8],[184.6,258.4],[187.8,256.0],[191.0,253.6],[194.2,251.2],[197.4,248.8],[200.6,246.4],[203.8,244.0],[207.0,241.6],[210.2,239.1],[213.4,236.7],[216.6,234.3],[219.8,231.9],[223.0,229.5],[226.2,227.1],[229.4,224.7],[232.5,222.3],[235.7,219.9],[238.9,217.5],[242.1,215.1],[245.3,212.7],[248.5,210.3],[251.7,207.9],[254.9,205.4],[258.1,203.0],[261.3,200.6],[262.9,199.4]], st: { x: 143.1, y: 289.7, h: -0.641 } },
-    { name: '東', route: [[300.0,-45.0],[300.7,-41.1],[301.4,-37.1],[302.1,-33.2],[302.8,-29.2],[303.5,-25.3],[304.2,-21.4],[304.9,-17.4],[305.6,-13.5],[306.3,-9.5],[306.9,-5.6],[307.6,-1.7],[308.3,2.3],[309.0,6.2],[309.7,10.1],[310.4,14.1],[311.1,18.0],[311.8,22.0],[312.5,25.9],[313.2,29.8],[313.9,33.8],[314.6,37.7],[315.3,41.7],[316.0,45.6],[316.7,49.5],[317.4,53.5],[318.1,57.4],[318.8,61.4],[319.4,65.3],[320.1,69.2],[320.8,73.2],[321.5,77.1],[322.2,81.1],[322.9,85.0],[323.6,88.9],[324.3,92.9],[325.0,96.8],[325.7,100.8],[326.4,104.7],[327.1,108.6],[327.8,112.6],[328.5,116.5],[329.2,120.4],[329.7,124.4],[329.8,128.4],[329.4,132.4],[328.1,136.1],[326.1,139.6],[323.6,142.7],[320.8,145.6],[317.6,148.0],[314.2,150.0],[310.4,151.4],[306.5,152.3],[302.5,152.8],[298.5,152.9],[294.6,152.6],[290.6,152.0],[286.9,150.6],[283.3,148.8],[279.5,147.6],[275.5,147.8],[271.7,149.0],[268.2,150.9],[265.1,153.5],[262.6,156.5],[260.7,160.1],[259.4,163.8],[258.5,167.7],[258.1,171.7],[258.0,175.7],[258.3,179.7],[258.9,183.6],[259.7,187.6],[260.8,191.4],[262.3,195.1],[263.4,197.5]].slice(10), st: { x: 306.9, y: -5.6, h: 1.365 } },
+    { name: '西', route: [[-125.0,255.0],[-121.0,254.8],[-117.0,254.6],[-113.0,254.4],[-109.0,254.2],[-105.0,254.0],[-101.0,253.7],[-97.0,253.5],[-93.0,253.3],[-89.0,253.1],[-85.1,252.9],[-81.1,252.9],[-77.1,253.2],[-73.1,253.9],[-69.2,254.7],[-65.3,255.5],[-61.4,256.3],[-57.5,257.2],[-53.5,257.9],[-49.6,258.3],[-45.6,258.3],[-41.6,258.0],[-37.7,257.1],[-33.9,255.7],[-30.4,253.8],[-27.0,251.7],[-23.5,249.8],[-19.8,248.3],[-15.9,247.4],[-11.9,247.0],[-7.9,246.8],[-3.9,246.6],[0.0,246.3],[4.0,246.1],[8.0,245.8],[12.0,245.3],[15.9,244.3],[19.7,243.1],[23.5,241.9],[27.3,240.6],[31.1,239.4],[34.9,238.2],[38.7,236.9],[42.5,235.7],[46.3,234.4],[50.1,233.2],[54.0,232.1],[57.9,231.4],[61.9,231.2],[65.9,231.4],[69.9,231.8],[73.9,231.8],[77.8,231.4],[81.8,230.6],[85.6,229.5],[89.4,228.2],[93.2,227.0],[97.0,225.8],[100.8,224.5],[104.6,223.3],[108.4,222.1],[112.2,220.8],[116.0,219.6],[119.8,218.3],[123.6,217.1],[127.4,215.9],[131.2,214.6],[135.1,213.4],[138.9,212.3],[142.8,211.6],[146.8,211.4],[150.8,211.7],[154.8,212.3],[158.7,213.1],[162.6,214.0],[166.5,214.8],[170.4,215.7],[174.2,216.8],[177.9,218.4],[181.6,220.0],[185.4,221.3],[189.2,222.3],[193.1,223.1],[197.1,223.8],[201.1,224.2],[205.1,224.2],[209.1,224.1],[213.1,223.9],[217.0,223.6],[221.0,223.4],[225.0,223.2],[229.0,222.9],[233.0,222.4],[236.9,221.5],[240.7,220.3],[244.5,219.0],[248.2,217.6],[251.8,215.9],[255.2,213.8],[258.5,211.5],[261.5,208.8],[264.3,206.0],[267.0,203.0],[267.4,202.6]], st: { x: -125, y: 255, h: -0.050 } },
+    { name: '東', route: [[306.9,-5.6],[307.7,-1.7],[308.6,2.2],[309.4,6.1],[310.3,10.0],[311.6,13.8],[313.2,17.5],[315.0,21.1],[316.8,24.6],[318.6,28.2],[320.4,31.8],[322.2,35.3],[324.0,38.9],[325.5,42.6],[326.6,46.5],[327.5,50.4],[328.2,54.3],[328.5,58.3],[328.4,62.3],[328.2,66.3],[328.0,70.3],[327.9,74.3],[328.0,78.3],[328.6,82.2],[329.6,86.1],[331.1,89.8],[332.8,93.4],[334.3,97.1],[335.5,100.9],[336.4,104.8],[336.8,108.8],[336.9,112.8],[336.6,116.8],[335.9,120.7],[334.8,124.6],[333.3,128.3],[331.5,131.8],[329.4,135.2],[327.2,138.6],[325.0,141.9],[322.5,145.0],[319.6,147.7],[316.1,149.8],[312.4,151.2],[308.5,152.2],[304.6,153.0],[300.6,153.6],[296.7,153.8],[292.7,153.4],[288.9,152.1],[285.5,150.1],[282.0,148.1],[278.1,147.3],[274.1,147.9],[270.4,149.3],[266.9,151.3],[263.8,153.8],[261.6,157.1],[260.1,160.8],[258.9,164.6],[257.8,168.5],[257.1,172.4],[256.9,176.4],[257.4,180.4],[258.2,184.3],[259.0,188.2],[259.9,192.1],[261.3,195.1]], st: { x: 306.9, y: -5.6, h: 1.365 } },
   ];
   let LEG = 0, ROUTE = LEGS[0].route;
   /* 出発の位置と向き：その回の道順の最初の点から、2つ先の点へ向く */
@@ -3005,7 +3011,16 @@ function start(DATA, isAsakusa) {
      （10/31 見た人「積んだビルが大きな暗い箱になって、まん中をふさぐ」：前は一辺 9m まで乗せていた。積み木くらいの大きさにそろえ、高さは段数で出す）
      乗せた建物は、運び終えてやり直すときに元の場所へ戻す（restoreStack） */
   const ATT_R0 = 3.0, ATT_RK = 0.03, ATT_RMAX = 7, ATT_GAP = 150, ST_K = 1.3, ST_MIN = 3.5, ST_STR = 2, ST_HMAX = 9;
-  function stCap() { return Math.max(ST_MIN, ST_K * (S.dim ? S.dim.W : 3)); }
+  /* 回ごとに積める大きさを上げる（11/02 本人承認「1回目は小さい店くらいまで、2回目は3〜5階建て、3回目は大きなビルまで。頑張ればスカイツリーを超えられるくらいに」）。
+     前は、担げるかは担ぎ手の数（needOf）だけで決め、乗せた1棟の高さは9m（ST_HMAX）まで・足元の縮め方の2倍（ST_STR）までにしていたので、
+     1回目のうちに担ぎ手が500人を超えると何でも担げるのに、塔は1棟9mずつしか伸びず、通しで遊んで130〜150mだった。
+     LEG_HMAX：その回にくっつく建物の高さの上限（m。担ぎ手の数の条件はそのまま）。
+     LEG_CAPK：乗せたときの足元の大きさ（stCap）の倍率。LEG_STH・LEG_STR：乗せた1棟の高さの上限（m）と、足元の縮め方の何倍まで高さを残すか。
+     LEG_HK：乗せた高さに掛ける倍率。2回目は建物の高さの5〜6割、3回目は6〜7割ほどで積む（3回目の40m前後のビルは25mほどになる）。3回目の道順は、大きなビルが並ぶ馬道通りの東側に寄せた。
+     道順に沿って進むだけの通しテストで、塔は約500m（スカイツリーまであと百m余り）。両側の建物をこまめに拾えば634mを超える（fix3/t7.py。倍率なしでは道順どおりで710mになり、簡単に超えた） */
+  const LEG_HMAX = [11, 20, Infinity], LEG_CAPK = [1, 1.3, 1.6], LEG_STH = [ST_HMAX, 20, 60], LEG_STR = [ST_STR, 8, 16], LEG_HK = [1, 0.55, 0.65];
+  const legOf = A => A[raimonB ? Math.min(LEG, A.length - 1) : 0];
+  function stCap() { return Math.max(ST_MIN, ST_K * (S.dim ? S.dim.W : 3)) * (raimonB ? legOf(LEG_CAPK) : 1); }
   const AT = { t: 0, last: 0, combo: 0, fly: [], log: [] };
   /* 道順（ROUTE）から建物までの近さ（m）と、いちばん近い道順の点の番号。建物ごとに一度だけ数える */
   function routeNear(b) {
@@ -3022,7 +3037,7 @@ function start(DATA, isAsakusa) {
     return Math.hypot(b.d.cx - ax - dx * t, b.d.cy - ay - dy * t) < 12;
   };
   const attachable = (b, crewN) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
-    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && (needOf(b) <= crewN || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(raimonB && b.h > legOf(LEG_HMAX)) && (needOf(b) <= crewN || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
   const NAKA_GAP = 1800;
@@ -3141,7 +3156,7 @@ function start(DATA, isAsakusa) {
     /* 浮かんで揺れていた写し（hoverStep）があれば、それをそのまま飛ばす（浮いていた所から吸い寄せられる） */
     const hv = HV.get(b); if (hv) { HV.delete(b); hvHalo(hv); }
     liftOut(b, true);
-    const cap = stCap(), s = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv = Math.max(s, Math.min(1, s * ST_STR, ST_HMAX / Math.max(1, b.h))), L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
+    const cap = stCap(), s = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv = Math.max(s, Math.min(1, s * legOf(LEG_STR), legOf(LEG_STH) / Math.max(1, b.h))) * legOf(LEG_HK), L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
     /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
     const k = (S.stack || []).length + AT.fly.length, yaw = (hash(k + 0.7, b.d.cx) - 0.5) * 0.7 + (b.d.L * s > S.dim.L * 1.6 ? Math.PI / 2 : 0);
     const ox = (hash(k, 3.1) - 0.5) * Math.min(1.2, S.dim.L * 0.25), oz = (hash(5.3, k) - 0.5) * Math.min(1, S.dim.W * 0.25);
@@ -3157,9 +3172,34 @@ function start(DATA, isAsakusa) {
      続けてくっつくほど「ポン」が高く。担げない建物にぶつかったとき（弾かれる・横にがたつく・低いドン）と、動きも音も逆にした */
   function landFx(F) {
     const b = F.b, now = performance.now(), n = Math.max(1, Math.round(needOf(b) / 4));
-    joinAdd(n, i => ({ x: b.d.cx + (hash(i, b.d.cy) - 0.5) * b.d.L * 0.6, y: b.d.cy + (hash(b.d.cx, i) - 0.5) * b.d.W * 0.6, P: personOf(hash(b.d.cx + i, 1.9), hash(i, b.d.cy + 0.3)) }), now, 60);
+    /* 11/02 本人「町会が呼ぶ場面に、関係のない＋3人が一瞬出る」：着く直前にくっついた建物は、飛んでいる0.5秒の間に着いてしまい、お祓いの画面で乗って「＋3人」を出していた。
+       着いた後（S.done）に乗ったときは、人は加えるが、浮き文字・太鼓・歓声は出さない（joinAdd の back と同じ扱い） */
+    joinAdd(n, i => ({ x: b.d.cx + (hash(i, b.d.cy) - 0.5) * b.d.L * 0.6, y: b.d.cy + (hash(b.d.cx, i) - 0.5) * b.d.W * 0.6, P: personOf(hash(b.d.cx + i, 1.9), hash(i, b.d.cy + 0.3)) }), now, 60, !!S.done);
     SND.pon(AT.combo);
     S.sinkT = now; S.kickT = now;
+    heightMilestone(now);
+  }
+  /* ---------- 塔の高さの節目（11/02 本人承認） ----------
+     積んだ塔（地面から。結果の高さ比べと同じ stackHeight＋LIFT）が 50m・100m・200m・スカイツリーの半分（317m）を超えた瞬間に、
+     太鼓の連打と歓声（SND.milestone）を鳴らし、沿道と境内の提灯をぱっと大きく明るくして2秒ほどで戻す（msPulse。nightFrame で使う）。字は出さない。
+     着いた後（お祓いの間など）に乗った建物で超えたときは、鳴らさずに節目だけ進める（次の回の最初の1棟で鳴らないように）。もう一回（restartRun）で0に戻す */
+  const MS_H = [50, 100, 200, 317], MS = { lv: 0, t0: 0, k: 0 };
+  function heightMilestone(now) {
+    if (!raimonB) return;
+    const H = stackHeight() + LIFT;
+    let lv = MS.lv; while (lv < MS_H.length && H >= MS_H[lv]) lv++;
+    if (lv === MS.lv) return;
+    MS.lv = lv;
+    if (S.done) return;
+    MS.t0 = now; MS.k = 0.75 + 0.1 * lv;
+    SND.milestone(lv);
+  }
+  /* 提灯の明るさの山：0.12秒でぱっと上がり、0.25秒保って、ゆっくり（時定数0.7秒）戻る */
+  function msPulse(now) {
+    if (!MS.t0) return 0;
+    const e = (now - MS.t0) / 1000;
+    if (e > 3) { MS.t0 = 0; return 0; }
+    return Math.min(1, e / 0.12) * Math.exp(-Math.max(0, e - 0.25) / 0.7) * MS.k;
   }
   /* 毎こま：飛んでいる建物。神輿は動いているので、着く所は毎こま神輿の絵の中から求める */
   const flyV = new THREE.Vector3();
@@ -3272,7 +3312,8 @@ function start(DATA, isAsakusa) {
   function stackSway(now) {
     const L = S.stack; if (!L || !L.length) return;
     const tt = now / 1000, sp = 0.35 + Math.min(1, (S.spd || 0) / 6);
-    for (let i = 0; i < L.length; i++) { const a = 0.006 * (i + 1) * sp / Math.sqrt(1 + i * 0.15); L[i].m.rotation.x = Math.sin(tt * 2.1 + i * 0.7) * a; L[i].m.rotation.z = Math.cos(tt * 1.7 + i) * a; }
+    /* 11/02 2回目から背の高い建物をそのまま積むので、1棟の上の端が揺れで1.2mより大きくずれないようにする（40mの棟が大きく傾いて、塔から外れて見えないように） */
+    for (let i = 0; i < L.length; i++) { const ph = Math.max(1, L[i].top - (i ? L[i - 1].top : stackBase())), a = Math.min(0.006 * (i + 1) * sp / Math.sqrt(1 + i * 0.15), 1.2 / ph); L[i].m.rotation.x = Math.sin(tt * 2.1 + i * 0.7) * a; L[i].m.rotation.z = Math.cos(tt * 1.7 + i) * a; }
   }
   /* ほめる（10/30 案5）：右上の担ぎ手の数の下に、大きく「＋3人」などを出して消す。10人の節目を越えたら太鼓も */
   /* bad：悪い知らせ（落ちた）は灰色で下へ沈む字にする（10/30 ほめるときと同じ赤い跳ねる字で、損をしたのに褒められたように見えた） */
@@ -3900,6 +3941,16 @@ function start(DATA, isAsakusa) {
       const t = ctx.currentTime + 0.005, f = 540 * Math.pow(2, Math.min(12, k || 0) / 12);
       tone(t, f, f * 1.9, 0.11, 'sine', 0.5, bus.fx, 0.002); tone(t + 0.008, f * 2, f * 2.9, 0.06, 'triangle', 0.1, bus.fx, 0.002); noiseHit(t, 0.03, 'bandpass', 2600, 2, 0.12, bus.fx);
     }
+    /* 塔の高さの節目（11/02 本人承認。heightMilestone）：曲の締太鼓と大太鼓で連打（bgm.roll。lv が上がるほど打つ数を増やす）し、
+       魂振りと同じ歓声の素（CB.cheer）を重ね、見物のざわめきを一瞬上げる（cheer）。音の素は新しく作らない。曲が無いときは歓声だけ */
+    function milestone(lv) {
+      log('milestone', { lv });
+      if (!ctx || scene === 'idle' || scene === 'iri') return;
+      const t0 = ctx.currentTime + 0.03, tb = bgm && ctx.state === 'running' ? bgm.nextBeat(t0, 2) : null, t = tb !== null && tb !== undefined ? tb : t0;
+      if (bgm && bgm.roll) { try { bgm.roll(t, 8 + 3 * lv); } catch (e) { /* 曲の作りが古いときは鳴らさない */ } }
+      if (CB.cheer && cerIn) { const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = CB.cheer; g.gain.value = 0.24 + 0.04 * lv; s.connect(g); g.connect(cerIn); s.start(t + 0.2); }
+      cheer();
+    }
     function rumble(t, dur, f, g) {
       const src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f; lp.Q.value = 0.7;
@@ -4221,7 +4272,7 @@ function start(DATA, isAsakusa) {
       if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, pon, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
+    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, pon, milestone, hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
 
@@ -4520,7 +4571,7 @@ function start(DATA, isAsakusa) {
     hideMsg(); tourReset();
     S.done = null; S.camOrbit = 0; S.v = 0; hold.locked = false;
     clearCarry();
-    team = TEAM0; arriveN = 0;
+    team = TEAM0; arriveN = 0; MS.lv = 0; MS.t0 = 0;
     /* 3回着く形：1回目（南の雷門通り）から。切り替えの途中なら暗くしたのを戻す */
     setLeg(0); $('legFade').classList.remove('on'); chokaiClear();
     if (!base) { $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; enterPick(true); return; }
@@ -6399,7 +6450,7 @@ function start(DATA, isAsakusa) {
        前は「〇〇が浅草神社でお祓いを受けました／担ぎ手／道のり／積んだ高さ（スカイツリーの比べ）」と番付の判、題（お祓い・魂振り・元の場所へ）を出していた。
        数字は、境内の人が輪に着くたびに増える（shrineCount） */
     $('doneInfo').innerHTML = `<b class="doneN" id="teamCnt">${fmt(team)}人</b>`;
-    /* 3分版：花火の大きさは、着いたときの担ぎ手の数で決める（hanabiTier。境内の人が加わる前の数） */
+    /* 3分版：花火の大きさは、着いたときの塔の高さで決める（11/02 から。hanabiTier）。S.arrCrew（境内の人が加わる前の担ぎ手の数）は浅草以外の町で使う */
     S.arrCrew = team;
     const el = $('done'); el.classList.remove('result'); el.style.display = 'block'; requestAnimationFrame(() => el.classList.add('on'));
     $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; hideMsg();
@@ -6429,7 +6480,7 @@ function start(DATA, isAsakusa) {
      本人が選んだ理由は「別の町会に呼ばれる」。三社祭では町会ごとに神輿を出すので、着いたら次の町会が「うちの町からも担いでくれ」と待っている） ----------
      1・2回目に着いて、お祓いと小さな花火が済んだら（legNext）：
        call（1.8秒）：次の出発の所へカメラを切り替え、そろいの色の服の町会の人たちが、提灯を高く掲げ、手を上げて跳ねて待っているのを見せる。
-                      字は一言だけ「北の町会が呼んでいます」（実在の町会名は書かない。提灯にも字は無い）。
+                      字は一言だけ「西の町会が呼んでいます」（11/02 2回目の出発を西の通りへ移したので、前の「北の」から替わる。実在の町会名は書かない。提灯にも字は無い）。
        move（3秒）：カメラが神輿の後ろの上（高さ110m）へ上がり、神輿が塔ごと、次の回の道順を逆にたどって出発の所まで早送りで移るのを追う。
                     浅草神社から離れていく金色の線を地面に引く。
        着いたら（legArrive2）：待っていた町会の人が駆け寄って加わり（＋○人。飛び入りに足す）、カメラが神輿の真後ろへ降りる（1.6秒）。
@@ -6549,7 +6600,7 @@ function start(DATA, isAsakusa) {
     if (D.phase === 'harai') {
       /* 1・2回目：お祓いのあと、小さな花火（2発）。上がらなければすぐ次の回へ */
       if (D.leg && el > 3000) {
-        if (!D.fw) { D.fw = true; SND.setScene('back'); hbSmall = true; const ok = NIGHT && hanabiStart('s2', 0); hbSmall = false;
+        if (!D.fw) { D.fw = true; SND.setScene('back'); hbSmall = true; const ok = NIGHT && hanabiStart(raimonB && hbH() >= 150 ? 's3' : 's2', 0); hbSmall = false;
           if (ok) { D.phase = 'hanabi'; D.t0 = now; D.tier = 's2'; $('done').classList.remove('on'); } else legNext(); }
         return { px: S.x, py: S.y, ori: S.head + S.rot, lift: 1, shake: 0 };
       }
@@ -6602,7 +6653,19 @@ function start(DATA, isAsakusa) {
       /* カメラは神輿の後ろの上（高さ110m・後ろ60m）から、進む先を見て一緒に動く（縦長の画面でも神輿と後ろに伸びる線が入るように） */
       /* 最後の2割で神輿が出発の向きへ回るときは、カメラも一緒に神輿のまわりを回って、真後ろへ（上を通り越して真上から見下ろす画にならないように） */
       { const pd = q > 0.8 ? dir : Math.atan2(P[i + 1][1] - P[i][1], P[i + 1][0] - P[i][0]), cc = Math.cos(pd), ss = Math.sin(pd), hk = innerWidth < innerHeight ? 1.25 : 1;
-        D.moveCam = { pos: V(x - cc * 60 * hk, y - ss * 60 * hk, 110 * hk), look: V(x + cc * 30, y + ss * 30, 0) }; }
+        D.moveCam = { pos: V(x - cc * 60 * hk, y - ss * 60 * hk, 110 * hk), look: V(x + cc * 30, y + ss * 30, 0) };
+        /* 11/02 本人承認「遊んでいる間もスカイツリーが見える」：早送りの間は、神輿のスカイツリーと反対の側（少し横へずらす）の、低めの斜め上（後ろ110m・高さ55m）から、
+           神輿とスカイツリーの間を見る（神輿は画面の下、スカイツリーは横に並ぶ）。最後の2割で、前と同じ神輿の後ろの上へ回り込み、真後ろへ降りるのにつなぐ */
+        if (raimonB) {
+          const sk = Math.atan2(SKY.y - y, SKY.x - x), ca = sk + Math.PI + skySide(), R1 = 110 * hk, Z1 = 55 * hk;
+          const f = q > 0.8 ? (q - 0.8) / 0.2 : 0, fe = f * f * (3 - 2 * f);
+          let da = (pd + Math.PI) - ca; da = Math.atan2(Math.sin(da), Math.cos(da));
+          const a = ca + da * fe, R = R1 + (60 * hk - R1) * fe, Z = Z1 + (110 * hk - Z1) * fe;
+          const cx = x + Math.cos(a) * R, cy = y + Math.sin(a) * R;
+          let lm = skyMid(cx, cy, x, y), dl = pd - lm; dl = Math.atan2(Math.sin(dl), Math.cos(dl)); lm += dl * fe;
+          const LD = 100 + (Math.hypot(x + cc * 30 - cx, y + ss * 30 - cy) - 100) * fe, LZ = (Z - 14) * (1 - fe);
+          D.moveCam = { pos: V(cx, cy, Z), look: V(cx + Math.cos(lm) * LD, cy + Math.sin(lm) * LD, LZ) };
+        } }
       if (CH.ribbon) CH.ribbon.geometry.setDrawRange(0, Math.min((P.length - 1) * 6, (i + 1) * 6));
       if (q >= 1) { legArrive2(now); return null; }
       return { px: x, py: y, ori: dir, lift: 1, shake: 0 };
@@ -6697,6 +6760,12 @@ function start(DATA, isAsakusa) {
     const sky = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 12), mat);
     sky.position.copy(V(SKY.x, SKY.y, 0)); scene.add(sky);
   }
+  /* 11/02 スカイツリーが見えるカメラ（お祓い・魂振り・町会へ移る早送り）の向きを決める道具。
+     skySide：カメラを神輿のスカイツリーと反対の側から、どれだけ横へずらすか（rad）。神輿と積んだ塔が画面の左、スカイツリーが右に並び、塔がスカイツリーに重ならない。
+       縦長の画面は横の画角が狭いので小さく。skyMid：カメラ (cx, cy) から見て、神輿 (x, y) とスカイツリーのちょうど間の向き */
+  const SKC = { R: 55, Z: 26, P: -0.08, W: 0.025 };
+  function skySide() { const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect); return Math.min(0.35, hh * 0.9); }
+  function skyMid(cx, cy, x, y) { const am = Math.atan2(y - cy, x - cx), as = Math.atan2(SKY.y - cy, SKY.x - cx); let d = as - am; d = Math.atan2(Math.sin(d), Math.cos(d)); return am + d / 2; }
   let hcmpT = 0, prevTowerH = 0;
   function hcmpShow(H) {
     const el = $('hcmp'), top = Math.max(SKY.h, H, prevTowerH);
@@ -6705,8 +6774,12 @@ function start(DATA, isAsakusa) {
     const pv = el.querySelector('.prev'); pv.style.display = prevTowerH ? 'block' : 'none';
     /* 前の回の高さ：塔の棒の下から測った位置（棒の高さに対する割合） */
     if (prevTowerH) pv.style.bottom = (prevTowerH / H * 100).toFixed(1) + '%';
-    const over = H >= SKY.h, n = Math.round(SKY.h / H);
-    $('hcmpTxt').textContent = over ? 'スカイツリー超え！' : n <= 1 ? 'スカイツリーとほぼ同じ' : `スカイツリーの1/${n}`;
+    /* 11/02 本人承認：分数（1/5 など）をやめ、「あと○mでスカイツリー」にする。634mの9割（約571m）からは「ほぼ同じ」、超えたら「超え！」。
+       前は四捨五入した分数で、510mでも「ほぼ同じ」と出ていた */
+    const over = H >= SKY.h, near = H >= SKY.h * 0.9;
+    /* 字は二つに分けて置く（スマホの縦の画面では2行にして、右下の担ぎ手の札に重ならないように。PCは1行のまま） */
+    const tx = over ? ['スカイツリー', '超え！'] : near ? ['スカイツリーと', 'ほぼ同じ'] : [`あと${fmt(Math.ceil(SKY.h - H))}mで`, 'スカイツリー'];
+    $('hcmpTxt').innerHTML = `<span>${tx[0]}</span><span>${tx[1]}</span>`;
     el.classList.toggle('over', over);
     el.style.display = 'flex'; requestAnimationFrame(() => el.classList.add('on'));
   }
@@ -6767,12 +6840,20 @@ function start(DATA, isAsakusa) {
      6未満 2発（'s2'）、16未満 3発（'s3'）、30未満 小、50未満 中、50以上 大。4段目の光る建物は20点足す */
   /* 10/30 3分版（本人「担ぎ手の数に応じた花火」）：着いたときの担ぎ手の数（S.arrCrew）で決める。HB_TIERS 人以上で 3発・小・中・大（それ未満は2発）。
      打ち上げる数を決める重さ（hanabiStart の ton）も、担ぎ手1人を HB_TON トンとして数える（土台の小さな建物の重さでは発数が増えないので） */
-  const HB_TIERS = [45, 80, 125, 180], HB_TON = 14;
-  /* hbSmall：1・2回目に着いたときの小さな花火（2発だけ。飛び入りの人数で玉を足さない。legArrive） */
+  /* 11/02 本人承認「花火の大きさを、担ぎ手の数ではなく積んだ高さで決める（高いほど大きく・多く）」：担ぎ手は1回目のうちに数百人になり、
+     3回目にはいつも千人を超えて、どう遊んでも同じ大きな花火になっていた。浅草の3分版は、着いたときの塔の高さ（hbH：stackHeight＋LIFT）で決める。
+       段（hanabiTier）：HB_HT m 以上で 3発・小・中・大（それ未満は2発）。打ち上げる数を決める重さ（hbTon）は、500mを超えた分 1m を 20トンとして数え、大のスターマインを増やす。
+       足す玉（hanabiPlan の ex）：100mを超えた分 40m ごとに1発（12発まで）。玉の大きさ（hbSizeK）：高さ0mで0.85倍、634mで1.2倍（hanabiStart の r に掛ける）。
+       1・2回目の小さな花火も、塔が150m以上なら3発にし、大きさは同じく高さで決める。浅草以外の町は前のまま（担ぎ手の数） */
+  const HB_TIERS = [45, 80, 125, 180], HB_TON = 14, HB_HT = [100, 200, 317, 500];
+  /* hbSmall：1・2回目に着いたときの小さな花火（2〜3発だけ。玉を足さない。legArrive） */
   let hbSmall = false;
-  const hbTon = () => Math.max(S.weight ? S.weight.ton : 0, (S.arrCrew || 0) * HB_TON);
+  const hbH = () => S.b ? stackHeight() + LIFT : 0;
+  const hbTon = () => raimonB ? 2500 + Math.max(0, hbH() - 500) * 20 : Math.max(S.weight ? S.weight.ton : 0, (S.arrCrew || 0) * HB_TON);
+  const hbSizeK = () => raimonB ? 0.85 + 0.35 * Math.min(1, hbH() / 634) : 1;
   function hanabiTier(b) {
     if (!NIGHT || !b) return 0;
+    if (raimonB) { const h = hbH(); return h >= HB_HT[3] ? 3 : h >= HB_HT[2] ? 2 : h >= HB_HT[1] ? 1 : h >= HB_HT[0] ? 's3' : 's2'; }
     const p = S.arrCrew || 0;
     return p >= HB_TIERS[3] ? 3 : p >= HB_TIERS[2] ? 2 : p >= HB_TIERS[1] ? 1 : p >= HB_TIERS[0] ? 's3' : 's2';
   }
@@ -6809,9 +6890,9 @@ function start(DATA, isAsakusa) {
       add(26, 6, 'yanagi', -0.7, 138, 58, 'kin'); add(26, 6, 'yanagi', 0.7, 138, 58, 'kin'); add(27, 6, 'yanagi', 0, 142, 60, 'kin');
       add(26, 7, 'dai', 0, 150, 88, 'dai', 'gin');
     }
-    /* 飛び入りの人数で足す（4人ごとに1発、12発まで）。小さな牡丹と千輪を低めに。
+    /* 足す玉：浅草の3分版は塔の高さで（100mを超えた分40mごとに1発）、ほかの町は飛び入りの人数で（4人ごとに1発）。12発まで。小さな牡丹と千輪を低めに。
        2〜3発と小のときは最後の玉のあとに8分2つおき、中・大は締めの前に重ねる（締めの大玉を最後に残す） */
-    const ex = hbSmall ? 0 : Math.min(12, Math.floor(JN.n / 4)), cs = ['momo', 'mido', 'ao', 'aka', 'kin', 'mura'];
+    const ex = hbSmall ? 0 : Math.min(12, raimonB ? Math.floor(Math.max(0, hbH() - 100) / 40) : Math.floor(JN.n / 4)), cs = ['momo', 'mido', 'ao', 'aka', 'kin', 'mura'];
     if (ex) {
       const lastE = P.reduce((m, q) => Math.max(m, q.e8), 0), tail = typeof tier === 'string' || tier === 1;
       for (let i = 0; i < ex; i++) {
@@ -6948,7 +7029,7 @@ function start(DATA, isAsakusa) {
       const jx = (Math.random() - 0.5) * 16, jd = (Math.random() - 0.5) * 40;
       const al = q.x * spread + jx;
       const x = cxF + rx * al + ry * jd, y = cyF + ry * al - rx * jd;
-      const r = q.r * HB_AT.zr * (por ? 0.8 : 1);
+      const r = q.r * HB_AT.zr * (por ? 0.8 : 1) * hbSizeK();
       const o = V(x, y, q.h * HB_AT.zh), o0 = V(x + (Math.random() - 0.5) * 6, y + (Math.random() - 0.5) * 6, 2);
       hbRise(A, o0, o, tl - HB.T0, tb - HB.T0, HB_AT.zs);
       hbShell(A, Object.assign({}, q, { r, z: HB_AT.zr, zs: HB_AT.zs }), o, tb - HB.T0);
@@ -7605,6 +7686,9 @@ function start(DATA, isAsakusa) {
     // 提灯と光だまり（夜明けとともに消えていく）
     NT.lan.visible = NT.pool.visible = lanK > 0.002;
     NT.lan.material.opacity = lanK; NT.pool.material.opacity = lanK;
+    /* 塔の高さの節目（heightMilestone）：沿道の提灯と光だまり、境内の提灯を、ぱっと大きく明るくして戻す */
+    { const mp = msPulse(now); NT.lan.material.size = 4.0 * (1 + 0.9 * mp); NT.lan.material.color.setScalar(1 + 1.4 * mp); NT.pool.material.color.setScalar(1 + 1.0 * mp);
+      if (KEI.on) { KEI.lm.size = 3.0 * (1 + 0.9 * mp); KEI.lm.color.setScalar(1 + 1.4 * mp); } }
     NT.win.value = 0.7 * lanK * lanK;   // 窓は提灯より先に消えていく（朝になったら明かりを消す）
     for (const g of NT.glowMats) g.m.emissiveIntensity = g.k * lanK;
     // 神輿に付いて回る明かり：カメラの側の斜め上から、神輿と担ぎ手を照らす
@@ -8024,6 +8108,15 @@ function start(DATA, isAsakusa) {
       if (!camFollow && !S.intro) { cx0 = camPan.x; cy0 = camPan.y; }   // 地図のようにドラッグで動かしている間は、神輿を追わない
       const back = V(cx0 + Math.cos(ca) * D * 0.85, cy0 + Math.sin(ca) * D * 0.85, D * camH + vh * 0.25);
       const look = V(cx0 + Math.cos(S.camHead) * D * 0.3, cy0 + Math.sin(S.camHead) * D * 0.3, (vh + LIFT) * lookH);
+      /* 11/02 本人承認「遊んでいる間もスカイツリーが見える」：浅草の3分版のお祓い・魂振りの間は、神輿のスカイツリーと反対の側（少し横へずらす。skySide）の
+         斜め上（神輿から SKC.R m・高さ SKC.Z m）から、神輿とスカイツリーの間の向きを少し見下ろす。神輿と担ぎ手は画面の下、積んだ塔は左、東南東のスカイツリーは右。
+         低い所からだと、浅草神社の東南の40m台のビルにスカイツリーが隠れたので、ビルの上から見える高さにした。その間もゆっくり回る（SKC.W rad/秒） */
+      if (raimonB && S.done && (S.done.phase === 'harai' || S.done.phase === 'tamafuri')) {
+        const D0 = S.done, cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)); D0.skyO = (D0.skyO || 0) + SKC.W * cdt;
+        const sk = Math.atan2(SKY.y - S.y, SKY.x - S.x), a = sk + Math.PI + skySide() + D0.skyO, R = SKC.R * (isSm() ? 1.25 : 1);
+        const cx = S.x + Math.cos(a) * R, cy = S.y + Math.sin(a) * R, lm = skyMid(cx, cy, S.x, S.y);
+        back.copy(V(cx, cy, SKC.Z)); look.copy(V(cx + Math.cos(lm) * 100, cy + Math.sin(lm) * 100, SKC.Z + 100 * Math.tan(SKC.P)));
+      }
       /* 3分版の結果（result）：積んだ塔がてっぺんまで入るところまで引いて、塔のまわりをゆっくり回る */
       const resCam = S.done && S.done.phase === 'result';
       /* 高さ比べ（10/31 直し）：自分の塔を手前にはっきり（画面の高さの半分ほど）、その奥にスカイツリーが見える角度で。
@@ -8133,7 +8226,7 @@ function start(DATA, isAsakusa) {
     /* 段取りの案内と花火の確かめ用 */
     stage: () => stage, setStage: n => { stage = Math.max(0, Math.min(STAGE_LAST, n | 0)); }, STAGE_IDS, hanabiTier, hanabiPlan, toBack, HB_AT, joinLose: sp => { S.spd = sp; joinLose(); }, rickshaws: () => rickshaws, team: v => { if (v != null) team = v; return team; }, stackHeight, needOf, setFirst: id => { const r = reachGlow.find(q => q.st === 0), b = blds.find(q => q.id.includes(id)); if (r && b) { r.b = b; r.need = needOf(b); } return !!(r && b); }, addPeople: (u, n) => joinAdd(n, k => ({ x: S.x + 6 + k, y: S.y + 6, P: personOf(u, hash(k, 2.3)) }), performance.now(), 120), ptCounts: () => PT && Object.fromEntries(Object.entries(PT).filter(([, m]) => m && m.isInstancedMesh).map(([k, m]) => [k, m.count])), crowdNF: () => crowdAll.map(m => m.count), crewLod: () => crewBody.geometry === crewGeoLo, stack: () => (S.stack || []).map(s => [s.b.id.slice(5, 13), flatState.get(s.b) || 0]),
     /* 3分版の確かめ用：道順・くっついた数・速さ・結果の札・やり直す */
-    ROUTE: () => ROUTE, legStart, leg: () => LEG, LEGS, legJump: () => { if (!S.b || S.done || LEG >= LEGS.length - 1) return false; S.done = { phase: 'hanabi', t0: performance.now(), leg: true }; legNext(); return true; }, routeI: () => RT.i, runSpeed, attached: () => ({ n: (S.stack || []).length, fly: AT.fly.length, top: +stackTop().toFixed(1), last: Math.round(AT.last) }), restartRun, arrCrew: () => S.arrCrew, hovering: () => HV.size, carriers: () => { const now = performance.now(); let n = crewBody.count + crewBodyL.count; for (let i = 0; i < JN.list.length; i++) { const J = JN.list[i]; if (now - J.t0 >= (J.dur || 1100) && !JN.pmask[i]) n++; } return n; }, holdOn: () => hold.on, glowAt: (x, y, t) => { camera.updateMatrixWorld(); const b = glowAt(x, y, t); return b && b.id.slice(5, 13); }, rayAt: (x, y) => { camera.updateMatrixWorld(); raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera); const b = marchHit(raycaster.ray.origin, raycaster.ray.direction, 3000, q => !selectable(q)); return b && b.id.slice(5, 13); }, hoverId: () => hover && hover.id && hover.id.slice(5, 13), ghostN: () => ghosts.size, attLog: () => AT.log, fade: () => ({ k: +Math.min(1, ...(S.stack || []).map(it => it.k === undefined ? 1 : it.k)).toFixed(2), thin: (S.stack || []).filter(it => it.k !== undefined && it.k < 0.9).length, cover: SF.cover, n: (S.stack || []).length, cap: +stCap().toFixed(2), H: +stackHeight().toFixed(1) }), poles: () => jpPole.count, assistOff: v => { RT.off = !!v; }, flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), drop: JN.drop.map(D => [D.n, Math.round(performance.now() - D.t0), +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwLamp.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, hbTon()),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
+    ROUTE: () => ROUTE, legStart, leg: () => LEG, LEGS, legJump: () => { if (!S.b || S.done || LEG >= LEGS.length - 1) return false; S.done = { phase: 'hanabi', t0: performance.now(), leg: true }; legNext(); return true; }, routeI: () => RT.i, runSpeed, attached: () => ({ n: (S.stack || []).length, fly: AT.fly.length, top: +stackTop().toFixed(1), last: Math.round(AT.last) }), restartRun, arrCrew: () => S.arrCrew, hovering: () => HV.size, carriers: () => { const now = performance.now(); let n = crewBody.count + crewBodyL.count; for (let i = 0; i < JN.list.length; i++) { const J = JN.list[i]; if (now - J.t0 >= (J.dur || 1100) && !JN.pmask[i]) n++; } return n; }, holdOn: () => hold.on, glowAt: (x, y, t) => { camera.updateMatrixWorld(); const b = glowAt(x, y, t); return b && b.id.slice(5, 13); }, rayAt: (x, y) => { camera.updateMatrixWorld(); raycaster.setFromCamera(new THREE.Vector2(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1), camera); const b = marchHit(raycaster.ray.origin, raycaster.ray.direction, 3000, q => !selectable(q)); return b && b.id.slice(5, 13); }, hoverId: () => hover && hover.id && hover.id.slice(5, 13), ghostN: () => ghosts.size, attLog: () => AT.log, ms: () => ({ lv: MS.lv, t0: Math.round(MS.t0), pulse: +msPulse(performance.now()).toFixed(2), size: NIGHT ? +NT.lan.material.size.toFixed(2) : null }), hbInfo: () => ({ H: +hbH().toFixed(1), tier: hanabiTier(S.b), ton: Math.round(hbTon()), k: +hbSizeK().toFixed(2), n: HB.n || 0 }), fade: () => ({ k: +Math.min(1, ...(S.stack || []).map(it => it.k === undefined ? 1 : it.k)).toFixed(2), thin: (S.stack || []).filter(it => it.k !== undefined && it.k < 0.9).length, cover: SF.cover, n: (S.stack || []).length, cap: +stCap().toFixed(2), H: +stackHeight().toFixed(1) }), poles: () => jpPole.count, assistOff: v => { RT.off = !!v; }, flatOf: id => { const b = blds.find(q => q.id.includes(id)); return b ? flatState.get(b) || 0 : null; }, glows: () => reachGlow.filter(r => glowOn(r)).map(r => [r.b.id.slice(5, 13), r.need, r.st]), focus: () => waitFocus && [waitFocus.id.slice(5, 13), waitN, waitCrews.length && waitCrews[0].spots.length], setupWaitFocus, homeView, join:() => ({ n: JN.n, wait: JN.wait.length, list: JN.list.length, lostAgo: Math.round(performance.now() - (JN.lostAt || 0)), spd: +(S.spd || 0).toFixed(2), drop: JN.drop.map(D => [D.n, Math.round(performance.now() - D.t0), +D.x.toFixed(1), +D.y.toFixed(1)]), rk: rickshaws.filter(r => r.jn).map(r => [r.jn, +r.x0.toFixed(1), +r.y0.toFixed(1)]), shown: jnBody.count, lamps: jnLamp.count, waitShown: jwLamp.count, spots: crowdSpots.length, flagged: crowdSpots.filter(p => p.j).length }), hbCam: () => HB.cam && { pos: HB.cam.pos.toArray(), look: HB.cam.look.toArray() }, hbAgain: () => S.done && S.done.phase === 'hanabi' && hanabiStart(S.done.tier, hbTon()),hbShow: v => { if (HB.pts) HB.pts.visible = !!v; }, programs: () => renderer.info.programs.length, textures: () => renderer.info.memory.textures, geometries: () => renderer.info.memory.geometries,
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }
 </script>

@@ -1425,6 +1425,17 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       return { pos: p / 4, bps: S.bpm / 60 };
     },
 
+    /* 太鼓の連打（11/02 ゲームが積んだ塔の高さの節目で呼ぶ）：締太鼓を2人で交互に32分の速さで n 打、だんだん強く。頭と終わりに大太鼓の「ドン」。
+       曲の中の締太鼓・大太鼓と同じ音の素を、同じ通り道に流す（音の素は新しく作らない） */
+    roll(t, n) {
+      if (!(t >= 0)) t = ctx.currentTime;
+      n = Math.max(4, Math.min(24, n | 0));
+      const d = 7.5 / S.bpm;
+      odaiko(t, 0.9, 'don');
+      for (let i = 0; i < n; i++) shimeHit(t + i * d, 0.55 + 0.45 * i / (n - 1), i % 2);
+      odaiko(t + n * d, 1, 'don');
+    },
+
     /* 覚えている16分の時刻の写し（確かめ用） */
     steps() { return hist.slice(); },
 

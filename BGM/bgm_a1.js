@@ -1436,6 +1436,12 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       odaiko(t + n * d, 1, 'don');
     },
 
+    /* 大太鼓の「ドン」を1打（11/03 ゲームが、担げる建物がいっせいに浮いた瞬間に呼ぶ）。曲の中の大太鼓と同じ音の素 */
+    don(t, vel) {
+      if (!(t >= 0)) t = ctx.currentTime;
+      odaiko(t, vel > 0 ? vel : 1, 'don');
+    },
+
     /* 覚えている16分の時刻の写し（確かめ用） */
     steps() { return hist.slice(); },
 

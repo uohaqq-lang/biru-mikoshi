@@ -121,11 +121,8 @@
   #mini { left:12px; bottom:64px; width:170px; height:170px; border:3px solid var(--paper); border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,.35); background:#a9b39f; display:none; pointer-events:none; }
   body[data-mode=carry] #mini { display:block; }
   @media (max-width:600px) { #mini { width:112px; height:112px; } }
-  #gateBox { left:194px; bottom:64px; width:240px; height:160px; border:3px solid var(--paper); border-radius:6px; box-shadow:0 1px 4px rgba(0,0,0,.35); display:none; pointer-events:none; }
-  #gateBox span { position:absolute; left:6px; top:4px; font-size:11px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8); }
-  @media (max-width:600px) { #gateBox { left:132px; width:130px; height:96px; } }
   /* 運び出しの間（2.6秒）は、建物が浮いて担ぎ手が集まる所だけを見せる。操作のボタン・情報・地図はまだ出さない */
-  body.intro #dialWrap, body.intro #rot, body.intro #again, body.intro #info, body.intro #mini, body.intro #zoom, body.intro #gateBox { display:none !important; }
+  body.intro #dialWrap, body.intro #rot, body.intro #again, body.intro #info, body.intro #mini, body.intro #zoom { display:none !important; }
   /* 担ぎ始め：向き・バックは少し遅れて、選び直す・地図は最初に押してから（押さなければ数秒後）出す */
   body.calm1 #rot, body.calm1 #back { display:none !important; }
   body.calm2 #again, body.calm2 #mini { display:none !important; }
@@ -289,12 +286,6 @@
   #back.on { background:#d8cfc0; }
   #tour { top:auto !important; bottom:110px; }
   @media (max-width:600px) { #tour { bottom:250px; } }
-  /* 雷門の提灯の小窓（左下、右端は452px）が出ている間（body.gateOn）は、名所の説明の札を小窓の右へよける。
-     1280px幅で札の左端が小窓に重なり、提灯の絵が隠れた（直す係 第1回・不具合3）。右の「向き」ボタン（右から196px）にもかからない幅にする */
-  @media (min-width:1000px) {
-    body.gateOn:not(.sm) #tour { left:max(50%, calc(452px + min(280px, 50vw - 330px))); }
-    body.gateOn:not(.sm) #tour:not(.slim) { width:min(560px, calc(100vw - 660px)); box-sizing:border-box; }
-  }
   /* 「やり直す」（町に戻って建物を選び直す）。10/29 本人「選び直すボタンも薄くしてでかくてもいい。やり直す感じの文言じゃないとわかりづらいかも」
      → 字を大きく、地を薄く（向こうの町が透ける） */
   #again { position:fixed; left:12px; bottom:14px; display:none; font-size:16px; font-weight:700; padding:10px 18px; background:rgba(244,239,230,.62); color:var(--ink); }
@@ -362,9 +353,6 @@
   body.sm #ttLoad { font-size:10px; }
   body.sm #info { font-size:12px; max-width:62vw; cursor:pointer; padding:5px 9px; }
   body.sm #mini { top:48px; bottom:auto; left:10px; width:96px; height:96px; }
-  body.sm #gateBox { top:150px; bottom:auto; left:10px; width:96px; height:76px; }
-  /* 11/04 1回目の出発を雷門の正面にしたので、提灯の小窓は担ぎ始めから出る。スマホの3分版では左の高さ比べの札（#hrun、上124px〜約235px）の下に重なって隠れていたので、札の下へ */
-  body.sm.run3 #gateBox { top:244px; }
   body.sm #msg { top:192px; font-size:15px; width:84vw; white-space:normal; }
   body.sm #again.big { top:262px; bottom:auto; font-size:16px; padding:11px 22px; }   /* body.sm #again の小さい字に負けないように、ここでも大きさを書く */
   /* 名所の説明の札は、神輿（画面の下から約330〜380px）より下、「建物を選び直す」のすぐ上に出す。
@@ -532,7 +520,6 @@
   <div id="right"><div id="btnrow"><button id="mute" title="音を消す・出す">🔊 音あり</button><button id="gear" title="設定" aria-label="設定" aria-expanded="false">⚙</button></div><div id="gearMenu"><button id="tourTgl">名所の説明あり</button><button id="srcItem">出典</button></div><div id="ttLoad"></div><div id="info"></div></div>
 </div>
 <div id="diffSel" class="hud"><button data-d="full">実物大</button><button data-d="half">半分</button><button data-d="mikoshi">神輿</button></div>
-<div id="gateBox" class="hud"><span>雷門の提灯</span></div>
 <canvas id="mini" class="hud" width="340" height="340"></canvas>
 <div id="tour"></div>
 <div id="goalNav"><span id="goalLeg"></span><span id="goalArrow">➤</span><span id="goalText"></span></div><div id="legFade"></div><div id="legCall"></div>
@@ -3023,7 +3010,7 @@ function start(DATA, isAsakusa) {
     if (S.crew) scene.remove(S.crew);
     if (S.shadow) scene.remove(S.shadow);
     if (S.b) liftOut(S.b, false);
-    restoreStack(); RT.i = 0; AT.combo = 0; AT.log.length = 0; AT.last = 0; clearGhosts();
+    restoreStack(); RT.i = 0; AT.combo = 0; AT.log.length = 0; AT.last = 0; AT.nk = 0; AT.gap = 0; AT.burst = 0; clearGhosts();
     /* 11/04 担ぎ直したら、カメラは見上げる形から（動かしやすい位置へ移った印 camFixT と、寄った距離 fixD を消す） */
     S.camFixT = 0; S.fixD = undefined;
     /* 10/31 本人「2回目に担ぎ始めると、動かしていないのに＋と−が出る」：前の回の速さ・ぶつかった印・揺れ・浮き文字を全部消してから始める
@@ -3171,7 +3158,19 @@ function start(DATA, isAsakusa) {
   /* 進む速さ（10/30 本人「もうちょい爽快感がほしい」）：担ぎ手が増えるほど速く。10人で RUN_V0、RUN_VN 人で RUN_V1（それより速くはしない）。
      11/01 本人「なんか動かしにくくない？」：3回着く形にしたときに 3.8〜7m/秒へ上げたのを、前の 3.4〜5.5m/秒に戻した */
   const RUN_V0 = 3.4, RUN_V1 = 5.5, RUN_VN = 220;
-  const runSpeed = () => RUN_V0 + (RUN_V1 - RUN_V0) * Math.pow(Math.min(1, Math.max(0, (team + JN.n - TEAM0) / (RUN_VN - TEAM0))), 0.6);
+  const runSpeedBase = () => RUN_V0 + (RUN_V1 - RUN_V0) * Math.pow(Math.min(1, Math.max(0, (team + JN.n - TEAM0) / (RUN_VN - TEAM0))), 0.6);
+  /* 11/04 本人「仲見世通りはちょっとマンネリ」「そのあとは少し早くなってるように思えて楽しい。仲見世は遅く見える」→ 本人が選んだ案A：
+     速さは担ぎ手の数で決まり、仲見世を通る間は担ぎ手が少ない（14→134人）ので3.6→4.9 m/秒、宝蔵門の先は5.2 m/秒だった（fix3/12fix/k2）。
+     1回目の仲見世（雷門をくぐってから宝蔵門の前 (192, 62) まで）だけ、担ぎ手の数に関係なく NAKA_V m/秒までは出す。
+     出入りで速さがガクッと変わらないよう、底上げの効き（nakaVW、0〜1）は、門の裏の面から NAKA_VIN m かけて上げ、宝蔵門の前を過ぎて NAKA_VOUT m かけて下げる（smoothstep） */
+  const NAKA_V = 5.0, NAKA_VIN = 12, NAKA_VOUT = 20;
+  function nakaVW() {
+    if (!RUN3 || LEG !== 0 || !S.gateIn || gate.fx === undefined) return 0;
+    const ss = q => { q = Math.max(0, Math.min(1, q)); return q * q * (3 - 2 * q); };
+    const gp = (S.x - gate.x) * gate.fx + (S.y - gate.y) * gate.fy, dx = 192 - gate.x, dy = 62 - gate.y, L = Math.hypot(dx, dy), along = ((S.x - gate.x) * dx + (S.y - gate.y) * dy) / L;
+    return ss((-gp - GATE_BD / 2) / NAKA_VIN) * (1 - ss((along - L) / NAKA_VOUT));
+  }
+  const runSpeed = () => { const v = runSpeedBase(), w = nakaVW(); return w > 0 ? v + Math.max(0, NAKA_V - v) * w : v; };
 
   // ---------- くっつく（10/30 3分版。本人「塊魂って勝手にくっつくんだっけ？」） ----------
   /* 担げる建物（要る人数 needOf ≤ 担ぎ手の数）に、神輿か、まわりを囲む担ぎ手が触れると、ボタンなしでその建物が浮いて神輿の上に乗る。
@@ -3220,6 +3219,21 @@ function start(DATA, isAsakusa) {
   /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
      1回目の塔が160mになって東京タワーの展望台（150m。2回目の節目）まで1回目で抜いた（fix3/11fix/n1）。縮め方は本人の言う「多少」にとどめ、くっつく間を広げて合わせた */
   const NAKA_GAP = 6000;
+  /* 11/04 本人が選んだ案B：くっつく間が6秒きっちりで、「ポン」が同じ間で来て単調だった（fix3/12fix/k2）。仲見世の店のくっつく間を、ひとかたまりごとに決める。
+     かたまりの大きさは1軒（多い）・2軒・3軒（ときどき）。かたまりの中は NK_BURST ミリ秒おきに続けてくっつき、かたまりとかたまりの間は NK_G0〜NK_G1 ミリ秒の間でばらつく。
+     どれも決まった乱数（hash。仲見世の何軒目か k で決まる）なので、毎回同じ流れになる。AT.nk：その回の仲見世の店の数、AT.gap：次の店までの間、AT.burst：かたまりの残り。
+     NAKA_GAP は、まだ1軒もくっついていないときの間（くぐってすぐの1軒目は AT.last が古いので待たない） */
+  /* かたまりの間は、仲見世を約53秒で抜けて（案A）くっつく数が前（6秒おきで11軒・1回目の塔76m）と大きく変わらないように、平均8秒にした（5.0〜9.5秒では13軒ほどになった。fix3/13fix/m3） */
+  const NK_BURST = 900, NK_G0 = 5500, NK_G1 = 10500, NK_P2 = 0.24, NK_P3 = 0.12;
+  function nakaGapNow() { return AT.gap || NAKA_GAP; }
+  function nakaAttached() {
+    const k = AT.nk = (AT.nk || 0) + 1;
+    if (AT.burst > 0) { AT.burst--; AT.gap = NK_BURST; return; }
+    AT.gap = NK_G0 + (NK_G1 - NK_G0) * hash(k * 1.37 + 0.11, 4.7);
+    const r = hash(k * 2.11 + 0.53, 9.3);
+    /* 次のかたまりの大きさ（1軒目は AT.gap のあとに来て、そのあと AT.burst 軒が NK_BURST おきに続く） */
+    AT.burst = r < NK_P3 ? 2 : r < NK_P3 + NK_P2 ? 1 : 0;
+  }
   /* 11/04 分けた仲見世の店（nakaShop）を乗せる倍率。本人「1番最初はちょっと冷めるかも」（最初は神輿の近くで見ているので、縮むのがはっきり見える）、
      「高くなりすぎたらあんまりわからないから多少縮小しても良い」：積む所（土台の屋根から）が NK_H0 m までは実物大（1倍）。店は高さ約6mなので、最初の3〜4軒が実物大になる。
      そこから NK_H1 m までに、なめらかに（smoothstep）ほかの建物と同じ足元の縮め方（stCap）まで縮める。急に小さくならないよう、1軒ごとの倍率の差は小さくなる */
@@ -3390,6 +3404,8 @@ function start(DATA, isAsakusa) {
     if (!hv) { L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); L.g.scale.setScalar(1); scene.add(L.g); }
     AT.fly.push(F);
     AT.combo = now - AT.last < 1600 ? AT.combo + 1 : 0; AT.last = now;
+    /* 11/04 仲見世の店なら、次の店までの間を決める（案B。nakaAttached） */
+    if (raimonB && nearNaka(b)) nakaAttached();
     /* 確かめ用：くっついたときの神輿の道順からの離れ（md）と、建物の道順からの離れ（bd）・届く範囲（R） */
     if (raimonB) { let md = Infinity; for (const q of ROUTE) md = Math.min(md, Math.hypot(q[0] - S.x, q[1] - S.y)); AT.log.push({ id: b.id.slice(5, 13), md: +md.toFixed(1), bd: +routeNear(b).d.toFixed(1), R: +Math.min(ATT_RMAX, ATT_R0 + ATT_RK * (team + JN.n)).toFixed(1) }); }
   }
@@ -3534,7 +3550,7 @@ function start(DATA, isAsakusa) {
       for (const b of a) {
         if (seen.has(b)) continue; seen.add(b);
         const [x0, y0, x1, y1] = b.bb; if (S.x + ext < x0 || S.x - ext > x1 || S.y + ext < y0 || S.y - ext > y1) continue;
-        if (!attachable(b, crewN) || (raimonB && now - AT.last < NAKA_GAP && nearNaka(b))) continue;
+        if (!attachable(b, crewN) || (raimonB && now - AT.last < nakaGapNow() && nearNaka(b))) continue;
         let dm = Infinity;
         for (const [u, v] of S.samples) {
           const px = S.x + u * c - v * s, py = S.y + u * s + v * c;
@@ -3831,7 +3847,7 @@ function start(DATA, isAsakusa) {
       S.hitDir = ds < 0 ? -1 : 1;
       /* 3分版：ぶつかった建物が担げるなら、弾かれずにくっつける（ドンは鳴らさない） */
       const tb = ds > 0 && touchAttachable(res);
-      if (tb && performance.now() - AT.last > (raimonB && nearNaka(tb) ? NAKA_GAP : 100)) { attach(tb); S.v = (S.v || 0) * 0.5; return false; }
+      if (tb && performance.now() - AT.last > (raimonB && nearNaka(tb) ? nakaGapNow() : 100)) { attach(tb); S.v = (S.v || 0) * 0.5; return false; }
       /* 担げない建物に勢いよく（秒速 BOUNCE_SPD m 以上で）ぶつかったら、弾かれて少し後ろへ戻る（holdStep が S.bounceV を使う） */
       if (ds > 0 && (S.spd || 0) >= BOUNCE_SPD) { S.bounceV = Math.min(6, (S.spd || 0) * 0.6); S.hardHit = true; }
       bump(res);
@@ -4049,8 +4065,9 @@ function start(DATA, isAsakusa) {
         /* 10/23 BGM「A1」を入れたとき：重い建物のドンに曲が重なって −0.5dBFS まで出たので、丸めた上の天井を 1.0 から 0.86（約 −1.3dBFS。mp3 にしたときのはみ出しの余裕込み）に下げた。0.8 までは前と同じ素通し */
         for (let i = 0; i < N; i++) { const v = (i / (N - 1) * 2 - 1) * 2, a = Math.abs(v); c[i] = a <= 0.8 ? v : Math.sign(v) * (0.8 + 0.06 * Math.tanh((a - 0.8) / 0.06)); }
         ws.curve = c; ws.oversample = '2x'; master.connect(pre).connect(ws).connect(ctx.destination); outNode = ws; }
-      for (const k of ['fx', 'carry', 'crowd', 'kake']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
-      bus.crowd.gain.value = 0; bus.kake.gain.value = KAKE_G; bus.carry.gain.value = 0.7;
+      for (const k of ['fx', 'carry', 'crowd', 'kake', 'pre']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
+      /* bus.pre：曲（bgmBus）の出口。1回目の雷門をくぐるまでは BGM_PRE に下げておく（setDrumOnly・gatePass） */
+      bus.crowd.gain.value = 0; bus.kake.gain.value = drumOnly ? KAKE_PRE : KAKE_G; bus.carry.gain.value = 0.7; bus.pre.gain.value = drumOnly ? BGM_PRE : 1;
       noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       makeCrowd();
       if (useKake && window.MIKOSHI_KAKEGOE) for (const c of window.MIKOSHI_KAKEGOE.clips) {
@@ -4070,7 +4087,7 @@ function start(DATA, isAsakusa) {
           if (EA && EA.bgm) {
             /* 題字の画面から鳴っている曲を、そのまま引き継ぐ（予約は SND の schedule に替え、出口を master に付け替える。場面は曲の中で入り太鼓から選ぶ画面へ移る） */
             clearInterval(EA.timer); EA.done = true;
-            bgm = EA.bgm; bgmBus = EA.bus; bgmBus.disconnect(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(master); EA.out.disconnect();
+            bgm = EA.bgm; bgmBus = EA.bus; bgmBus.disconnect(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(bus.pre); EA.out.disconnect();
             bgm.setScene(scene, ctx.currentTime);
             bgm.setIntensity(inten, ctx.currentTime);
             if (bgm.setDrumOnly) bgm.setDrumOnly(drumOnly);
@@ -4078,7 +4095,7 @@ function start(DATA, isAsakusa) {
             setTimeout(prep, 30);
           } else if (window.MIKOSHI_BGM && window.MIKOSHI_BGM.a1) {
             if (EA) EA.done = true;
-            bgmBus = ctx.createGain(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(master);
+            bgmBus = ctx.createGain(); bgmBus.gain.value = BGM_GAIN; bgmBus.connect(bus.pre);
             bgm = window.MIKOSHI_BGM.a1(ctx, bgmBus);
             bgm.setScene(scene, ctx.currentTime);
             bgm.setIntensity(inten, ctx.currentTime);
@@ -4353,21 +4370,26 @@ function start(DATA, isAsakusa) {
        くぐった瞬間（gatePass）：次の拍の頭から締太鼓の連打（8打＝1拍。高さの節目の bgm.roll と同じ音の素）、その次の拍の頭（連打の終わりの大太鼓の「ドン」と同じ時）に
        笛と鉦が入って本調子になる。同時に魂振りの歓声の素（CB.cheer）と見物のざわめき（cheer。次の拍の頭に掛け声も一つ）を重ね、掛け声を一段大きくする（KAKE_G × KAKE_UP。その回の通しの終わりまで）。
        「もう一回」では、担ぎ始め（endIntro）で太鼓だけ・ふだんの掛け声に戻す */
-    const KAKE_G = 0.55, KAKE_UP = 1.35;
+    /* 11/04 本人「雷門入った時の盛り上がりわかりづらい。最初音小さくしてて、一気に盛り上がりみたいにしてもよいかも」：
+       門をくぐるまで（太鼓だけの間）は、曲の出口（bus.pre）を BGM_PRE、掛け声を KAKE_PRE に下げておく。
+       くぐった瞬間（gatePass）は、連打の頭（t）で曲を一気に 1 へ戻し（連打そのものから大きく鳴る）、次の拍の頭（tOn）で笛と鉦が入る。掛け声も t で KAKE_G × KAKE_UP へ上げる */
+    const KAKE_G = 0.55, KAKE_UP = 1.35, KAKE_PRE = 0.25, BGM_PRE = 0.4;
     let drumOnly = false;
     function setDrumOnly(on) {
       drumOnly = !!on; log('drum', { on: drumOnly });
       if (!ctx) return;
       if (bgm && bgm.setDrumOnly) bgm.setDrumOnly(drumOnly);
-      if (drumOnly) bus.kake.gain.setTargetAtTime(KAKE_G, ctx.currentTime, 0.1);
+      if (drumOnly) { bus.kake.gain.setTargetAtTime(KAKE_PRE, ctx.currentTime, 0.1); bus.pre.gain.setTargetAtTime(BGM_PRE, ctx.currentTime, 0.1); }
+      else bus.pre.gain.setTargetAtTime(1, ctx.currentTime, 0.1);
     }
     function gatePass() {
-      if (!ctx || scene === 'idle' || scene === 'iri') { log('gate', {}); drumOnly = false; if (bgm && bgm.setDrumOnly) bgm.setDrumOnly(false); return; }
+      if (!ctx || scene === 'idle' || scene === 'iri') { log('gate', {}); drumOnly = false; if (bgm && bgm.setDrumOnly) bgm.setDrumOnly(false); if (ctx) bus.pre.gain.setTargetAtTime(1, ctx.currentTime, 0.1); return; }
       const run = bgm && ctx.state === 'running', t0 = ctx.currentTime + 0.03, tb = run ? bgm.nextBeat(t0, 4) : null, t = tb !== null && tb !== undefined ? tb : t0;
       const t1 = run ? bgm.nextBeat(t + 0.05, 4) : null, tOn = t1 !== null && t1 !== undefined ? t1 : t + 0.48;
       if (bgm && bgm.roll) { try { bgm.roll(t, 8); } catch (e) { /* 曲の作りが古いときは鳴らさない */ } }
       drumOnly = false;
       if (bgm && bgm.setDrumOnly) bgm.setDrumOnly(false, tOn);
+      bus.pre.gain.cancelScheduledValues(t); bus.pre.gain.setTargetAtTime(1, t, 0.03);
       if (CB.cheer && cerIn) { const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = CB.cheer; g.gain.value = 0.36; s.connect(g); g.connect(cerIn); s.start(t + 0.15); }
       bus.kake.gain.setTargetAtTime(KAKE_G * KAKE_UP, t, 0.15);
       cheer();
@@ -4695,7 +4717,7 @@ function start(DATA, isAsakusa) {
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
     return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, pon, milestone, rise, setDrumOnly, gatePass,
-      drumState: () => ({ drum: drumOnly, bgmDrum: bgm && bgm.drumOnly ? bgm.drumOnly() : null, kake: ctx ? +bus.kake.gain.value.toFixed(3) : null, ctx: ctx ? ctx.state : null }), hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
+      drumState: () => ({ drum: drumOnly, bgmDrum: bgm && bgm.drumOnly ? bgm.drumOnly() : null, kake: ctx ? +bus.kake.gain.value.toFixed(3) : null, pre: ctx && bus.pre ? +bus.pre.gain.value.toFixed(3) : null, ctx: ctx ? ctx.state : null }), hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
 
@@ -5708,7 +5730,7 @@ function start(DATA, isAsakusa) {
        くぐり終えた：神輿の中心が、門の裏の面（門の中心から GATE_BD/2）より、神輿の長い辺の半分だけ裏へ出たとき。一度くぐれば、その回の間は戻さない（setLeg で戻す） */
     const gp = S.b && gate.fx !== undefined ? (S.x - gate.x) * gate.fx + (S.y - gate.y) * gate.fy : Infinity;
     if (S.b && !S.gateIn && S.dim && gp < -(GATE_BD / 2 + Math.max(S.dim.L, S.dim.W) / 2)) S.gateIn = true;
-    /* くぐった瞬間（門の中心から裏へ3m。左下の小窓を消す所と同じ）：太鼓の連打・歓声・掛け声を一段大きく・曲が本調子に（SND.gatePass）、
+    /* くぐった瞬間（門の中心から裏へ3m）：太鼓の連打・歓声・掛け声を一段大きく・曲が本調子に（SND.gatePass）、
        仲見世の提灯が手前から奥へ灯る（NKW）。1回目に1度だけ（「もう一回」で setLeg(0) が戻す） */
     if (RUN3 && LEG === 0 && !S.gateCel && gp < -3 && !S.intro && !S.done && mode === 'carry') { S.gateCel = true; NKW.t0 = performance.now(); SND.gatePass(); }
     gateFade(dt);
@@ -7022,7 +7044,7 @@ function start(DATA, isAsakusa) {
     S.x = st.x; S.y = st.y; S.head = st.h; S.rot = 0;
     S.v = 0; S.spd = 0; S.lastPos = null; S.bounceV = 0; S.bounceT = 0; S.recoilT = 0; S.sinkT = 0; S.kickT = 0; S.shake = 0; S.hitDir = 1; S.hardHit = false; S.dist = 0; S.lastThud = 0;
     S.stuck = null; S.noGo = 0; S.noGoPose = null; hold.locked = false; S.lockSince = 0; S.slide = null;
-    JN.lostAt = 0; JN.maskKey = ''; JN.pmaskKey = ''; AT.combo = 0; AT.last = 0;
+    JN.lostAt = 0; JN.maskKey = ''; JN.pmaskKey = ''; AT.combo = 0; AT.last = 0; AT.nk = 0; AT.gap = 0; AT.burst = 0;
     S.rec = []; S.recWall = now; trailPts.length = 0;
     /* 新しい道すじのそばの人力車に、一団を待たせる */
     for (const r of rickshaws) { r.jnHide = null; if (!r.jn && onRouteRk(r)) r.jn = RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)); }
@@ -8332,14 +8354,12 @@ function start(DATA, isAsakusa) {
        動かしやすい位置：神輿の真後ろ fxD m（スマホの縦は fxDS m）・高さ fxZ m から、神輿の fxL m 先の地面を見る。後ろが建物でふさがる所は、上へ逃げずに近くへ寄る（最短 fxMin m）。
        ＋と−は、この位置では zMin〜zMax 倍の間で距離を変える。peekA：積んだ瞬間に上を向く角度の上限（ラジアン。10°） */
     fitMax: 30, fixH: 30, fixT: 2000, fxD: 26, fxDS: 30, fxZ: 13, fxL: 20, fxMin: 12, zMin: 0.7, zMax: 1.5, peekA: 10 * Math.PI / 180 };
-  /* 提灯の小窓のカメラは、門の裏（仲見世の側）から門ごしに南を見る。近づく神輿と、たたまれていく提灯（裏の「風雷神門」）が一緒に映る。
-     前は門の前（雷門通り）から見ていて、近づく神輿と神輿の提灯の光がカメラの目の前をふさぎ、ほぼ何も見えなかった（10/29 本人） */
-  const gateCam = new THREE.PerspectiveCamera(46, 1.5, 0.5, 400);
+  /* 門の正面の向き（gate.fx, gate.fy。門の中心から雷門通りの側へ）。くぐり終えたか（updateGate）・門を薄くするか（gateFade）・くっつく店の向き（attach）に使う。
+     11/04 本人「別のカメラで撮ってるじゃん。あれがいらない。ワイプみたいなやつ」：門に近づくと左下に出していた、提灯がたたまれる様子を門の裏のカメラで映す小窓（#gateBox）と、
+     そのためのカメラ（gateCam）・描画をやめた。提灯がたたまれる動き（updateGate の fold）は残す */
   if (gate.lantern) {
     const fl = Math.hypot(gate.front.x - gate.x, gate.front.y - gate.y) || 1;
     gate.fx = (gate.front.x - gate.x) / fl; gate.fy = (gate.front.y - gate.y) / fl;
-    let k = 11; while (k > 7 && !(onRoad(gate.x - gate.fx * k, gate.y - gate.fy * k) && !bldAt(gate.x - gate.fx * k, gate.y - gate.fy * k, 0.5))) k -= 0.5;
-    gateCam.position.copy(V(gate.x - gate.fx * k, gate.y - gate.fy * k, 2.4)); gateCam.lookAt(V(gate.x + gate.fx * 4, gate.y + gate.fy * 4, 4.3));
   }
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
   // 最初は出発点のまわりを、引きで斜め上から
@@ -8870,23 +8890,7 @@ function start(DATA, isAsakusa) {
     hanabiFrame();
     if (TS) titleLamp();
     renderer.render(scene, camera);
-    // 雷門に近づいたら、左下の小窓に「門の前から見た提灯」を出す（畳まれるのが分かるように）
-    const gd = gate.lantern && S.b && mode === 'carry' ? Math.hypot(S.x - gate.x, S.y - gate.y) : Infinity;
-    /* 門を抜けて（門の中心から裏へ3m）からは出さない（小窓のカメラは門の裏にあるので、神輿がカメラに近づいてふさぐ） */
-    const passed = gd < Infinity && (S.x - gate.x) * gate.fx + (S.y - gate.y) * gate.fy < -3;
-    const box = $('gateBox');
-    if (gd < 90 && !passed && !peek) {
-      const r = box.getBoundingClientRect();
-      if (box.style.display !== 'block') box.style.display = 'block';
-      gateCam.aspect = r.width / r.height; gateCam.updateProjectionMatrix();
-      renderer.setScissorTest(true);
-      renderer.setViewport(r.left, innerHeight - r.bottom, r.width, r.height); renderer.setScissor(r.left, innerHeight - r.bottom, r.width, r.height);
-      renderer.render(scene, gateCam);
-      renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, innerHeight);
-    } else if (box.style.display !== 'none') box.style.display = 'none';
-    /* 提灯の小窓が出ている間は、名所の説明の札を小窓の右へよける（CSS の body.gateOn） */
-    const gateOn = box.style.display === 'block';
-    if (document.body.classList.contains('gateOn') !== gateOn) document.body.classList.toggle('gateOn', gateOn);
+    /* 11/04 雷門の提灯の小窓（門の裏のカメラでもう一度描いていた）はやめた（本人「ワイプみたいなやつ、いらない」） */
     requestAnimationFrame(frame);
   }
   /* 待つ担ぎ手：1段目は今すぐ。2〜4段目は町の画面が出てから、1段ずつ間をあけて用意する（置き場所を探す手間を分ける） */

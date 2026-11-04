@@ -4065,7 +4065,9 @@ function start(DATA, isAsakusa) {
         /* 10/23 BGM「A1」を入れたとき：重い建物のドンに曲が重なって −0.5dBFS まで出たので、丸めた上の天井を 1.0 から 0.86（約 −1.3dBFS。mp3 にしたときのはみ出しの余裕込み）に下げた。0.8 までは前と同じ素通し */
         for (let i = 0; i < N; i++) { const v = (i / (N - 1) * 2 - 1) * 2, a = Math.abs(v); c[i] = a <= 0.8 ? v : Math.sign(v) * (0.8 + 0.06 * Math.tanh((a - 0.8) / 0.06)); }
         ws.curve = c; ws.oversample = '2x'; master.connect(pre).connect(ws).connect(ctx.destination); outNode = ws; }
-      for (const k of ['fx', 'carry', 'crowd', 'kake', 'pre']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
+      for (const k of ['fx', 'carry', 'crowd', 'kake', 'pre', 'kd']) { bus[k] = ctx.createGain(); bus[k].connect(master); }
+      /* bus.kd：掛け声を節目の間だけ下げる段（accentDuck）。掛け声の大きさ（bus.kake）は場面で決め、その後ろで掛ける */
+      bus.kake.disconnect(); bus.kake.connect(bus.kd);
       /* bus.pre：曲（bgmBus）の出口。1回目の雷門をくぐるまでは BGM_PRE に下げておく（setDrumOnly・gatePass） */
       bus.crowd.gain.value = 0; bus.kake.gain.value = drumOnly ? KAKE_PRE : KAKE_G; bus.carry.gain.value = 0.7; bus.pre.gain.value = drumOnly ? BGM_PRE : 1;
       noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -4349,11 +4351,26 @@ function start(DATA, isAsakusa) {
     }
     /* 塔の高さの節目（11/02 本人承認。heightMilestone）：曲の締太鼓と大太鼓で連打（bgm.roll。lv が上がるほど打つ数を増やす）し、
        魂振りと同じ歓声の素（CB.cheer）を重ね、見物のざわめきを一瞬上げる（cheer）。音の素は新しく作らない。曲が無いときは歓声だけ */
+    /* ---- 節目の音を曲にかき消されないようにする（11/04 本人「雷門潜った時に大きくなるのと、目標が達成されるごとに何かしらの音が鳴ると思うんだけど、BGMにかき消されてる。しっかりきこえてほしい」） ----
+       放送やゲームの音作りの「ダッキング」：節目の音が鳴る間だけ、曲（層のつまみ。bgm.duck）と掛け声（bus.kd）を DUCK_K 倍（約 −10dB）へ0.05秒で下げ、
+       holdSec 秒保ってから、時定数 DUCK_TAU 秒（3倍の約1.8秒でほぼ戻る）で戻す。連打とドンは曲の層のつまみを通らない入口（bgm の acc）から鳴るので下がらない */
+    const DUCK_K = 0.32, DUCK_TAU = 0.6;
+    function accentDuck(t, holdSec) {
+      if (bgm && bgm.duck) { try { bgm.duck(t, DUCK_K, holdSec, DUCK_TAU); } catch (e) { /* 曲の作りが古いときは下げない */ } }
+      const g = bus.kd.gain;
+      if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t); else g.cancelScheduledValues(t);
+      g.setTargetAtTime(DUCK_K, t, 0.015); g.setTargetAtTime(1, t + holdSec, DUCK_TAU);
+      log('duck', { at: t, hold: holdSec, perf: perfAt(t) });
+    }
     function milestone(lv) {
       log('milestone', { lv });
       if (!ctx || scene === 'idle' || scene === 'iri') return;
       const t0 = ctx.currentTime + 0.03, tb = bgm && ctx.state === 'running' ? bgm.nextBeat(t0, 2) : null, t = tb !== null && tb !== undefined ? tb : t0;
-      if (bgm && bgm.roll) { try { bgm.roll(t, 8 + 3 * lv); } catch (e) { /* 曲の作りが古いときは鳴らさない */ } }
+      let tEnd = t + 1;
+      if (bgm && bgm.roll) { try { const e = bgm.roll(t, 8 + 3 * lv); if (e > t) tEnd = e; } catch (e) { /* 曲の作りが古いときは鳴らさない */ } }
+      /* 連打の終わりのドンの少しあとまで曲を下げておく。頭に拍子木を2つ（チョン、チョン。曲の太鼓や笛と高さが重ならない、立ち上がりの強い音） */
+      accentDuck(t, tEnd - t + 0.3);
+      hyoshigi(t, 1); hyoshigi(t + 0.16, 0.9);
       if (CB.cheer && cerIn) { const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = CB.cheer; g.gain.value = 0.24 + 0.04 * lv; s.connect(g); g.connect(cerIn); s.start(t + 0.2); }
       cheer();
     }
@@ -4390,6 +4407,8 @@ function start(DATA, isAsakusa) {
       drumOnly = false;
       if (bgm && bgm.setDrumOnly) bgm.setDrumOnly(false, tOn);
       bus.pre.gain.cancelScheduledValues(t); bus.pre.gain.setTargetAtTime(1, t, 0.03);
+      /* 11/04 連打の間（t〜tOn）は曲と掛け声を下げ（accentDuck）、連打が抜けて聞こえるようにする。tOn で笛と鉦が入って本調子になる（曲は setLayers で一気に戻る） */
+      accentDuck(t, Math.max(0.2, tOn - t));
       if (CB.cheer && cerIn) { const s = ctx.createBufferSource(), g = ctx.createGain(); s.buffer = CB.cheer; g.gain.value = 0.36; s.connect(g); g.connect(cerIn); s.start(t + 0.15); }
       bus.kake.gain.setTargetAtTime(KAKE_G * KAKE_UP, t, 0.15);
       cheer();

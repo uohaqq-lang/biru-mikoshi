@@ -344,6 +344,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const shimeA = PAN(-0.3), shimeB = PAN(0.3), kanePan = PAN(0.35);
   shimeA.connect(B.shime); shimeB.connect(B.shime); kanePan.connect(B.kane);
   B.shime.connect(drumLP); B.kane.connect(drumLP);
+  /*
+    11/04 節目の連打とドン（roll・don）の入口（acc）。本人「雷門潜った時に大きくなるのと、目標が達成されるごとに何かしらの音が鳴ると思うんだけど、BGMにかき消されてる」：
+    前は連打も曲の締太鼓・大胴と同じ層のつまみ（B.shime・B.od）を通っていたので、曲を下げると連打も一緒に下がった。
+    節目の音は層のつまみを通らずに、つまみの後ろ（締太鼓は drumLP、大胴は odLP）へ入れる。大きさは担ぐ場面の層の大きさの ACC_G 倍（ゲームが duck で曲を下げても、こちらは下がらない）
+  */
+  const ACC_G = 1.25;
+  const accShime = G(MIX.carry.shime * ACC_G), accA = PAN(-0.3), accB = PAN(0.3);
+  accA.connect(accShime); accB.connect(accShime); accShime.connect(drumLP);
   drumLP.connect(sum);
   send(drumLP, revIn, 0.2);
   /*
@@ -375,6 +383,9 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     odSat.oversample = '2x';
   }
   B.od.connect(odLP); odLP.connect(odDip); odDip.connect(odHP);
+  /* 11/04 節目のドン（acc）の入口：層のつまみ B.od の後ろへ入れる（上の accShime と同じ理由） */
+  const accOd = G(MIX.carry.od * ACC_G);
+  accOd.connect(odLP);
   /*
     大胴を 130Hz で上下に分け（足すと元に戻る分け方：Q 0.707 のフィルターを2つ重ねたもの同士）、下（胴鳴り）だけに odDuck をかける。
     担ぐ場面では拍の頭ごとに、ゲームの足音が鳴る所の下を引いて、足音の通り道を空ける（duckLow）。
@@ -670,13 +681,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     s.start(t);
   }
   /* side＝1 は2人目（右、少し高い）。強い・普通の打ち（0.5 以上）は「テン」、弱い打ちは「ツク」 */
-  function shimeHit(t, vel, side) {
+  /* acc：節目の音の入口（accA・accB・accOd）へ出す（11/04） */
+  function shimeHit(t, vel, side, acc) {
     if (vel < 0.01) return;
-    playBuf(t, (vel >= 0.5 ? DR.shime : DR.tsuku)[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), side ? shimeB : shimeA);
+    playBuf(t, (vel >= 0.5 ? DR.shime : DR.tsuku)[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), acc ? (side ? accB : accA) : (side ? shimeB : shimeA));
   }
-  function odaiko(t, vel, kind) {
+  function odaiko(t, vel, kind, acc) {
     if (vel < 0.01) return;
-    playBuf(t, (kind === 'ko' ? DR.ko : DR.don)[Math.floor(hrand(nC++, 22) * 3)], vel, B.od);
+    playBuf(t, (kind === 'ko' ? DR.ko : DR.don)[Math.floor(hrand(nC++, 22) * 3)], vel, acc ? accOd : B.od);
   }
   function kaneHit(t, vel, open) {
     if (vel < 0.01) return;
@@ -1444,15 +1456,32 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       if (!(t >= 0)) t = ctx.currentTime;
       n = Math.max(4, Math.min(24, n | 0));
       const d = 7.5 / S.bpm;
-      odaiko(t, 0.9, 'don');
-      for (let i = 0; i < n; i++) shimeHit(t + i * d, 0.55 + 0.45 * i / (n - 1), i % 2);
-      odaiko(t + n * d, 1, 'don');
+      /* 11/04 節目の音の入口（acc）から鳴らす。曲を duck で下げても、連打は下がらない */
+      odaiko(t, 0.9, 'don', true);
+      for (let i = 0; i < n; i++) shimeHit(t + i * d, 0.55 + 0.45 * i / (n - 1), i % 2, true);
+      odaiko(t + n * d, 1, 'don', true);
+      return t + n * d;
     },
 
-    /* 大太鼓の「ドン」を1打（11/03 ゲームが、担げる建物がいっせいに浮いた瞬間に呼ぶ）。曲の中の大太鼓と同じ音の素 */
+    /* 大太鼓の「ドン」を1打（11/03 ゲームが、担げる建物がいっせいに浮いた瞬間に呼ぶ）。曲の中の大太鼓と同じ音の素。11/04 から節目の音の入口（acc）から */
     don(t, vel) {
       if (!(t >= 0)) t = ctx.currentTime;
-      odaiko(t, vel > 0 ? vel : 1, 'don');
+      odaiko(t, vel > 0 ? vel : 1, 'don', true);
+    },
+
+    /*
+      曲を一時的に下げる（11/04 ゲームが、雷門をくぐった瞬間と名所の高さを抜いた瞬間に呼ぶ。放送の「ダッキング」）。
+      t から層のつまみ（B）を、今の場面の大きさの k 倍へ約0.05秒で下げ（時定数0.015秒）、t＋holdSec まで保ってから、時定数 relTau 秒で戻す（3倍の時間でほぼ戻る）。
+      節目の音（roll・don）は層のつまみを通らないので下がらない。途中で場面や太鼓だけ／本調子が替わったら、そちらの大きさへ移る（setLayers が上書きする）
+    */
+    duck(t, k, holdSec, relTau) {
+      if (!(t >= 0)) t = ctx.currentTime;
+      for (const name of LAYERS) {
+        const g = B[name].gain, full = layerGain(S.scene, name, S.x);
+        hold(g, t);
+        g.setTargetAtTime(full * k, t, 0.015);
+        g.setTargetAtTime(full, t + holdSec, relTau);
+      }
     },
 
     /* 太鼓だけ（on）か本調子か（11/04）。t を渡さない・今より前なら、すぐ切り替える（担ぎ始める前に決めておく用）。先の時刻なら、その16分で切り替える */

@@ -741,6 +741,53 @@ function start(DATA, isAsakusa) {
     const d = dims(polys[0]);
     blds.push({ id: p.id || '', f, polys, h, storeys: num(p, ['storeys', 'storeysAboveGround', 'bldg:storeysAboveGround', '地上階数'], null), usage: p.usage_label || p['bldg:usage'] || p['用途'] || (p.usage && isNaN(+p.usage) ? p.usage : '') || '用途不明', usageDetail: p.usage_detail || '', d });
   }
+  /* ---------- 仲見世の長い棟を1軒ずつに分ける（11/04 本人「仲見世の建物って小さくなって積まれるじゃん。これ冷めるな。大きさ変わらない状態で積みたい」） ----------
+     地図データでは、仲見世の店が5〜7軒つながった1棟（長さ26〜40m・奥行き4.6〜7m・高さ約6m）になっていて、土台（4.4m×2.9m）に乗せると足元が0.1倍ほどに縮んでいた。
+     本人が選んだ直し方：長い棟を、長い辺の向きに間口 NAKA_W m ほどの店に分け、町の中でも1軒ずつ別の建物として扱う（くっつく・浮かぶ・選べるか・ぶつかる・夜の明かり・もとに戻す）。
+     分けた店の id は、元の id の後ろに「#番号」（道の向きの順に1から）を付けたもの。先頭8字（難しさ・店の情報の鍵）は元の棟と同じ。
+     足元は元の形を切れ目で切った形（箱の形はこの足元から作るので、切り口にも壁が立つ）。町の写真付きの形は、まとまりが届いたときに同じ切れ目で切る（nakaSplitPart）。
+     対象は、雷門から宝蔵門の前までの仲見世の店のうち、長い辺が16m以上の13棟（もともと小さい2棟 9d0ff04b・ea1c116e は今のままで縮まないので分けない） */
+  const NAKA_SPLIT = ['549a9a72', '363fd884', '7ff1d6e8', '69849f9f', 'bd4ce172', '0007dbb2', '181c497a', '43bd378a', '85b764aa', '34bbfd61', '5b2fd84a', '7e20c875', '76c269cf'], NAKA_W = 5;
+  /* 元の棟の id → { ux, uy（切る向き）, kids: [{ id, lo, hi（その店の範囲。切る向きの座標）, inLo, inHi（そこが元の棟の中の切り口か）}] } */
+  const nakaSplit = new Map();
+  /* 多角形（点は [x, y, ...] で、3つ目より後ろの値も一緒に割り振る）を、向き (ux, uy) の座標が lo〜hi の所だけに切る。残らなければ null */
+  function clipSlab(pts, ux, uy, lo, hi) {
+    for (const [sg, c] of [[1, lo], [-1, -hi]]) {
+      const out = [], f = q => sg * (q[0] * ux + q[1] * uy) - c;
+      for (let i = 0; i < pts.length; i++) {
+        const A = pts[i], B = pts[(i + 1) % pts.length], fa = f(A), fb = f(B);
+        if (fa >= 0) out.push(A);
+        if ((fa >= 0) !== (fb >= 0)) { const t = fa / (fa - fb); out.push(A.map((v, k) => v + (B[k] - v) * t)); }
+      }
+      pts = out; if (pts.length < 3) return null;
+    }
+    return pts;
+  }
+  const nkArea = r => { let A = 0; for (let i = 0; i < r.length; i++) { const p = r[i], q = r[(i + 1) % r.length]; A += p[0] * q[1] - q[0] * p[1]; } return Math.abs(A) / 2; };
+  for (let k = blds.length - 1; k >= 0; k--) {
+    const b = blds[k];
+    if (!NAKA_SPLIT.includes(b.id.slice(5, 13))) continue;
+    const a = b.d.L >= b.d.W ? b.d.a : b.d.a + Math.PI / 2, ux = Math.cos(a), uy = Math.sin(a);
+    let u0 = Infinity, u1 = -Infinity;
+    for (const poly of b.polys) for (const [x, y] of poly[0]) { const u = x * ux + y * uy; u0 = Math.min(u0, u); u1 = Math.max(u1, u); }
+    const N = Math.max(2, Math.round((u1 - u0) / NAKA_W)), kids = [], info = [];
+    for (let i = 0; i < N; i++) {
+      const lo = u0 + (u1 - u0) * i / N, hi = u0 + (u1 - u0) * (i + 1) / N, polys = [];
+      for (const poly of b.polys) {
+        const rings = poly.map(r => clipSlab(r.slice(0, -1), ux, uy, lo, hi));
+        if (!rings[0] || nkArea(rings[0]) < 0.5) continue;
+        polys.push([rings[0]].concat(rings.slice(1).filter(r => r && nkArea(r) > 0.05)).map(r => r.concat([r[0]])));
+      }
+      if (!polys.length) continue;
+      polys.sort((p, q) => nkArea(q[0].slice(0, -1)) - nkArea(p[0].slice(0, -1)));
+      const id = b.id + '#' + (i + 1);
+      kids.push(Object.assign({}, b, { id, polys, d: dims(polys[0]), nakaShop: true, nakaOf: b.id }));
+      info.push({ id, lo, hi, inLo: i > 0, inHi: i < N - 1, poly: polys[0] });
+    }
+    if (kids.length < 2) continue;
+    blds.splice(k, 1, ...kids);
+    nakaSplit.set(b.id, { ux, uy, kids: info });
+  }
 
   // 雷門は別に作る（二つの塊と大提灯）。担ぐ候補にも、まとめた建物にも入れない。
   const raimonMeta = DATA.meta.landmarks && DATA.meta.landmarks.raimon;
@@ -1268,9 +1315,75 @@ function start(DATA, isAsakusa) {
     TT.cache.set(b, p); return p;
   }
   const ttVert = 'attribute float aHide;\n';
+  /* 11/04 仲見世の長い棟を分けた店（nakaSplit）：まとまりの中のその棟の三角形を、店ごとの切れ目で切って、店ごとの頂点の範囲としてまとまりの後ろに足す。
+     元の棟の範囲は、ゲームに無い建物と同じく隠したままにする（addTownPart）。写真の貼り方（uv）は、切った所で三角形の中の値を割り振る。
+     元の形には店と店の間の壁が無いので、切り口に壁を立てる（外から見ると、くっついて抜けた店の跡や、積んだ店の横から中が空に見えないように）。
+     切り口の壁は、切り口の面で形を切ったときのいちばん上の線（屋根・軒の線）から地面まで。色はその線の所の写真を縦に伸ばしたもの */
+  function nakaSplitPart(d, P, U) {
+    const add = []; let extra = 0;
+    d.ids.forEach((id, i) => {
+      const sp = nakaSplit.get(id); if (!sp) return;
+      const st = d.start[i], c = d.count[i], ox = d.org[i][0], oy = d.org[i][1];
+      if (st < 0 || st + c > P.length / 3) return;
+      const tris = [];
+      for (let j = st; j + 2 < st + c; j += 3) { const t = []; for (let q = j; q < j + 3; q++) t.push([ox + P[q * 3] / 100, oy + P[q * 3 + 1] / 100, P[q * 3 + 2] / 100, U[q * 2], U[q * 2 + 1]]); tris.push(t); }
+      const ux = sp.ux, uy = sp.uy;
+      /* 切り口（u＝cu）の壁。外向き（店の外へ向かう向き）が表になるように並べる。out：切った店から見て外の向き（−1＝u の小さい側） */
+      const endWall = (cu, out, vs) => {
+        const seg = [];
+        for (const t of tris) {
+          const f = t.map(q => q[0] * ux + q[1] * uy - cu), pts = [];
+          for (let q = 0; q < 3; q++) { const A = t[q], B = t[(q + 1) % 3], fa = f[q], fb = f[(q + 1) % 3]; if ((fa >= 0) !== (fb >= 0)) { const s = fa / (fa - fb); pts.push(A.map((v, k) => v + (B[k] - v) * s)); } }
+          if (pts.length === 2) seg.push(pts.map(q => ({ v: -q[0] * uy + q[1] * ux, q })));
+        }
+        const xs = [...new Set(seg.flatMap(s => [s[0].v, s[1].v]).map(v => Math.round(v * 50) / 50))].sort((p, q) => p - q);
+        const at = (s, v) => { const t = Math.abs(s[1].v - s[0].v) < 1e-6 ? 0 : Math.max(0, Math.min(1, (v - s[0].v) / (s[1].v - s[0].v))); return s[0].q.map((x, k) => x + (s[1].q[k] - x) * t); };
+        for (let m = 0; m + 1 < xs.length; m++) {
+          const va = xs[m], vb = xs[m + 1], vm = (va + vb) / 2; if (vb - va < 0.02) continue;
+          let best = null, bz = -Infinity;
+          for (const s of seg) { if (Math.min(s[0].v, s[1].v) > vm || Math.max(s[0].v, s[1].v) < vm) continue; const z = at(s, vm)[2]; if (z > bz) { bz = z; best = s; } }
+          if (!best || bz < 0.3) continue;
+          const A = at(best, va), B = at(best, vb), A0 = A.slice(), B0 = B.slice(); A0[2] = 0; B0[2] = 0;
+          /* 外向きの表：三角形 (A0, B0, B) の向き（右手）が外の向き（u の向き×out）を向くように */
+          const ex = B0[0] - A0[0], ey = B0[1] - A0[1], fz = B[2] - A0[2], fx = B[0] - A0[0], fy = B[1] - A0[1];
+          const nx = ey * fz - 0 * fy, ny = 0 * fx - ex * fz, flip = (nx * ux + ny * uy) * out < 0;
+          if (flip) vs.push(A0, B, B0, A0, A, B); else vs.push(A0, B0, B, A0, B, A);
+        }
+      };
+      for (const kd of sp.kids) {
+        const vs = [];
+        for (const t of tris) { const pg = clipSlab(t, ux, uy, kd.lo, kd.hi); if (!pg) continue; for (let q = 1; q + 1 < pg.length; q++) vs.push(pg[0], pg[q], pg[q + 1]); }
+        if (kd.inLo) endWall(kd.lo, -1, vs);
+        if (kd.inHi) endWall(kd.hi, 1, vs);
+        /* 底：実物大で積んだ店を、始めの低いカメラから見上げると、底が無いので中の縁取り（濃い色の裏）が黒い穴に見えた（fix3/11fix/d1）。
+           足元の形で下向きの面を張る。色は壁のいちばん下の所の写真 */
+        if (vs.length) {
+          let lowQ = vs[0]; for (const q of vs) if (q[2] < lowQ[2]) lowQ = q;
+          const ring = r => r.slice(0, -1).map(([x, y]) => new THREE.Vector2(x, y)), outer = ring(kd.poly[0]), holes = kd.poly.slice(1).map(ring), all = outer.concat(...holes);
+          for (const [i0, i1, i2] of THREE.ShapeUtils.triangulateShape(outer, holes)) {
+            let A = all[i0], B = all[i1], C = all[i2];
+            if ((B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x) > 0) { const t = B; B = C; C = t; }
+            for (const p of [A, B, C]) vs.push([p.x, p.y, 0, lowQ[3], lowQ[4]]);
+          }
+        }
+        add.push([kd.id, ox, oy, vs]); extra += vs.length;
+      }
+    });
+    if (!add.length) return { P, U };
+    const n0 = P.length / 3, P2 = new Int16Array((n0 + extra) * 3), U2 = new Uint16Array((n0 + extra) * 2);
+    P2.set(P); U2.set(U);
+    let o = n0;
+    for (const [id, ox, oy, vs] of add) {
+      d.ids.push(id); d.start.push(o); d.count.push(vs.length); d.org.push([ox, oy]);
+      for (const q of vs) { P2[o * 3] = Math.round((q[0] - ox) * 100); P2[o * 3 + 1] = Math.round((q[1] - oy) * 100); P2[o * 3 + 2] = Math.round(q[2] * 100); U2[o * 2] = Math.round(q[3]); U2[o * 2 + 1] = Math.round(q[4]); o++; }
+    }
+    return { P: P2, U: U2 };
+  }
   function addTownPart(d, map) {
-    const P = new Int16Array(b64bytes(d.pos).buffer), U = new Uint16Array(b64bytes(d.uv).buffer), n = P.length / 3;
-    if (U.length !== n * 2 || n % 3) { console.warn('町の写真：頂点の数が合わない', d.jpg); return; }
+    let P = new Int16Array(b64bytes(d.pos).buffer), U = new Uint16Array(b64bytes(d.uv).buffer);
+    if (U.length !== P.length / 3 * 2 || (P.length / 3) % 3) { console.warn('町の写真：頂点の数が合わない', d.jpg); return; }
+    if (nakaSplit.size) ({ P, U } = nakaSplitPart(d, P, U));
+    const n = P.length / 3;
     const pos = new Float32Array(n * 3), hide = new THREE.BufferAttribute(new Float32Array(n), 1);
     const part = { k: d.k, P, U, hide }, mine = [];
     d.ids.forEach((id, i) => {
@@ -3021,6 +3134,17 @@ function start(DATA, isAsakusa) {
     { name: '西', route: [[-125.0,255.0],[-121.0,254.8],[-117.0,254.6],[-113.0,254.4],[-109.0,254.2],[-105.0,254.0],[-101.0,253.7],[-97.0,253.5],[-93.0,253.3],[-89.0,253.1],[-85.1,252.9],[-81.1,252.9],[-77.1,253.2],[-73.1,253.9],[-69.2,254.7],[-65.3,255.5],[-61.4,256.3],[-57.5,257.2],[-53.5,257.9],[-49.6,258.3],[-45.6,258.3],[-41.6,258.0],[-37.7,257.1],[-33.9,255.7],[-30.4,253.8],[-27.0,251.7],[-23.5,249.8],[-19.8,248.3],[-15.9,247.4],[-11.9,247.0],[-7.9,246.8],[-3.9,246.6],[0.0,246.3],[4.0,246.1],[8.0,245.8],[12.0,245.3],[15.9,244.3],[19.7,243.1],[23.5,241.9],[27.3,240.6],[31.1,239.4],[34.9,238.2],[38.7,236.9],[42.5,235.7],[46.3,234.4],[50.1,233.2],[54.0,232.1],[57.9,231.4],[61.9,231.2],[65.9,231.4],[69.9,231.8],[73.9,231.8],[77.8,231.4],[81.8,230.6],[85.6,229.5],[89.4,228.2],[93.2,227.0],[97.0,225.8],[100.8,224.5],[104.6,223.3],[108.4,222.1],[112.2,220.8],[116.0,219.6],[119.8,218.3],[123.6,217.1],[127.4,215.9],[131.2,214.6],[135.1,213.4],[138.9,212.3],[142.8,211.6],[146.8,211.4],[150.8,211.7],[154.8,212.3],[158.7,213.1],[162.6,214.0],[166.5,214.8],[170.4,215.7],[174.2,216.8],[177.9,218.4],[181.6,220.0],[185.4,221.3],[189.2,222.3],[193.1,223.1],[197.1,223.8],[201.1,224.2],[205.1,224.2],[209.1,224.1],[213.1,223.9],[217.0,223.6],[221.0,223.4],[225.0,223.2],[229.0,222.9],[233.0,222.4],[236.9,221.5],[240.7,220.3],[244.5,219.0],[248.2,217.6],[251.8,215.9],[255.2,213.8],[258.5,211.5],[261.5,208.8],[264.3,206.0],[267.0,203.0],[267.4,202.6]], st: { x: -125, y: 255, h: -0.050 } },
     { name: '東', route: [[306.9,-5.6],[307.7,-1.7],[308.6,2.2],[309.4,6.1],[310.3,10.0],[311.6,13.8],[313.2,17.5],[315.0,21.1],[316.8,24.6],[318.6,28.2],[320.4,31.8],[322.2,35.3],[324.0,38.9],[325.5,42.6],[326.6,46.5],[327.5,50.4],[328.2,54.3],[328.5,58.3],[328.4,62.3],[328.2,66.3],[328.0,70.3],[327.9,74.3],[328.0,78.3],[328.6,82.2],[329.6,86.1],[331.1,89.8],[332.8,93.4],[334.3,97.1],[335.5,100.9],[336.4,104.8],[336.8,108.8],[336.9,112.8],[336.6,116.8],[335.9,120.7],[334.8,124.6],[333.3,128.3],[331.5,131.8],[329.4,135.2],[327.2,138.6],[325.0,141.9],[322.5,145.0],[319.6,147.7],[316.1,149.8],[312.4,151.2],[308.5,152.2],[304.6,153.0],[300.6,153.6],[296.7,153.8],[292.7,153.4],[288.9,152.1],[285.5,150.1],[282.0,148.1],[278.1,147.3],[274.1,147.9],[270.4,149.3],[266.9,151.3],[263.8,153.8],[261.6,157.1],[260.1,160.8],[258.9,164.6],[257.8,168.5],[257.1,172.4],[256.9,176.4],[257.4,180.4],[258.2,184.3],[259.0,188.2],[259.9,192.1],[261.3,195.1]], st: { x: 306.9, y: -5.6, h: 1.365 } },
   ];
+  /* 11/04 仲見世の長い棟を店に分けた（nakaSplit）ので、first（bldg_363fd884）は、その棟を分けた店のうち道順にいちばん近い1軒の id にする
+     （道順からの近さが0.3m以内で並ぶときは、雷門に近い方。最初に通りかかる店にするため）。
+     雷門から16m以内の店はくっつかない（attachable の雷門の両わき）ので選ばない（363fd884 の門に近い端の店は門から15.3m） */
+  for (const L of LEGS) {
+    if (!L.first) continue;
+    const gd = b => raimonB ? Math.hypot(b.d.cx - raimonB.d.cx, b.d.cy - raimonB.d.cy) : Infinity;
+    const kids = blds.filter(b => b.nakaOf && b.nakaOf.startsWith(L.first) && gd(b) >= 16); if (!kids.length) continue;
+    const near = b => { let d = Infinity; for (const q of L.route) d = Math.min(d, distToPoly(q[0], q[1], b.polys[0])); return d; };
+    const ds = kids.map(b => [near(b), gd(b), b]), dMin = Math.min(...ds.map(x => x[0]));
+    L.first = ds.filter(x => x[0] <= dMin + 0.3).sort((p, q) => p[1] - q[1])[0][2].id;
+  }
   let LEG = 0, ROUTE = LEGS[0].route;
   /* 出発の位置と向き：その回の道順の最初の点から、2つ先の点へ向く */
   /* 11/01 向きを勝手に回す補助をやめたので、出発の向きは、押しっぱなしでまっすぐ通りに沿って進む向きにする（LEGS[k].st があればそれ） */
@@ -3093,7 +3217,17 @@ function start(DATA, isAsakusa) {
     && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > legOf(LEG_HMAX)) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
-  const NAKA_GAP = 1800;
+  /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
+     1回目の塔が160mになって東京タワーの展望台（150m。2回目の節目）まで1回目で抜いた（fix3/11fix/n1）。縮め方は本人の言う「多少」にとどめ、くっつく間を広げて合わせた */
+  const NAKA_GAP = 6000;
+  /* 11/04 分けた仲見世の店（nakaShop）を乗せる倍率。本人「1番最初はちょっと冷めるかも」（最初は神輿の近くで見ているので、縮むのがはっきり見える）、
+     「高くなりすぎたらあんまりわからないから多少縮小しても良い」：積む所（土台の屋根から）が NK_H0 m までは実物大（1倍）。店は高さ約6mなので、最初の3〜4軒が実物大になる。
+     そこから NK_H1 m までに、なめらかに（smoothstep）ほかの建物と同じ足元の縮め方（stCap）まで縮める。急に小さくならないよう、1軒ごとの倍率の差は小さくなる */
+  const NK_H0 = 17, NK_H1 = 45;
+  function nakaScale(b, y0) {
+    const sMin = Math.min(1, stCap() / Math.max(b.d.L, b.d.W)), t = Math.max(0, Math.min(1, (y0 - stackBase() - NK_H0) / (NK_H1 - NK_H0)));
+    return 1 + (sMin - 1) * t * t * (3 - 2 * t);
+  }
   /* 積んだ塔のいちばん上（神輿の絵の中の高さ m）。土台の屋根の上から積む */
   function stackTop() { if (!S.mesh) return 0; const L = S.stack || []; return L.length ? L[L.length - 1].top : (S.mesh.userData.roofY || (S.b ? S.b.h : 0)); }
   /* 積んだ高さ（地面から。カメラの寄り引きに使う） */
@@ -3235,11 +3369,23 @@ function start(DATA, isAsakusa) {
     /* 浮かんで揺れていた写し（hoverStep）があれば、それをそのまま飛ばす（浮いていた所から吸い寄せられる） */
     const hv = HV.get(b); if (hv) { HV.delete(b); hvHalo(hv); }
     liftOut(b, true);
-    const cap = stCap(), s = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv = Math.max(s, Math.min(1, s * legOf(LEG_STR), legOf(LEG_STH) / Math.max(1, b.h))) * legOf(LEG_HK), L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
-    /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
-    const k = (S.stack || []).length + AT.fly.length, yaw = (hash(k + 0.7, b.d.cx) - 0.5) * 0.7 + (b.d.L * s > S.dim.L * 1.6 ? Math.PI / 2 : 0);
-    const ox = (hash(k, 3.1) - 0.5) * Math.min(1.2, S.dim.L * 0.25), oz = (hash(5.3, k) - 0.5) * Math.min(1, S.dim.W * 0.25);
     const y0 = AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackTop();
+    const cap = stCap(), s0 = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv0 = Math.max(s0, Math.min(1, s0 * legOf(LEG_STR), legOf(LEG_STH) / Math.max(1, b.h))) * legOf(LEG_HK);
+    /* 11/04 分けた仲見世の店（nakaShop）は、塔が低いうちは実物大で乗せ、高くなったらなめらかに縮める（nakaScale）。足元と高さは同じ倍率 */
+    const s = b.nakaShop ? nakaScale(b, y0) : s0, sv = b.nakaShop ? s : sv0, L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
+    /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
+    /* 11/04 分けた仲見世の店は、長い方の辺（間口か奥行き）を土台の長い辺にそろえる（実物大の店が、土台の横へ大きくはみ出して前の道をふさがないように） */
+    const turn = b.nakaShop ? b.d.W > b.d.L : b.d.L * s > S.dim.L * 1.6;
+    let yaw0 = turn ? Math.PI / 2 : 0;
+    /* 11/04 分けた仲見世の店は、店の表（仲見世の通りに向いた面）を後ろ（カメラの側）へ向ける。そろえないと半分ほどは路地側の暗い裏が見えていた（fix3/11fix/n1）。
+       表の向き＝店の真ん中から、雷門と宝蔵門の前（192, 62）を結ぶ線へ向かう向き。それを塔の中の向き（土台の絵の中、進む向きは −S.rot）に直して、前を向いていたら半回り回す */
+    if (b.nakaShop && gate.fx !== undefined) {
+      const ax = gate.x, ay = gate.y, dx = 192 - ax, dy = 62 - ay, t = Math.max(0, Math.min(1, ((b.d.cx - ax) * dx + (b.d.cy - ay) * dy) / (dx * dx + dy * dy)));
+      const fx = ax + dx * t - b.d.cx, fy = ay + dy * t - b.d.cy, c1 = Math.cos(yaw0 - b.d.a), s1 = Math.sin(yaw0 - b.d.a);
+      if ((fx * c1 - fy * s1) * Math.cos(-S.rot) + (fx * s1 + fy * c1) * Math.sin(-S.rot) > 0) yaw0 += Math.PI;
+    }
+    const k = (S.stack || []).length + AT.fly.length, yaw = (hash(k + 0.7, b.d.cx) - 0.5) * 0.7 + yaw0;
+    const ox = (hash(k, 3.1) - 0.5) * Math.min(1.2, S.dim.L * 0.25), oz = (hash(5.3, k) - 0.5) * Math.min(1, S.dim.W * 0.25);
     const F = { b, m: L.g, t0: now, dur: 520, sx: b.d.cx, sy: b.d.cy, sz: hv ? hv.m.position.y : 0, sa: b.d.a, s, sv, yaw, ox, oz, y0, y1: y0 + L.h + 0.15 };
     if (!hv) { L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); L.g.scale.setScalar(1); scene.add(L.g); }
     AT.fly.push(F);
@@ -5535,6 +5681,20 @@ function start(DATA, isAsakusa) {
       scene.add(mesh); lmMeshes.raimon.push(mesh); gate.mesh = mesh;
     }
     scene.add(g); lmMeshes.raimon.push(g); lmPolys.raimon.push(raimonB.polys[0]);
+    /* 11/04 雷門をくぐった直後に1こまだけ65〜80ミリ秒の引っかかりがあった。門を薄くする（gateFade）ときに材質を不透明から透明へ切り替えると、
+       three.js（r149）は透明用の絵の作り方（シェーダー。OPAQUE の有り無しで別になる）をその場で作り直していた。
+       門の材質は、はじめから透明の扱い（transparent）にしておき、gateFade では濃さ（opacity）と深さの書き込み（depthWrite）だけを替える。
+       不透明だったときと見た目を同じにするため、写真の透けている所（絵の縁など）も、色の濃さは opacity だけで決める（不透明のときは OPAQUE で 1 にしていた） */
+    const done = new Set();
+    for (const o of lmMeshes.raimon) o.traverse(m => {
+      for (const mt of [].concat(m.material || [])) {
+        if (done.has(mt)) continue; done.add(mt);
+        const prev = mt.onBeforeCompile, k0 = mt.customProgramCacheKey();
+        mt.onBeforeCompile = (sh, r) => { if (prev) prev.call(mt, sh, r); sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', 'diffuseColor.a = opacity;\n#include <output_fragment>'); };
+        mt.customProgramCacheKey = () => k0 + '|gateOpaque';
+        mt.transparent = true; mt.depthWrite = true; mt.opacity = 1; mt.needsUpdate = true;
+      }
+    });
   })();
   function updateGate(dt) {
     if (!gate.lantern) return;
@@ -5576,7 +5736,8 @@ function start(DATA, isAsakusa) {
       o.visible = f > 0;
       o.traverse(m => {
         if (!m.material) return;
-        for (const mt of [].concat(m.material)) { if (mt.transparent !== tr) { mt.transparent = tr; mt.depthWrite = !tr; mt.needsUpdate = true; } mt.opacity = f; }
+        /* 11/04 材質ははじめから透明の扱い（buildGate の終わり）。切り替えるのは深さの書き込みだけ（絵の作り直しが起きない） */
+        for (const mt of [].concat(m.material)) { mt.depthWrite = !tr; mt.opacity = f; }
       });
     }
   }

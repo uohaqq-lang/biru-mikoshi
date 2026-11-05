@@ -3241,7 +3241,13 @@ function start(DATA, isAsakusa) {
      NAKA_GAP は、まだ1軒もくっついていないときの間（くぐってすぐの1軒目は AT.last が古いので待たない） */
   /* かたまりの間は、仲見世を約53秒で抜けて（案A）くっつく数が前（6秒おきで11軒・1回目の塔76m）と大きく変わらないように、平均8秒にした（5.0〜9.5秒では13軒ほどになった。fix3/13fix/m3） */
   const NK_BURST = 900, NK_G0 = 5500, NK_G1 = 10500, NK_P2 = 0.24, NK_P3 = 0.12;
-  function nakaGapNow() { return AT.gap || NAKA_GAP; }
+  /* 11/05 本人「仲見世が左右どっちにも行けずにずっとまっすぐになる。ちょっと退屈に感じる」→ 本人が選んだ A：1回目の仲見世の店は、時間で勝手にくっつかず、
+     神輿が触れた店だけくっつく（左右に寄ってぶつけると取れる。道のまん中を進むだけでは取れない）。届く範囲は神輿の足元の縁から NAKA_TOUCH_R m（ほかの建物は今までどおり ATT_R）。
+     くっつく間の強弱（nakaAttached のかたまり）は1回目の仲見世では使わず、続けて取れるのは NAKA_TOUCH_GAP ミリ秒おきまで（片側の壁にずっと沿わせて全部取ると、塔が空まで伸びるため） */
+  /* 間は、左右に寄って取りに行く通しテストで1区の終わりの塔が前（約73m）くらいになるように決めた（3.5秒では58m。fix3/17fix/wv1） */
+  const NAKA_TOUCH_R = 0.5, NAKA_TOUCH_GAP = 2500;
+  const nakaTouch = b => RUN3 && LEG === 0 && nearNaka(b);
+  function nakaGapNow() { return RUN3 && LEG === 0 ? NAKA_TOUCH_GAP : (AT.gap || NAKA_GAP); }
   function nakaAttached() {
     const k = AT.nk = (AT.nk || 0) + 1;
     if (AT.burst > 0) { AT.burst--; AT.gap = NK_BURST; return; }
@@ -3573,7 +3579,7 @@ function start(DATA, isAsakusa) {
           if (px < x0 - R || px > x1 + R || py < y0 - R || py > y1 + R) continue;
           const dd = distToPoly(px, py, b.polys[0]); if (dd < dm) { dm = dd; if (dm <= 0) break; }
         }
-        if (dm <= R && (!best || dm < best.d)) best = { b, d: dm };
+        if (dm <= (nakaTouch(b) ? NAKA_TOUCH_R : R) && (!best || dm < best.d)) best = { b, d: dm };
       }
     }
     if (best) attach(best.b);
@@ -5127,6 +5133,8 @@ function start(DATA, isAsakusa) {
         const p = { x, y, c: crowdColors[i % crowdColors.length], s: 1, j: true, jh: 0 };
         if (!crowdSpots.some(o => Math.hypot(o.x - x, o.y - y) < 0.8)) crowdSpots.push(p);
       }
+      /* 11/05 仲見世の見物客の一団（nakaGroups）を足す（1回目だけ） */
+      if (RUN3 && LEG === 0) for (const g of nakaGroups()) if (Math.hypot(g.x - S.x, g.y - S.y) <= R && !crowdSpots.includes(g)) crowdSpots.push(g);
       JN.wait = crowdSpots.filter(p => p.j && !JN.keys.has(spotKey(p)));
       forceSumo();
     }
@@ -5195,6 +5203,52 @@ function start(DATA, isAsakusa) {
   const spotKey = p => p.x.toFixed(1) + ',' + p.y.toFixed(1);
   /* 道順（ROUTE）のそばの人力車か（浅草だけ） */
   const onRouteRk = r => !!raimonB && ROUTE.some(q => Math.hypot(q[0] - r.x0, q[1] - r.y0) < RKJ_ROUTE);
+  /* ---------- 11/05 本人が選んだ B：仲見世の見物客を集める ----------
+     仲見世の通り（nakaZone）では、飛び入りを待つ人は、その側へ寄って近くを通ったときだけ加わる（神輿の足元の横の縁から NK_LAT m 以内。前後は足元の縁から2m）。
+     ほかの所は今までどおり JOIN_R m（そばを通れば走って来る）。道のまん中を進むだけでは、左右の人は加わらない。
+     仲見世の両わきに、見物客の一団（NKG：3〜7人。町の人・着物の人・海外の方などの今の格好）を NK_GSTEP m おきに立たせる。
+     人の多い側（一団が毎回立つ側）は、2〜4区画ごとに左右を入れ替え、少ない側には1区画おきに2人だけ。多い側に寄るほど担ぎ手が増える。
+     立つ所は、道の端（店の前）から NK_EDGE m 内側。一団は全員描き、先頭の人が提灯を掲げる */
+  const NK_GSTEP = 13, NK_LAT = 0.3, NK_EDGE = 0.35;
+  const nakaZone = (x, y) => {
+    if (!gate || gate.fx === undefined) return false;
+    const ax = gate.x, ay = gate.y, dx = 192 - ax, dy = 62 - ay, l2 = dx * dx + dy * dy, t = ((x - ax) * dx + (y - ay) * dy) / l2;
+    return t > 0.03 && t < 1.02 && Math.hypot(x - ax - dx * t, y - ay - dy * t) < 8;
+  };
+  let NKG = null;
+  function nakaGroups() {
+    if (NKG) return NKG;
+    if (!RUN3 || !raimonB || gate.fx === undefined) return [];
+    NKG = [];
+    const R = LEGS[0].route; let acc = 0, step = 0;
+    for (let i = 1; i < R.length - 1; i++) {
+      acc += Math.hypot(R[i][0] - R[i - 1][0], R[i][1] - R[i - 1][1]);
+      if (acc < NK_GSTEP || !nakaZone(R[i][0], R[i][1])) continue;
+      acc = 0;
+      const dx = R[i + 1][0] - R[i][0], dy = R[i + 1][1] - R[i][1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+      /* 区画（2〜4歩ずつ）ごとに、人の多い側を入れ替える */
+      let blk = 0, rest = step; while (rest >= 2 + Math.floor(hash(blk, 7.7) * 3)) { rest -= 2 + Math.floor(hash(blk, 7.7) * 3); blk++; }
+      const busy = blk % 2 ? 1 : -1;
+      for (const side of [busy, -busy]) {
+        if (side !== busy && step % 2) continue;
+        const nx = -uy * side, ny = ux * side, a = Math.atan2(ny, nx), e = run(R[i][0], R[i][1], a, 6);
+        if (e < 1.6) continue;
+        const x = R[i][0] + nx * (e - NK_EDGE), y = R[i][1] + ny * (e - NK_EDGE);
+        if (!onRoad(x, y)) continue;
+        const n = side === busy ? 3 + Math.floor(hash(i, 5.1) * 5) : 2;
+        NKG.push({ x, y, c: crowdColors[(i + (side > 0 ? 3 : 0)) % crowdColors.length], s: 1, j: true, jh: 0, nk: { n, ux, uy, nx, ny } });
+      }
+      step++;
+    }
+    return NKG;
+  }
+  /* 一団の k 人目の立つ所（先頭は p。連れは道に沿って前後に0.75mおき、少しだけ道の内側へ） */
+  function nkMember(p, k) {
+    if (!k) return { x: p.x, y: p.y };
+    const a = ((k + 1) >> 1) * 0.75 * (k % 2 ? 1 : -1), b = 0.2 * (k % 3);
+    return { x: p.x + p.nk.ux * a - p.nk.nx * b, y: p.y + p.nk.uy * a - p.nk.ny * b };
+  }
+  function nkP(p, k) { const P0 = waitP(p); if (!k) return P0; const L = p.nkP || (p.nkP = []); return L[k] || (L[k] = personOf(P0.u, hash(p.x + k * 1.3, p.y - k * 0.7))); }
   /* 力士は1人で5人分の、めったにいない飛び入り。3分版では毎回会えるように、道順のそばの決まった所（SUMO_AT から10m以内のいちばん近い待つ人）は力士にする */
   const SUMO_AT = [[20, -226], [100, -212]];
   function forceSumo() {
@@ -5498,10 +5552,14 @@ function start(DATA, isAsakusa) {
     if (carrying && moved) {
       /* そばを通ったら飛び入り：1〜3人の組（待っていた人と、まわりの連れ） */
       for (let i = JN.wait.length - 1; i >= 0; i--) {
-        const p = JN.wait[i]; if (!within(p.x, p.y, JOIN_R)) continue;
+        const p = JN.wait[i];
+        /* 11/05 仲見世では、その側へ寄って近くを通ったときだけ（B。nakaZone の説明） */
+        if (RUN3 && LEG === 0 && nakaZone(p.x, p.y)) { const dx = p.x - px, dy = p.y - py; if (!(Math.abs(dx * c + dy * sn) < S.dim.L / 2 + 2 && Math.abs(-dx * sn + dy * c) < S.dim.W / 2 + NK_LAT)) continue; }
+        else if (!within(p.x, p.y, JOIN_R)) continue;
+        JN.wait.splice(i, 1); JN.keys.add(spotKey(p));
+        if (p.nk) { joinAdd(p.nk.n, k => Object.assign(nkMember(p, k), { P: nkP(p, k) }), now, 60); if (p.nk.n >= 4) setTimeout(() => SND.cheer(), 300); continue; }
         /* 連れは同じ格好（力士は1人で来る） */
         const P0 = waitP(p), grp = P0.t === 'sumo' ? 1 : 1 + Math.floor(hash(p.y + 2.2, p.x - 9.1) * 2);
-        JN.wait.splice(i, 1); JN.keys.add(spotKey(p));
         joinAdd(grp, k => ({ x: p.x + (k ? (hash(p.x, k) - 0.5) * 1.6 : 0), y: p.y + (k ? (hash(k, p.y) - 0.5) * 1.6 : 0), P: k ? personOf(P0.u, hash(p.x + k, p.y - k)) : P0 }), now, 140);
       }
       /* はじき飛ばされた人：3分版（本人「人が何人か飛ぶが、少しすると走って戻ってくる（減ったままにしない）」）。
@@ -5531,6 +5589,8 @@ function start(DATA, isAsakusa) {
       const hop = Math.max(0, Math.sin(now * 0.011 + hash(p.y, p.x) * 6.283)) * 0.6;
       /* その人の格好で（ptPut）。提灯は頭の上に */
       ptPut(waitP(p), p.x, p.y, hop, Math.atan2(-dy, -dx), p.s); jwLamp.setMatrixAt(w, tmpM); w++;
+      /* 11/05 仲見世の見物客の一団：連れも描く（先頭の人だけ提灯） */
+      if (p.nk) for (let k = 1; k < p.nk.n; k++) { const q = nkMember(p, k); ptPut(nkP(p, k), q.x, q.y, Math.max(0, Math.sin(now * 0.011 + hash(q.y, q.x) * 6.283)) * 0.6, Math.atan2(py - q.y, px - q.x), p.s); }
     }
     jwLamp.count = w;
     updN(jwLamp.instanceMatrix, w);

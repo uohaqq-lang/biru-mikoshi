@@ -2873,7 +2873,7 @@ function start(DATA, isAsakusa) {
     setTeam(b);
     S.weight = weightOf(b, S.k);
     // 重さの手ざわり：重い建物ほど少しゆっくり進む（300トンまでは同じ。3,000トンで0.72倍。それより遅くはしない）
-    S.speedK = Math.max(0.72, Math.min(1, 1 - 0.28 * Math.log10(Math.max(1, S.weight.ton / 300))));
+    S.speedK = Math.max(0.85, Math.min(1, 1 - 0.28 * Math.log10(Math.max(1, S.weight.ton / 300))));
     /* 0＝100トンまで、1＝3,000トン以上 */
     S.heavy = Math.max(0, Math.min(1, Math.log10(Math.max(1, S.weight.ton / 100)) / Math.log10(30)));
     /* 曲の厚み（A1 の setIntensity）も重さに合わせる。縮めて担ぎ直したときもここを通る */
@@ -3171,13 +3171,14 @@ function start(DATA, isAsakusa) {
   }
   /* 進む速さ（10/30 本人「もうちょい爽快感がほしい」）：担ぎ手が増えるほど速く。10人で RUN_V0、RUN_VN 人で RUN_V1（それより速くはしない）。
      11/01 本人「なんか動かしにくくない？」：3回着く形にしたときに 3.8〜7m/秒へ上げたのを、前の 3.4〜5.5m/秒に戻した */
-  const RUN_V0 = 3.4, RUN_V1 = 5.5, RUN_VN = 220;
+  /* 11/06 本人「全体的に遅い。もうちょい早く、気持ちよく」：向きの補助をやめた今は速くても曲げやすいので、3.4〜5.5 を 4.6〜7.4m/秒に（約1.35倍） */
+  const RUN_V0 = 4.6, RUN_V1 = 7.4, RUN_VN = 220;
   const runSpeedBase = () => RUN_V0 + (RUN_V1 - RUN_V0) * Math.pow(Math.min(1, Math.max(0, (team + JN.n - TEAM0) / (RUN_VN - TEAM0))), 0.6);
   /* 11/04 本人「仲見世通りはちょっとマンネリ」「そのあとは少し早くなってるように思えて楽しい。仲見世は遅く見える」→ 本人が選んだ案A：
      速さは担ぎ手の数で決まり、仲見世を通る間は担ぎ手が少ない（14→134人）ので3.6→4.9 m/秒、宝蔵門の先は5.2 m/秒だった（fix3/12fix/k2）。
      1回目の仲見世（雷門をくぐってから宝蔵門の前 (192, 62) まで）だけ、担ぎ手の数に関係なく NAKA_V m/秒までは出す。
      出入りで速さがガクッと変わらないよう、底上げの効き（nakaVW、0〜1）は、門の裏の面から NAKA_VIN m かけて上げ、宝蔵門の前を過ぎて NAKA_VOUT m かけて下げる（smoothstep） */
-  const NAKA_V = 5.0, NAKA_VIN = 12, NAKA_VOUT = 20;
+  const NAKA_V = 6.6, NAKA_VIN = 12, NAKA_VOUT = 20;   /* 11/06 速さを上げたのに合わせて 5.0→6.6 */
   function nakaVW() {
     if (!RUN3 || LEG !== 0 || !S.gateIn || gate.fx === undefined) return 0;
     const ss = q => { q = Math.max(0, Math.min(1, q)); return q * q * (3 - 2 * q); };
@@ -4034,11 +4035,11 @@ function start(DATA, isAsakusa) {
   function stopRot() { rotHold.dir = 0; }
   let stickTurn = 0, stickTurnT = 0;   // ジョイスティックの左右（−1〜1。正が左回り）。倒している間、毎秒60°×倒し具合で回す
   function rotStep() {
-    if (stickTurn) { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) rotate(60 * dt * stickTurn, true); }
+    if (stickTurn) { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) rotate(70 * dt * stickTurn, true); }
     else stickTurnT = 0;
     if (!rotHold.dir) return;
     const now = performance.now();
-    const dt = Math.min(0.1, (now - rotHold.last) / 1000), top = 60 * (1 - 0.35 * (S.heavy || 0)), rate = 20 + (top - 20) * Math.min(1, (now - rotHold.t0) / 400);
+    const dt = Math.min(0.1, (now - rotHold.last) / 1000), top = 70 * (1 - 0.35 * (S.heavy || 0)), rate = 20 + (top - 20) * Math.min(1, (now - rotHold.t0) / 350);   /* 11/06 速さに合わせて曲がりも 60→70°/秒 */
     if (dt > 0) rotate(rate * dt * rotHold.dir, now - rotHold.t0 > 150);   /* 当たったら止まる（押し始めだけ、当たったらドンと鳴らす） */
     rotHold.last = now;
   }
@@ -4904,7 +4905,8 @@ function start(DATA, isAsakusa) {
   // 押している間進む（3分版：秒速は担ぎ手の数で決まる。runSpeed）。交差点でも止まらない。止まるのはつかえたときだけ。
   // つかえた後も押し続けていれば、向きを変えたり下がったりした所で、また進んでみる。
   /* BOUNCE_SPD：これより速くぶつかると弾かれる（step）。BOUNCE_MS：弾かれて後ろへ戻っている間（この間は、押していてもゆっくり前へ戻る） */
-  const BACK_SPEED = 6, BOUNCE_SPD = 4, BOUNCE_MS = 420;
+  /* 11/06 速さを約1.35倍にしたので、弾かれる速さも 4→5.4（ふつうに曲がり角をこすっただけで人が飛ばないように） */
+  const BACK_SPEED = 6, BOUNCE_SPD = 5.4, BOUNCE_MS = 420;
   const hold = { on: false, locked: false, lockAt: null, back: false, k: 1 };   // k：速さの割合（ジョイスティックの倒し具合。キーは1）
   const poseNow = () => ({ x: S.x, y: S.y, h: S.head });
   // 最初に押したら、選び直す・地図も出す（運び出しの直後は「押している間 進む」だけにしている）
@@ -4937,7 +4939,8 @@ function start(DATA, isAsakusa) {
     const target = hold.on ? runSpeed() * sk * hold.k : hold.back ? -BACK_SPEED * sk * hold.k : 0;
     /* 弾かれた直後（S.bounceT から BOUNCE_MS の間）は、立ち上がりをゆっくりにして、後ろへ戻る動きを見せる */
     const bouncing = performance.now() - (S.bounceT || 0) < BOUNCE_MS;
-    const tau = bouncing ? 0.32 : target === 0 ? 0.11 : 0.17 * (1 + 0.6 * (S.heavy || 0));
+    /* 11/06 立ち上がりを 0.17→0.13 秒に（押したらすぐ走り出す） */
+    const tau = bouncing ? 0.32 : target === 0 ? 0.11 : 0.13 * (1 + 0.6 * (S.heavy || 0));
     S.v = (S.v || 0) + (target - (S.v || 0)) * (1 - Math.exp(-dt / tau));
     if (target === 0 && Math.abs(S.v) < 0.15) { S.v = 0; return; }
     if (S.v < 0) { move(S.v * dt); if (S.stuck) S.v = 0; return; }
@@ -8547,8 +8550,11 @@ function start(DATA, isAsakusa) {
      出発の所の真上（高さ180m、少し後ろ）から、神輿の後ろへまっすぐ降りる（2.2秒。運び出しの S.intro のカメラ）。前は 2.6秒＋2.6秒 */
   function skyIntro() {
     const c = Math.cos(S.head), sn = Math.sin(S.head);
-    S.intro.from = { pos: V(S.x - c * 40, S.y - sn * 40, 180), look: V(S.x + c * 10, S.y + sn * 10, 0) };
-    S.intro.dur = 2200;
+    /* 11/06 本人「スタート押したら、浅草の上から神輿までぐぐぐって近づく感じがほしい」：高さ180mから2.2秒だったのを、
+       浅草寺のまわりが見える高さ560m（後ろへ150m）から3.6秒で、近づくほど勢いよく寄る（sky：距離を割合で縮める寄り方。runCam）。
+       見る所は、はじめは神輿の先（浅草寺の方）120m、寄るにつれて神輿へ。浮く・担ぎ手が集まるのは、寄り切る手前（後半）で見せる */
+    S.intro.from = { pos: V(S.x - c * 150, S.y - sn * 150, 560), look: V(S.x + c * 120, S.y + sn * 120, 0) };
+    S.intro.dur = 3600; S.intro.sky = true;
   }
   /* 10/30 案2「最初はいきなり担いでいる所から」（桜井さん「最初の3分」）：開いて最初の1回だけ、空から降りたら選ぶ画面を出さず、
      最初の段の小さなお堂を10人で担ぎ始める（運び出しの動き→「ゴールの浅草神社に向かおう！」はふだんと同じ） */
@@ -8757,9 +8763,11 @@ function start(DATA, isAsakusa) {
         /* はじめの35%はカメラが建物へ寄る間（大きさはそのまま）、残りで縮む */
         if (I.shrink) vk = 1 + (S.k - 1) * ez(Math.max(0, Math.min(1, (el - I.shrink * 0.35) / (I.shrink * 0.65))));
         /* 浮く */
-        lift = I.keep ? 1 : ez(Math.min(1, p / 0.22));
+        /* 空から寄るとき（I.sky）は、遠くて見えない前半を飛ばし、後半で浮いて担ぎ手が集まる */
+        const pL = I.sky ? Math.max(0, (p - 0.5) / 0.5) : p;
+        lift = I.keep ? 1 : ez(Math.min(1, pL / 0.22));
         /* 担ぎ手が集まる */
-        gather = I.keep ? 1 : ez(Math.min(1, p / 0.32));
+        gather = I.keep ? 1 : ez(Math.min(1, pL / 0.32));
         /* 道へ運び出す */
         const m = ez(Math.max(0, (pm - 0.3) / 0.7));
         px = I.sx + (S.x - I.sx) * m; py = I.sy + (S.y - I.sy) * m;
@@ -9012,7 +9020,12 @@ function start(DATA, isAsakusa) {
       if (S.intro) {
         // 町の引きから、神輿の後ろへゆっくり寄る
         const q = Math.min(1, S.intro.p || 0), e = q * q * (3 - 2 * q);
-        camPos.copy(S.intro.from.pos).lerp(back, e); camLook.copy(S.intro.from.look).lerp(look, e);
+        if (S.intro.sky) {
+          /* 空から寄る：残りの距離を同じ割合ずつ縮める（町がぐんぐん大きくなる寄り方。まっすぐ動かすと、終わり近くで急に建物が迫って見えた）。終わりはぴたりと後ろに着く */
+          const F = 0.004, f = (Math.pow(F, e) - F) / (1 - F);
+          camPos.copy(back).add(S.intro.from.pos.clone().sub(back).multiplyScalar(f));
+          camLook.copy(S.intro.from.look).lerp(look, 1 - f);
+        } else { camPos.copy(S.intro.from.pos).lerp(back, e); camLook.copy(S.intro.from.look).lerp(look, e); }
       } else {
         if (camSnap) { camPos.copy(back); camLook.copy(look); camSnap = false; }
         const k = 1 - Math.pow(slow ? 0.25 : 0.02, Math.min(0.5, (t - tPrev) / 1000));

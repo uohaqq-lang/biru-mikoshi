@@ -318,8 +318,6 @@
   /* 次の町会が呼んでいる（1・2回目に着いたあと。legNext） */
   #legCall { position:fixed; left:50%; top:22%; transform:translate(-50%,-50%); background:rgba(200,50,42,.94); color:#fff; font-size:24px; font-weight:800; letter-spacing:.06em; padding:12px 28px; border-radius:26px; box-shadow:0 3px 16px rgba(0,0,0,.45); white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .4s; z-index:40; }
   #legCall.on { opacity:1; }
-  #legCall small { display:block; margin-top:4px; font-size:16px; font-weight:700; letter-spacing:.03em; color:#ffe27a; text-align:center; }
-  body.sm #legCall small { font-size:13px; }
   body.sm #legCall { font-size:18px; padding:10px 18px; top:26%; }
   @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(200,50,42,.75); } 50% { box-shadow:0 0 0 14px rgba(200,50,42,0); } }
   #hold.glow, #back.glow, #rot button.glow { animation:glow 1s ease-in-out infinite; }
@@ -3159,12 +3157,16 @@ function start(DATA, isAsakusa) {
   function legStart() { const L = LEGS[LEG], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
   /* 回を替える：道順を差し替え、建物ごとに覚えた「道順からの近さ」（routeNear）を数え直させる */
   /* S.gateIn・S.gateCel（雷門をくぐり終えた・くぐった瞬間の演出を出した）は1回目の始めに戻す。2回目からは曲を太鼓だけにしない（1回目に門を通らずに着いたときのため） */
-  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
+  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; HO.stopT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
   /* 11/05 受け渡し（handoverStep）：HO.shown＝次の町の担ぎ手を待たせた区（-1 はまだ）。HO.callT＝受け渡しの字を出した時刻 */
-  const HO = { shown: -1, callT: 0, boostT: 0 };
+  const HO = { shown: -1, callT: 0, boostT: 0, stopT: 0 };
   /* 11/07 本人「町会のみんなに会ったときに何かしらの報酬が欲しい」→ 選んだのは「ご祝儀で大きい建物が解禁」と「一本締めで勢いがつく」。
-     勢い：受け渡しから HO_BOOST ミリ秒、神輿が HO_BOOST_K 倍の速さで進み、見物人も HO_BOOST_R 倍の所から駆け寄る（最後の1秒で元に戻す） */
-  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6;
+     そのあと本人「ご祝儀とか書かなくて良い。止まって動けなくなって報酬を受ける感じがあった方が良い」→ 字は出さない。
+     受け渡しで HO_STOP ミリ秒その場に止まり（進む・曲がるが効かない）、町会の人が駆け寄って一本締め（3・3・3・1）。
+     最後の1打（HO_RISE）で、新しく担げるようになった建物がいっせいに浮く（riseCheck）。一本締めが終わって動けるようになったら勢いがつく。
+     勢い：止まり終えてから HO_BOOST ミリ秒、神輿が HO_BOOST_K 倍の速さで進み、見物人も HO_BOOST_R 倍の所から駆け寄る（最後の1秒で元に戻す） */
+  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6, HO_STOP = 2700, HO_RISE = 2350;
+  const hoStop = () => !!HO.stopT && !S.done && performance.now() - HO.stopT < HO_STOP;
   const boostQ = () => { if (!HO.boostT || S.done) return 0; const e = performance.now() - HO.boostT; return e < 0 || e > HO_BOOST ? 0 : Math.min(1, (HO_BOOST - e) / 1000); };
   const joinR = () => JOIN_R * (1 + (HO_BOOST_R - 1) * boostQ());
   const isRunBase = b => !!b && b.id.startsWith(RUN_BASE);
@@ -3619,6 +3621,7 @@ function start(DATA, isAsakusa) {
      2回目・3回目の出だしは、高さの上限が上がるので、出発して RS_WAIT ミリ秒後に、その回で初めて担げる大きさの建物がいっせいに浮く。
      前に浮かせてから RS_GAP ミリ秒たつまでは浮かせない。いっせいに浮かせるのは RS_MAX 棟まで（浮かせる写しは1棟ずつ形を作るので、重くならないように）。
      浮いた建物は、通り過ぎるまで（最大 RS_KEEP ミリ秒）浮かせておく */
+  const RS_AHEAD_HO = 70, RS_R_HO = 240;
   const RS_GAP = 10000, RS_AHEAD = 25, RS_R = 100, RS_MAX = 14, RS_HOP = 2.4, RS_WAIT = 700, RS_KEEP = 25000, RS_SEE = 8000;
   const RS = { crew: 0, hmax: 0, leg: -1, t: -1e9, chk: 0, wait: 0, see: 0, keep: new Map(), log: [] };
   /* LEGS[LEG].first（最初の1棟だけ10人から積める建物）は、人数の条件の外なので「新しい」に数えない */
@@ -3630,22 +3633,27 @@ function start(DATA, isAsakusa) {
     const crewN = team + JN.n, hmax = legOf(LEG_HMAX);
     const ack = () => { RS.crew = Math.max(RS.crew, crewN); RS.hmax = Math.max(RS.hmax, hmax); RS.see = 0; };
     if (RS.leg < 0) { RS.crew = crewN; RS.hmax = hmax; RS.leg = LEG; return; }
-    if (RS.leg !== LEG) { RS.leg = LEG; RS.wait = now + RS_WAIT; RS.see = 0; }
+    /* 11/07 受け渡しで止まったときは、一本締めの最後の1打（HO.stopT＋HO_RISE）で浮かせる */
+    if (RS.leg !== LEG) { RS.leg = LEG; RS.wait = Math.max(now + RS_WAIT, HO.stopT + HO_RISE); RS.see = 0; }
     if (now < RS.wait || (crewN <= RS.crew && hmax <= RS.hmax)) return;
     /* 建物は升目（bgrid）の複数の升に入っているので、一度見た建物は数えない */
     const R = Math.min(ATT_RMAX, ATT_R0 + ATT_RK * crewN), list = [], seen = new Set();
-    for (let i = Math.floor((S.x - RS_R) / BG); i <= Math.floor((S.x + RS_R) / BG); i++) for (let j = Math.floor((S.y - RS_R) / BG); j <= Math.floor((S.y + RS_R) / BG); j++) {
+    /* 11/07 受け渡しの報酬：2回目の受け渡し（北の町へ）は、新しく担げる高い建物が道順で約200m先からしか無く、一本締めのときに何も浮かなかった（fix3/17fix/n20e）。
+       受け渡しで止まっている間（と、その後1.5秒）は、道順で RS_AHEAD_HO 先・半径 RS_R_HO m まで見る */
+    const hoW = hmax > RS.hmax && HO.stopT && now - HO.stopT < HO_STOP + 1500, RR = hoW ? RS_R_HO : RS_R, AH = hoW ? RS_AHEAD_HO : RS_AHEAD;
+    for (let i = Math.floor((S.x - RR) / BG); i <= Math.floor((S.x + RR) / BG); i++) for (let j = Math.floor((S.y - RR) / BG); j <= Math.floor((S.y + RR) / BG); j++) {
       const a = bgrid.get(i * 100003 + j); if (!a) continue;
       for (const b of a) {
         if (seen.has(b)) continue; seen.add(b);
         if (!rsNew(b) || RS.keep.has(b) || !attachable(b, crewN) || (flatState.get(b) && !HV.has(b))) continue;
-        if (!roadside(b, R) || routeNear(b).k < RT.i - 1 || routeNear(b).k > RT.i + RS_AHEAD) continue;
-        const d = distToPoly(S.x, S.y, b.polys[0]); if (d <= RS_R) list.push([d, b]);
+        if (!roadside(b, R) || routeNear(b).k < RT.i - 1 || routeNear(b).k > RT.i + AH) continue;
+        const d = distToPoly(S.x, S.y, b.polys[0]); if (d <= RR) list.push([d, b]);
       }
     }
     if (!list.length) { RS.see = 0; return; }
     /* 名所を抜いた太鼓の連打（heightMilestone）から2秒は待つ（r7 で出発して9秒、連打とドンが重なった） */
-    if (now - RS.t < RS_GAP || (MS.t0 && now - MS.t0 < 2000)) return;
+    /* 受け渡しの報酬（高さの上限が上がった分）は、前に浮かせてからの間（RS_GAP）を待たない */
+    if ((now - RS.t < RS_GAP && !(hmax > RS.hmax)) || (MS.t0 && now - MS.t0 < 2000)) return;
     /* 画面に1棟も入っていなければ待つ（r2 の1回目は、浮いた4棟が右のビルの陰で見えなかった）。RS_SEE ミリ秒待っても入らなければ、黙って受け取る。
        浮かせるのは、画面に入っている建物を先に、近い順に */
     /* 画面に入っているか：浮いたときの屋根の上が画面の内側にあり、カメラからそこまでの間に町の建物が無い（手前のビルの陰でない）。
@@ -3666,11 +3674,12 @@ function start(DATA, isAsakusa) {
     const nSee = list.filter(it => it[2]).length, nIn = list.filter(it => it[5] < 1 && Math.abs(it[3]) < 0.95 && Math.abs(it[4]) < 0.95).length;
     /* 画面の外（曲がり角の先など）にあるだけなら、曲がって画面に入るまで待つ（r6 の1回目は、雷門通りから北へ曲がった先の仲見世の店で、8秒待つうちに黙って受け取っていた）。
        画面の中なのに手前の建物に隠れているときだけ、RS_SEE ミリ秒で黙って受け取る */
-    if (!nSee && !nIn) { RS.see = 0; return; }
+    /* 11/07 受け渡しで止まっている間（hoW）は、画面に入るのを待たずに一本締めの最後の1打で浮かせる（北の町の受け渡しは、新しい建物が曲がった先にあって待ち続け、何も浮かなかった。fix3/17fix/n20g） */
+    if (!hoW && !nSee && !nIn) { RS.see = 0; return; }
     /* 人数で担げるようになった分は、半分より多くが隠れているときも待つ（r8 の1回目は、4棟のうち3棟が雷門の陰で、浮いたのは金色の玉しか見えなかった）。
        回の出だし（高さの上限が上がった分）は、画面の枠の中に1棟でも入っていれば、手前の建物の陰でも浮かせる（出だしの瞬間を逃さない。浮いた建物の金色の玉は、いちばん手前に重ねて描くので陰でも見える）。
        g4sp（スマホの縦）は、2回目の出だしの4棟のうち3棟が横の狭い画面の右の外、1棟が陰で、8秒待って黙って受け取っていた */
-    if (hmax > RS.hmax ? !nIn : nSee * 2 < list.length) { if (!RS.see) RS.see = now; else if (now - RS.see > RS_SEE) { ack(); RS.log.push({ t: Math.round(now), leg: LEG + 1, n: 0, quiet: list.length, pxy: list.map(it => [+it[3].toFixed(2), +it[4].toFixed(2), Math.round(it[0])]) }); } return; }
+    if (!hoW && (hmax > RS.hmax ? !nIn : nSee * 2 < list.length)) { if (!RS.see) RS.see = now; else if (now - RS.see > RS_SEE) { ack(); RS.log.push({ t: Math.round(now), leg: LEG + 1, n: 0, quiet: list.length, pxy: list.map(it => [+it[3].toFixed(2), +it[4].toFixed(2), Math.round(it[0])]) }); } return; }
     const inF = it => it[5] < 1 && Math.abs(it[3]) < 1 && Math.abs(it[4]) < 1;
     list.sort((p, q) => (q[2] - p[2]) || (inF(q) - inF(p)) || (p[0] - q[0]));
     const pick = list.slice(0, RS_MAX);
@@ -4048,6 +4057,8 @@ function start(DATA, isAsakusa) {
   function stopRot() { rotHold.dir = 0; }
   let stickTurn = 0, stickTurnT = 0;   // ジョイスティックの左右（−1〜1。正が左回り）。倒している間、毎秒60°×倒し具合で回す
   function rotStep() {
+    /* 11/07 受け渡しの一本締めの間は曲がれない（hoStop） */
+    if (hoStop()) { stickTurnT = 0; rotHold.last = performance.now(); return; }
     if (stickTurn) { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) rotate(70 * dt * stickTurn, true); }
     else stickTurnT = 0;
     if (!rotHold.dir) return;
@@ -4949,7 +4960,7 @@ function start(DATA, isAsakusa) {
   function holdStep(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.v = 0; return; }
     const sk = S.speedK || 1;   // 重い建物ほど少しゆっくり
-    const target = hold.on ? runSpeed() * sk * hold.k * (1 + (HO_BOOST_K - 1) * boostQ()) :hold.back ? -BACK_SPEED * sk * hold.k : 0;
+    const target = hoStop() ? 0 : hold.on ? runSpeed() * sk * hold.k * (1 + (HO_BOOST_K - 1) * boostQ()) :hold.back ? -BACK_SPEED * sk * hold.k : 0;
     /* 弾かれた直後（S.bounceT から BOUNCE_MS の間）は、立ち上がりをゆっくりにして、後ろへ戻る動きを見せる */
     const bouncing = performance.now() - (S.bounceT || 0) < BOUNCE_MS;
     /* 11/06 立ち上がりを 0.17→0.13 秒に（押したらすぐ走り出す） */
@@ -7240,8 +7251,8 @@ function start(DATA, isAsakusa) {
     for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
     CH.poles.length = 0;
     SND.handover();
-    /* 11/07 報酬：「ご祝儀」の一行を添える（担げる大きさの上限 LEG_HMAX はここで上がり、新しく担げる建物は riseCheck でいっせいに浮く）。勢い（HO.boostT）もここから */
-    $('legCall').innerHTML = `${LEGS[k].name}へ受け渡し<small>ご祝儀！ もっと大きな建物が担げる</small>`; $('legCall').classList.add('on'); HO.callT = now; HO.boostT = now;
+    /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
+    $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
     S.infoSig = null; navPop();
   }
   function legNext() {

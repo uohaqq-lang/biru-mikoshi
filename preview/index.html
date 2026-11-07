@@ -5234,7 +5234,12 @@ function start(DATA, isAsakusa) {
      見物人のうち SPEC_FRAC の割合の人が、神輿の足元から JOIN_R m 以内を通ると走って来る（1人ずつ。提灯なし）。残りは見ているだけ。
      その手前 SPEC_REACT m からは、神輿の方を向いて片手を上げて跳ねる（加わる人が、加わる直前だけ動きで分かる）。仲見世の見物人は今までどおり（一団だけが加わる） */
   const SPEC_FRAC = 0.85, SPEC_REACT = 6, rkjGo = [];
-  const specOk = p => !p.j && !p.gone && p.jh < SPEC_FRAC && !(RUN3 && LEG === 0 && nakaZone(p.x, p.y));
+  /* 11/07 本人「一番最初に人が来すぎて勿体無い。最初はあんまり参加しないけど、徐々に人がバンバン増えていくようにしたい」：
+     道のりの進み具合（SPEC.p：0＝出発、1＝宮入り。区の数で割って、区の中は道順の進んだ割合）で、
+     加わる見物人の割合を SPEC_F0 → SPEC_FRAC へ上げ、1人が連れて来る人数（連れ）を 1 → 1＋SPEC_MUL 人へ増やす（後半ほど一度にどっと来る） */
+  const SPEC_F0 = 0.12, SPEC_MUL = 3.6, SPEC = { p: 0 };   /* 2.2 だと3区の伸びが 456→1,161人で弱かった（fix3/17fix/n21a） */
+  const specFrac = () => SPEC_F0 + (SPEC_FRAC - SPEC_F0) * SPEC.p * SPEC.p * (3 - 2 * SPEC.p);
+  const specOk = p => !p.j && !p.gone && p.jh < specFrac() && !(RUN3 && LEG === 0 && nakaZone(p.x, p.y));
   function specNear(p, d) {
     if (!S.dim) return false;
     const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), dx = p.x - S.x, dy = p.y - S.y;
@@ -5250,9 +5255,13 @@ function start(DATA, isAsakusa) {
   /* 10/30 待つ人の胴と頭（jwBody・jwHead）は、町の人の形（PT）で描くようになって使っていなかったので外した。半纏の人も頭を胴の形に入れたので jnHead は無くした */
   const jnBody = new THREE.InstancedMesh(crewGeoR, hapMat, JB_MAX), jnLamp = new THREE.InstancedMesh(jlGeo, jlMat, LAMP_MAX);
   for (const m of [jwLamp, jnBody, jnLamp]) { m.frustumCulled = false; m.count = 0; scene.add(m); }
+  /* 11/07 本人「赤い点（提灯）があんまりよく分からない」：待つ人・加わった人の提灯は描かない（力士は姿で分かるようにした） */
+  jwLamp.visible = jnLamp.visible = false;
   const spotKey = p => p.x.toFixed(1) + ',' + p.y.toFixed(1);
   /* 道順（ROUTE）のそばの人力車か（浅草だけ） */
-  const onRouteRk = r => !!raimonB && ROUTE.some(q => Math.hypot(q[0] - r.x0, q[1] - r.y0) < RKJ_ROUTE);
+  /* 11/07 本人「車夫は描かなくても良いし、車夫と書かなくても良い」：人力車の一団は出さない（RKJ_ON。戻すときは true） */
+  const RKJ_ON = false;
+  const onRouteRk = r => RKJ_ON && !!raimonB && ROUTE.some(q => Math.hypot(q[0] - r.x0, q[1] - r.y0) < RKJ_ROUTE);
   /* ---------- 11/05 本人が選んだ B：仲見世の見物客を集める ----------
      仲見世の通り（nakaZone）では、飛び入りを待つ人は、その側へ寄って近くを通ったときだけ加わる（神輿の足元の横の縁から NK_LAT m 以内。前後は足元の縁から2m）。
      ほかの所は今までどおり JOIN_R m（そばを通れば走って来る）。道のまん中を進むだけでは、左右の人は加わらない。
@@ -5309,7 +5318,7 @@ function start(DATA, isAsakusa) {
     if (!raimonB) return;
     for (const [x, y] of SUMO_AT) {
       if (Math.hypot(x - S.x, y - S.y) > 70 || !onRoad(x, y)) continue;
-      const p = { x, y, c: crowdColors[0], s: 1, j: true, jh: 0, P: { t: 'sumo', c2: 0x2a2a3a, v: 0.31, u: 0.95 } };
+      const p = { x, y, c: crowdColors[0], s: 1, j: true, jh: 0, P: { t: 'sumo', c2: SUMO_C[Math.floor(hash(x, y) * SUMO_C.length) % SUMO_C.length], v: 0.31, u: 0.95 } };
       if (JN.keys.has(spotKey(p)) || crowdSpots.some(o => o.P && o.P.t === 'sumo' && Math.hypot(o.x - x, o.y - y) < 0.5)) continue;
       crowdSpots.push(p);
     }
@@ -5325,7 +5334,7 @@ function start(DATA, isAsakusa) {
     if (PT) { for (const m of PT.list) { m.count = 0; m.visible = false; } PT.n = 0; }
     SND.setJoin(0);
     /* 人力車の一団：担ぐたびに選び直す（どの人力車にいるかはランダム） */
-    for (const r of rickshaws) r.jnHide = null, r.jn = Math.random() < RKJ_RATE || onRouteRk(r) ? RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)) : 0;
+    for (const r of rickshaws) r.jnHide = null, r.jn = RKJ_ON && (Math.random() < RKJ_RATE || onRouteRk(r)) ? RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)) : 0;
   }
   /* 加わった人の立つ所（神輿の中の座標 u：前、v：左）。輪ごとに、前の辺の真ん中から左回りに0.6mおき。
      少ないうちも偏らないよう、輪の中は黄金比でとびとびに埋める */
@@ -5501,7 +5510,7 @@ function start(DATA, isAsakusa) {
   const PT_KINDS = { local: '町の人', kimono: '着物の人', overseas: '海外の方', shafu: '車夫', sumo: '力士' };
   /* 10/30 本人「力士はめったにいないけど何人分かの能力があるみたいな設定でもいい。イレギュラーな報酬」：力士は1人で5人分（担ぎ手の数に5人足す） */
   /* 10/30 本人「一般の人は1、車夫は2、力士は5」 */
-  const SUMO_POW = 5, SHAFU_POW = 2;
+  const SUMO_POW = 5, SHAFU_POW = 2, SUMO_C = [0xd9a521, 0x2f63d8, 0x8a3bd0, 0xe0679a];
   const powOf = P => !P ? 1 : P.t === 'sumo' ? SUMO_POW : P.t === 'shafu' ? SHAFU_POW : 1;
   const KIMONO_C = [0xf4a6c0, 0xa8d8f0, 0xf7e08a, 0xc9b6ec, 0xf2b38b, 0xb8e0c0], OBI_C = [0xd6334a, 0x2c4a8a, 0xe8c040, 0x7a2a5a];
   const SHIRT_C = [0x2f7fd8, 0xe8452c, 0x2bb673, 0xf2f2f2, 0x333333, 0xf5a623, 0x8a4fd0], HAIR_C = [0xe8c56a, 0xa0522d, 0x6b4423, 0xd9d0c0, 0xf0d890];
@@ -5514,7 +5523,8 @@ function start(DATA, isAsakusa) {
     if (t === 'kimono') return { t, c: pick(KIMONO_C, v), c2: pick(OBI_C, (v * 7.3) % 1), v };
     if (t === 'overseas') return { t, c: pick(SHIRT_C, v), c2: pick(HAIR_C, (v * 5.1) % 1), v };
     if (t === 'shafu') return { t, k: v < 0.5, v };
-    return { t, c2: v < 0.6 ? 0x2a2a3a : 0x4a2a6a, v };
+    /* 11/07 まわしは関取のような明るい色（金・青・紫・桃）に。前の濃い紺と紫は、夜の道で肌の塊にしか見えなかった */
+    return { t, c2: pick(SUMO_C, v), v };
   }
   /* 飛び入りを待つ人の格好（待つ場所で決まる。u は連れの格好をそろえるのに使う） */
   function waitP(p) { if (!p.P) { const u = hash(p.x + 5.5, p.y - 3.3); p.P = personOf(u, hash(p.y + 1.1, p.x + 0.7), p.c); p.P.u = u; } return p.P; }
@@ -5584,18 +5594,28 @@ function start(DATA, isAsakusa) {
   function ptAdd(m) { if (m.count >= m.instanceMatrix.count) return; const i = m.count++; m.setMatrixAt(i, tmpM); }
   /* tilt：足もとを軸に、後ろへ倒す角度（rad。はじき飛ばされて転ぶ・尻もちをつく人） */
   const ptE = new THREE.Euler(0, 0, 0, 'YXZ');
+  /* 待っている力士を描くときだけ true（四股を踏む） */
+  let ptShiko = false;
+  /* 11/07 力士の大きさ（前は1.12倍で、まわりの人とほとんど見分けがつかなかった） */
+  const SUMO_K = 1.5;
   /* up：担いでいる人（1＝右の腕・2＝左の腕を上げる。avUp）。0 なら腕を下ろした形 */
   function ptPut(P, x, y, z, face, s, tilt, up) {
     tmpP.copy(V(x, y, z));
     /* 力士は体を左右に揺らす（歩く・走るときは大きく） */
     let roll = 0;
-    if (P.t === 'sumo') {
+    if (P.t === 'sumo' && ptShiko) {
+      /* 11/07 本人「力士は明らかに力士と分かる感じに」：待っている力士は四股を踏む（1.6秒で左右1回ずつ。片側へ大きく体を傾けて片足を上げ、ドンと下ろして少し沈む） */
+      const ph = (performance.now() / 1600 + (P.v || 0)) % 1, sd = ph < 0.5 ? 1 : -1, q = (ph % 0.5) * 2;
+      roll = sd * 0.42 * Math.sin(Math.min(1, q / 0.7) * Math.PI);
+      z -= q > 0.7 ? 0.12 * Math.sin((q - 0.7) / 0.3 * Math.PI) : 0;
+      tmpP.copy(V(x, y, z));
+    } else if (P.t === 'sumo') {
       const mv = P.lx !== undefined && Math.hypot(x - P.lx, y - P.ly) > 0.004; P.lx = x; P.ly = y;
       P.sw = (P.sw || 0) + ((mv ? 1 : 0.35) - (P.sw || 0)) * 0.15;
       roll = Math.sin(performance.now() * 0.009 + (P.v || 0) * 6.283) * 0.12 * P.sw;
     }
     if (tilt || roll) tmpQ.setFromEuler(ptE.set(roll, face, tilt || 0, 'YXZ')); else tmpQ.setFromAxisAngle(upY, face);
-    const T = PT, k = (s || 1) * (P.t === 'sumo' ? 1.12 : 1), A = P.t === 'shafu' ? null : up ? avUp(P, up) : avOf(P);
+    const T = PT, k = (s || 1) * (P.t === 'sumo' ? (up ? 1.12 : SUMO_K) : 1), A = P.t === 'shafu' ? null : up ? avUp(P, up) : avOf(P);
     tmpS.set(k, k * (A ? A.h : 1), k); tmpM.compose(tmpP, tmpQ, tmpS);
     T.n++;
     if (P.t === 'shafu') { ptAdd(up ? T[(P.k ? 'shK' : 'shB') + up] : P.k ? T.shK : T.shB); return; }
@@ -5605,6 +5625,9 @@ function start(DATA, isAsakusa) {
   }
   function joinStep(now, px, py, ori, bob) {
     if (!S.b || !S.dim) return;
+    /* 道のりの進み具合（specFrac の説明） */
+    if (RUN3 && raimonB && !S.done) { const C = routeCum(ROUTE); SPEC.p = Math.min(1, (LEG + Math.min(1, routePos(S.x, S.y).s / (C[C.length - 1] || 1))) / LEGS.length); }
+    else if (!RUN3 || !raimonB) SPEC.p = 1;
     const T = ensurePT(); for (const m of T.list) m.count = 0; T.n = 0;
     /* 遠くから見ているとき（CREW_LOD）は、担ぎ手を簡単な形に。見物人は、カメラの遠さが6m以上変わったら並べ直す（近い人だけ細かい形に） */
     { const cp = camera.position, cd = Math.hypot(cp.x - px, -cp.z - py, cp.y), lo = cd > CREW_LOD;
@@ -5642,7 +5665,16 @@ function start(DATA, isAsakusa) {
         if (!specOk(p) || !within(p.x, p.y, joinR())) continue;
         p.gone = true; JN.keys.add(spotKey(p)); (sj || (sj = [])).push(p);
       }
-      if (sj) { joinAdd(sj.length, k => ({ x: sj[k].x, y: sj[k].y, P: sj[k].Pc || (sj[k].Pc = crowdP(sj[k])) }), now, 25); crowdLayout(); }
+      if (sj) {
+        /* 連れ（SPEC.p が進むほど多い）：その人のまわり1.2m から、同じ道ばたにいた人として一緒に走って来る（格好は町の人・着物・海外の方のどれか） */
+        const F = [], mul = 1 + SPEC_MUL * SPEC.p * SPEC.p;
+        for (const p of sj) {
+          const n = Math.max(1, Math.round(mul * (0.6 + 0.8 * hash(p.x + 1.3, p.y - 2.9))));
+          F.push({ x: p.x, y: p.y, P: p.Pc || (p.Pc = crowdP(p)) });
+          for (let q = 1; q < n; q++) F.push({ x: p.x + (hash(q, p.x) - 0.5) * 1.2, y: p.y + (hash(p.y, q) - 0.5) * 1.2, P: personOf(hash(p.x + q, p.y) * 0.83, hash(p.y - q, p.x)) });
+        }
+        joinAdd(F.length, k => F[k], now, 25); crowdLayout();
+      }
       /* 人力車の一団：一度に加わる。11/07 本人「人力車の団体に気が付かなかった」→ 力士と同じように「車夫の一団！＋○人」と出す */
       for (const r of rickshaws) {
         /* 雷門の前の人力車は出発点から30mほどなので、担ぎ始めてすぐ（「ゴールの浅草神社に向かおう！」と重なって）来てしまった。
@@ -5668,9 +5700,11 @@ function start(DATA, isAsakusa) {
       const dx = p.x - px, dy = p.y - py;
       if (Math.abs(dx * oc + dy * os) < HL && Math.abs(-dx * os + dy * oc) < HW) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
-      const hop = Math.max(0, Math.sin(now * 0.011 + hash(p.y, p.x) * 6.283)) * 0.6;
+      const P = waitP(p), sm = P.t === 'sumo';
+      /* 力士は跳ねずに四股を踏む（ptShiko） */
+      const hop = sm ? 0 : Math.max(0, Math.sin(now * 0.011 + hash(p.y, p.x) * 6.283)) * 0.6;
       /* その人の格好で（ptPut）。提灯は頭の上に */
-      ptPut(waitP(p), p.x, p.y, hop, Math.atan2(-dy, -dx), p.s); jwLamp.setMatrixAt(w, tmpM); w++;
+      ptShiko = sm; ptPut(P, p.x, p.y, hop, Math.atan2(-dy, -dx), p.s); ptShiko = false; jwLamp.setMatrixAt(w, tmpM); w++;
       /* 11/05 仲見世の見物客の一団：連れも描く（先頭の人だけ提灯） */
       if (p.nk) for (let k = 1; k < p.nk.n; k++) { const q = nkMember(p, k); ptPut(nkP(p, k), q.x, q.y, Math.max(0, Math.sin(now * 0.011 + hash(q.y, q.x) * 6.283)) * 0.6, Math.atan2(py - q.y, px - q.x), p.s); }
     }

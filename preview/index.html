@@ -318,6 +318,8 @@
   /* 次の町会が呼んでいる（1・2回目に着いたあと。legNext） */
   #legCall { position:fixed; left:50%; top:22%; transform:translate(-50%,-50%); background:rgba(200,50,42,.94); color:#fff; font-size:24px; font-weight:800; letter-spacing:.06em; padding:12px 28px; border-radius:26px; box-shadow:0 3px 16px rgba(0,0,0,.45); white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .4s; z-index:40; }
   #legCall.on { opacity:1; }
+  #legCall small { display:block; margin-top:4px; font-size:16px; font-weight:700; letter-spacing:.03em; color:#ffe27a; text-align:center; }
+  body.sm #legCall small { font-size:13px; }
   body.sm #legCall { font-size:18px; padding:10px 18px; top:26%; }
   @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(200,50,42,.75); } 50% { box-shadow:0 0 0 14px rgba(200,50,42,0); } }
   #hold.glow, #back.glow, #rot button.glow { animation:glow 1s ease-in-out infinite; }
@@ -3157,9 +3159,14 @@ function start(DATA, isAsakusa) {
   function legStart() { const L = LEGS[LEG], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
   /* 回を替える：道順を差し替え、建物ごとに覚えた「道順からの近さ」（routeNear）を数え直させる */
   /* S.gateIn・S.gateCel（雷門をくぐり終えた・くぐった瞬間の演出を出した）は1回目の始めに戻す。2回目からは曲を太鼓だけにしない（1回目に門を通らずに着いたときのため） */
-  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
+  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
   /* 11/05 受け渡し（handoverStep）：HO.shown＝次の町の担ぎ手を待たせた区（-1 はまだ）。HO.callT＝受け渡しの字を出した時刻 */
-  const HO = { shown: -1, callT: 0 };
+  const HO = { shown: -1, callT: 0, boostT: 0 };
+  /* 11/07 本人「町会のみんなに会ったときに何かしらの報酬が欲しい」→ 選んだのは「ご祝儀で大きい建物が解禁」と「一本締めで勢いがつく」。
+     勢い：受け渡しから HO_BOOST ミリ秒、神輿が HO_BOOST_K 倍の速さで進み、見物人も HO_BOOST_R 倍の所から駆け寄る（最後の1秒で元に戻す） */
+  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6;
+  const boostQ = () => { if (!HO.boostT || S.done) return 0; const e = performance.now() - HO.boostT; return e < 0 || e > HO_BOOST ? 0 : Math.min(1, (HO_BOOST - e) / 1000); };
+  const joinR = () => JOIN_R * (1 + (HO_BOOST_R - 1) * boostQ());
   const isRunBase = b => !!b && b.id.startsWith(RUN_BASE);
   /* 最初にくっつく建物（LEGS[0].first）：要る人数は58人だが、最初の10人のときから担げることにする（仲見世に入ってすぐ「ぶつかるとくっつく」が分かるように） */
   /* 道順のどこにいるか（RT.i）：浮かせる建物（hoverScan）を、これから通る所だけにするのに使う。
@@ -4942,7 +4949,7 @@ function start(DATA, isAsakusa) {
   function holdStep(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.v = 0; return; }
     const sk = S.speedK || 1;   // 重い建物ほど少しゆっくり
-    const target = hold.on ? runSpeed() * sk * hold.k : hold.back ? -BACK_SPEED * sk * hold.k : 0;
+    const target = hold.on ? runSpeed() * sk * hold.k * (1 + (HO_BOOST_K - 1) * boostQ()) :hold.back ? -BACK_SPEED * sk * hold.k : 0;
     /* 弾かれた直後（S.bounceT から BOUNCE_MS の間）は、立ち上がりをゆっくりにして、後ろへ戻る動きを見せる */
     const bouncing = performance.now() - (S.bounceT || 0) < BOUNCE_MS;
     /* 11/06 立ち上がりを 0.17→0.13 秒に（押したらすぐ走り出す） */
@@ -5176,7 +5183,7 @@ function start(DATA, isAsakusa) {
     for (const p of crowdSpots) {
       if (p.j) continue;   /* 飛び入りを待つ人は、跳ねるので別に毎こま描く（joinStep） */
       if (p.gone) continue;   /* 11/07 もう加わった見物人 */
-      if (car && specOk(p) && specNear(p, JOIN_R + SPEC_REACT)) continue;   /* 11/07 神輿が近い見物人は、手を上げて跳ねるので joinStep で描く */
+      if (car && specOk(p) && specNear(p, joinR() + SPEC_REACT)) continue;   /* 11/07 神輿が近い見物人は、手を上げて跳ねるので joinStep で描く */
       const dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
       if (Math.abs(u) < L2 && Math.abs(v) < W2) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
@@ -5603,7 +5610,7 @@ function start(DATA, isAsakusa) {
         const p = JN.wait[i];
         /* 11/05 仲見世では、その側へ寄って近くを通ったときだけ（B。nakaZone の説明） */
         if (RUN3 && LEG === 0 && nakaZone(p.x, p.y)) { const dx = p.x - px, dy = p.y - py; if (!(Math.abs(dx * c + dy * sn) < S.dim.L / 2 + 2 && Math.abs(-dx * sn + dy * c) < S.dim.W / 2 + NK_LAT)) continue; }
-        else if (!within(p.x, p.y, JOIN_R)) continue;
+        else if (!within(p.x, p.y, joinR())) continue;
         JN.wait.splice(i, 1); JN.keys.add(spotKey(p));
         if (p.nk) { joinAdd(p.nk.n, k => Object.assign(nkMember(p, k), { P: nkP(p, k) }), now, 60); if (p.nk.n >= 4) setTimeout(() => SND.cheer(), 300); continue; }
         /* 連れは同じ格好（力士は1人で来る） */
@@ -5621,7 +5628,7 @@ function start(DATA, isAsakusa) {
       /* 11/07 B：そばを通った見物人が加わる（そのこまの分をまとめて1回の「＋○人」に） */
       let sj = null;
       for (const p of crowdSpots) {
-        if (!specOk(p) || !within(p.x, p.y, JOIN_R)) continue;
+        if (!specOk(p) || !within(p.x, p.y, joinR())) continue;
         p.gone = true; JN.keys.add(spotKey(p)); (sj || (sj = [])).push(p);
       }
       if (sj) { joinAdd(sj.length, k => ({ x: sj[k].x, y: sj[k].y, P: sj[k].Pc || (sj[k].Pc = crowdP(sj[k])) }), now, 25); crowdLayout(); }
@@ -5630,6 +5637,8 @@ function start(DATA, isAsakusa) {
         /* 雷門の前の人力車は出発点から30mほどなので、担ぎ始めてすぐ（「ゴールの浅草神社に向かおう！」と重なって）来てしまった。
            雷門をくぐり終える（45m進む）まで待ち、そのあと後ろから駆けつける */
         if (!r.jn || (S.dist || 0) < 45 || !within(r.x0, r.y0, RKJ_R)) continue;
+        /* 11/07 本人「仲見世通りには車夫いらない。見えないし」：仲見世の中では、後ろの人力車から駆けつけても画面に映らない。仲見世を進む間に届く一団は来させない */
+        if (RUN3 && LEG === 0 && nakaZone(S.x, S.y)) { r.jn = 0; continue; }
         for (let k = 0; k < r.jn; k++) rkjGo.push([r, k]);
         r.jn = 0;
       }
@@ -5656,7 +5665,7 @@ function start(DATA, isAsakusa) {
     }
     /* 11/07 B：神輿が近い見物人（加わる手前 SPEC_REACT m）は、神輿の方を向いて片手を上げ、跳ねて待つ（crowdLayout では描かない） */
     if (carrying) for (const p of crowdSpots) {
-      if (!specOk(p) || !specNear(p, JOIN_R + SPEC_REACT)) continue;
+      if (!specOk(p) || !specNear(p, joinR() + SPEC_REACT)) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
       const dx = p.x - S.x, dy = p.y - S.y, hop = Math.max(0, Math.sin(now * 0.013 + hash(p.y, p.x) * 6.283)) * 0.45;
       ptPut(p.Pc || (p.Pc = crowdP(p)), p.x, p.y, hop, Math.atan2(-dy, -dx), p.s, 0, hash(p.x, p.y + 3.1) < 0.5 ? 1 : 2);
@@ -7201,7 +7210,7 @@ function start(DATA, isAsakusa) {
      道順の終わりまで HO_AT m（または受け渡しの所から5m以内）に来たら、止まらずにその場で次の区へ（setLeg）：待っていた人が駆け寄って加わり（＋○人）、
      一本締めと歓声（SND.handover）、上の真ん中に「西の町へ受け渡し」を HO_CALL ミリ秒。塔に積める大きさの上限（LEG_HMAX など）はここで上がり、
      新しく担げるようになった建物がいっせいに浮く（riseCheck。回が替わったとき）。暗転・カメラの切り替え・お祓いはしない（お祓いは最後の宮入りだけ） */
-  const HO_SHOW = 45, HO_AT = 2.5, HO_CALL = 2200;
+  const HO_SHOW = 45, HO_AT = 2.5, HO_CALL = 3000;   /* 11/07 ご祝儀の一行を足したので 2.2→3秒 */
   function handoverStep(now) {
     if (HO.callT && now - HO.callT > HO_CALL) { HO.callT = 0; $('legCall').classList.remove('on'); }
     if (!RUN3 || !raimonB || !S.b || S.intro || S.done || mode !== 'carry' || LEG >= LEGS.length - 1) return;
@@ -7231,7 +7240,8 @@ function start(DATA, isAsakusa) {
     for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
     CH.poles.length = 0;
     SND.handover();
-    $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now;
+    /* 11/07 報酬：「ご祝儀」の一行を添える（担げる大きさの上限 LEG_HMAX はここで上がり、新しく担げる建物は riseCheck でいっせいに浮く）。勢い（HO.boostT）もここから */
+    $('legCall').innerHTML = `${LEGS[k].name}へ受け渡し<small>ご祝儀！ もっと大きな建物が担げる</small>`; $('legCall').classList.add('on'); HO.callT = now; HO.boostT = now;
     S.infoSig = null; navPop();
   }
   function legNext() {

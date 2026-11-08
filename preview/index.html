@@ -3349,13 +3349,15 @@ function start(DATA, isAsakusa) {
      段ごとに、画面に写した四角（段の幅より広めに取る）に神輿の 6〜50m 先の道が入っていたら、かぶさっていると見る（0.12秒ごと）。
      （塔の全部を薄くすると、見た人2人が「何を積んだか分からない。煙かガラスの柱に見える」と言った。道にかからない段は町の建物のまま見せる）
      着いた後（宮入り・花火・高さ比べ）と、乗り始めは半透明にしない。縁取りは半透明にできない（神輿と共用）ので、薄くしている間は隠す */
-  const SF_A = 0.35, SF_MINH = 12, SF = { t: 0, cover: false, a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), ah: [] };
+  const SF_A = 0.35, SF_MINH = 12, SF_OFF = true, SF = { t: 0, cover: false, a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), ah: [] };
   /* 積んだ塔のいちばん下（土台の屋根） */
   const stackBase = () => (S.mesh && S.mesh.userData.roofY) || (S.b ? S.b.h : 0);
   function stackFade(now, dt) {
     const L = S.stack; if (!L || !L.length || !S.mesh) return;
     /* 11/08 本人「最初の建物が透けてる」：仲見世の店を1〜2軒積んだだけの低い塔まで薄くしていた。積んだ塔が SF_MINH m より低い間は薄くしない（前はほとんどふさがない） */
-    const on = L.length >= 1 && !S.done && !S.intro && mode === 'carry' && L[L.length - 1].top - stackBase() >= SF_MINH;
+    /* 11/08 本人「こんなにがっつり透けてたんだ。まったく透明になるのはあんまり。仲見世では透けなくてよく、出たらもうちょい遠くから撮る」：
+       透かすのはやめた（SF_OFF）。代わりに仲見世を出たらカメラを遠くへ引く（CAM.farK） */
+    const on = !SF_OFF && L.length >= 1 && !S.done && !S.intro && mode === 'carry' && L[L.length - 1].top - stackBase() >= SF_MINH;
     if (now - SF.t > 120) {
       SF.t = now; SF.cover = false;
       for (const it of L) it.cov = false;
@@ -8700,7 +8702,7 @@ function start(DATA, isAsakusa) {
        見上げてもてっぺんを入れる上限を fc1（40m）から fitMax（30m）に下げ、塔（地面から）が fixH m を超えたら fixT ミリ秒かけて「動かしやすい位置」へ移して、そのあとは戻さないことにした。
        動かしやすい位置：神輿の真後ろ fxD m（スマホの縦は fxDS m）・高さ fxZ m から、神輿の fxL m 先の地面を見る。後ろが建物でふさがる所は、上へ逃げずに近くへ寄る（最短 fxMin m）。
        ＋と−は、この位置では zMin〜zMax 倍の間で距離を変える。peekA：積んだ瞬間に上を向く角度の上限（ラジアン。10°） */
-    fitMax: 30, fixH: 30, fixT: 2000, fxD: 26, fxDS: 30, fxZ: 13, fxL: 20, fxMin: 12, zMin: 0.7, zMax: 1.5, peekA: 10 * Math.PI / 180 };
+    fitMax: 30, fixH: 30, fixT: 2000, fxD: 26, fxDS: 30, fxZ: 13, fxL: 20, fxMin: 12, zMin: 0.7, zMax: 1.5, peekA: 10 * Math.PI / 180, farK: 1.5 };
   /* 門の正面の向き（gate.fx, gate.fy。門の中心から雷門通りの側へ）。くぐり終えたか（updateGate）・門を薄くするか（gateFade）・くっつく店の向き（attach）に使う。
      11/04 本人「別のカメラで撮ってるじゃん。あれがいらない。ワイプみたいなやつ」：門に近づくと左下に出していた、提灯がたたまれる様子を門の裏のカメラで映す小窓（#gateBox）と、
      そのためのカメラ（gateCam）・描画をやめた。提灯がたたまれる動き（updateGate の fold）は残す */
@@ -9149,7 +9151,10 @@ function start(DATA, isAsakusa) {
          急に寄ったり引いたりしないよう、寄る距離は0.6秒かけて追う（大きく寄るときはすぐ） */
       if (fixW > 0) {
         camZoom = Math.max(CAM.zMin, Math.min(CAM.zMax, camZoom));
-        const zk = camZoom, Df =(isSm() ? CAM.fxDS : CAM.fxD) * zk, Zf = CAM.fxZ * zk;
+        /* 11/08 仲見世を出たら（2区から。1区でも仲見世の外）、後ろへの距離と高さを CAM.farK 倍へ2秒ほどかけて引く（塔を透かすのをやめたので、塔の脇から先の道が見えるように） */
+        const farT = RUN3 && raimonB && (LEG > 0 || !nakaZone(S.x, S.y)) && (S.dist || 0) > 60 ? CAM.farK : 1;
+        S.farK = S.farK === undefined || S.intro ? farT : S.farK + (farT - S.farK) * (1 - Math.exp(-Math.min(0.1, Math.max(0, (t - tPrev) / 1000)) / 0.7));
+        const zk = camZoom * S.farK, Df =(isSm() ? CAM.fxDS : CAM.fxD) * zk, Zf = CAM.fxZ * zk;
         const cA = Math.cos(ca), sA = Math.sin(ca), skip = bb => bb === S.b || flatState.get(bb) === 1;
         let dc = Df; for (let s = 4; s <= Df + 2; s += 1.5) if (bldAt(cx0 + cA * s, cy0 + sA * s, 2 + (Zf - 2) * s / Df + 1, skip)) { dc = Math.max(CAM.fxMin, s - 3); break; }
         const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), tg = Math.min(Df, dc);

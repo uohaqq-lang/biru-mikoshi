@@ -3157,7 +3157,7 @@ function start(DATA, isAsakusa) {
   function legStart() { const L = LEGS[LEG], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
   /* 回を替える：道順を差し替え、建物ごとに覚えた「道順からの近さ」（routeNear）を数え直させる */
   /* S.gateIn・S.gateCel（雷門をくぐり終えた・くぐった瞬間の演出を出した）は1回目の始めに戻す。2回目からは曲を太鼓だけにしない（1回目に門を通らずに着いたときのため） */
-  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; HO.stopT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
+  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; HO.stopT = 0; HO.sashiT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
   /* 11/05 受け渡し（handoverStep）：HO.shown＝次の町の担ぎ手を待たせた区（-1 はまだ）。HO.callT＝受け渡しの字を出した時刻 */
   const HO = { shown: -1, callT: 0, boostT: 0, stopT: 0 };
   /* 11/07 本人「町会のみんなに会ったときに何かしらの報酬が欲しい」→ 選んだのは「ご祝儀で大きい建物が解禁」と「一本締めで勢いがつく」。
@@ -3165,9 +3165,11 @@ function start(DATA, isAsakusa) {
      受け渡しで HO_STOP ミリ秒その場に止まり（進む・曲がるが効かない）、町会の人が駆け寄って一本締め（3・3・3・1）。
      最後の1打（HO_RISE）で、新しく担げるようになった建物がいっせいに浮く（riseCheck）。一本締めが終わって動けるようになったら勢いがつく。
      勢い：止まり終えてから HO_BOOST ミリ秒、神輿が HO_BOOST_K 倍の速さで進み、見物人も HO_BOOST_R 倍の所から駆け寄る（最後の1秒で元に戻す） */
-  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6, HO_STOP = 2700, HO_RISE = 2350;
-  const hoStop = () => !!HO.stopT && !S.done && performance.now() - HO.stopT < HO_STOP;
-  const boostQ = () => { if (!HO.boostT || S.done) return 0; const e = performance.now() - HO.boostT; return e < 0 || e > HO_BOOST ? 0 : Math.min(1, (HO_BOOST - e) / 1000); };
+  /* 11/08 差し上げ（1.5秒）を足したので、止まる時間を 2.7→3.9秒に（最後の1打 HO_RISE から差し上げが終わるまで） */
+  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6, HO_STOP = 3900, HO_RISE = 2350;
+  const hoStopEnd = () => HO.stopT + HO_STOP;
+  const hoStop = () => !!HO.stopT && !S.done && performance.now() < hoStopEnd();
+  const boostQ = () => { if (!HO.boostT || S.done) return 0; const e = performance.now() - hoStopEnd(); return e < 0 || e > HO_BOOST ? 0 : Math.min(1, (HO_BOOST - e) / 1000); };
   const joinR = () => JOIN_R * (1 + (HO_BOOST_R - 1) * boostQ());
   const isRunBase = b => !!b && b.id.startsWith(RUN_BASE);
   /* 最初にくっつく建物（LEGS[0].first）：要る人数は58人だが、最初の10人のときから担げることにする（仲見世に入ってすぐ「ぶつかるとくっつく」が分かるように） */
@@ -7265,11 +7267,72 @@ function start(DATA, isAsakusa) {
       const N = LEGS[LEG + 1].route;
       chokaiShow(LEG + 1, { x: E[0], y: E[1], h: Math.atan2(N[2][1] - N[0][1], N[2][0] - N[0][0]) });
     }
-    if (rem < HO_AT || Math.hypot(S.x - E[0], S.y - E[1]) < 5 || hoTouch()) handover(now);
+    hoMeet(now);
+    /* 11/08 受け渡しの点から5m以内（前の条件）は外した：町会の人は次の区の向きに3.5〜7m離れて立つので、まだ離れているのに始まった */
+    if (rem < HO_AT || hoTouch()) handover(now);
   }
   /* 11/07 本人「町会の人たち（そろいの法被）の当たり判定が小さい」：前は受け渡しの点から5m以内に入らないと来なかった（町会の人は道の両わき3.5〜7mに立つので、横を通っても来ないことがあった）。
-     待っている町会の人の誰か1人にでも、神輿の足元から HO_TOUCH m 以内に近づいたら受け渡す */
-  const HO_TOUCH = 4;
+     待っている町会の人の誰か1人にでも、神輿の足元から HO_TOUCH m 以内に近づいたら受け渡す。
+     11/08 本人「2個目の町会の人と会うとき、当たったときに結構距離があるのが気になった（離れているのに始まる）」→ 4m→1.6m に。
+     代わりに、神輿が HO_MEET m まで来たら、町会の人が神輿の足元の縁（1m 手前）まで走って迎えに来る（hoMeet。秒速 HO_RUN m）。ぶつかってから受け渡しが始まる */
+  const HO_TOUCH = 1.6, HO_MEET = 14, HO_RUN = 4.5;
+  /* ---------- 11/08 本人「その場でちょっと派手なことが起きて欲しい。建物側じゃなくて神輿側で」 ----------
+     一本締めの最後の1打（HO.sashiT）で、担ぎ手が神輿を頭の上へ差し上げる（HO_SASHI ミリ秒：0.3秒で HO_SASHI_H m 上げ、もみながら支え、下ろす）。
+     同時に神輿の上から紙吹雪（CF_N 枚。赤・金・白・桃）がぱっと舞い上がって、ひらひら落ちる。止まっている時間（HO_STOP）は差し上げが終わるまで */
+  const HO_SASHI = 1500, HO_SASHI_H = 1.6, CF_N = 360, CF_LIFE = 3800;
+  const CF = { m: null, p: [], t0: 0 };
+  function confettiFire(x, y, z0, R) {
+    if (!CF.m) {
+      const g = new THREE.PlaneGeometry(0.32, 0.22), mt = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false });
+      CF.m = new THREE.InstancedMesh(g, mt, CF_N); CF.m.frustumCulled = false; CF.m.count = 0; scene.add(CF.m);
+      const cols = [0xe8382c, 0xf2c230, 0xffffff, 0xf08cb4, 0xe8382c, 0xf2c230], col = new THREE.Color();
+      for (let i = 0; i < CF_N; i++) CF.m.setColorAt(i, col.setHex(cols[i % cols.length]));
+      CF.m.instanceColor.needsUpdate = true;
+    }
+    CF.p.length = 0; CF.t0 = performance.now();
+    for (let i = 0; i < CF_N; i++) {
+      const a = Math.random() * 6.283, r = Math.random() * R, sp = 2 + Math.random() * 5;
+      CF.p.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, z: z0 + Math.random() * 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 7 + Math.random() * 7, ph: Math.random() * 6.283, w: 2 + Math.random() * 4 });
+    }
+  }
+  function confettiStep(now, dt) {
+    if (!CF.m || !CF.p.length) return;
+    const e = now - CF.t0;
+    if (e > CF_LIFE) { CF.p.length = 0; CF.m.count = 0; return; }
+    const ks = e > CF_LIFE - 600 ? (CF_LIFE - e) / 600 : 1;
+    for (let i = 0; i < CF.p.length; i++) {
+      const p = CF.p[i], dr = Math.exp(-dt * 1.6);
+      p.vx *= dr; p.vy *= dr; p.vz = Math.max(p.vz - 9.8 * dt, -1.6);
+      p.x += p.vx * dt + Math.sin(now * 0.004 + p.ph) * 0.6 * dt; p.y += p.vy * dt; p.z = Math.max(0.05, p.z + p.vz * dt);
+      tmpQ.setFromEuler(ptE.set(now * 0.001 * p.w + p.ph, p.ph, now * 0.0013 * p.w, 'YXZ'));
+      tmpS.setScalar(ks); tmpM.compose(V(p.x, p.y, p.z), tmpQ, tmpS); CF.m.setMatrixAt(i, tmpM);
+    }
+    CF.m.count = CF.p.length; CF.m.instanceMatrix.needsUpdate = true;
+  }
+  /* 差し上げの高さ（m）と、もむ揺れ（rad）。q：差し上げ始めてからの割合 */
+  function sashiNow(now) {
+    if (!HO.sashiT || S.done) return null;
+    const e = now - HO.sashiT; if (e < 0 || e > HO_SASHI) return null;
+    const q = e / HO_SASHI, sm = x => x * x * (3 - 2 * x);
+    const up = q < 0.2 ? sm(q / 0.2) : q < 0.72 ? 1 : 1 - sm((q - 0.72) / 0.28);
+    if (!HO.cfDone) { HO.cfDone = true; confettiFire(S.x, S.y, LIFT + (S.dim ? S.dim.h * (S.visK || 1) * 0.3 : 3) + 1.5, S.dim ? Math.max(S.dim.L, S.dim.W) * 0.6 : 4); }
+    return { h: HO_SASHI_H * up, r: up * 0.05 * Math.sin(e / 1000 * Math.PI * 2 * 2.6), p: up * 0.035 * Math.sin(e / 1000 * Math.PI * 2 * 1.9 + 1) };
+  }
+  function hoMeet(now) {
+    const dt = Math.min(0.1, Math.max(0, (now - (HO.meetT || now)) / 1000)); HO.meetT = now;
+    if (HO.shown !== LEG || !CH.spots.length || !S.dim || !dt) return;
+    const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), L2 = S.dim.L / 2 + 1, W2 = S.dim.W / 2 + 1;
+    for (const p of CH.spots) {
+      const dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
+      /* 足元の縁（1m 外）のいちばん近い所 */
+      const cu = Math.max(-L2, Math.min(L2, u)), cv = Math.max(-W2, Math.min(W2, v));
+      const tu = Math.abs(u) <= L2 && Math.abs(v) <= W2 ? u : cu, tv = Math.abs(u) <= L2 && Math.abs(v) <= W2 ? v : cv;
+      const ex = tu - u, ey = tv - v, d = Math.hypot(ex, ey);
+      if (Math.hypot(dx, dy) - Math.hypot(S.dim.L, S.dim.W) / 2 > HO_MEET || d < 0.05) continue;
+      const st = Math.min(d, HO_RUN * dt) / d, mu = ex * st, mv = ey * st;
+      p.x += mu * c - mv * sn; p.y += mu * sn + mv * c;
+    }
+  }
   function hoTouch() {
     if (HO.shown !== LEG || !CH.spots.length || !S.dim) return false;
     const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), L2 = S.dim.L / 2 + HO_TOUCH, W2 = S.dim.W / 2 + HO_TOUCH;
@@ -7287,6 +7350,7 @@ function start(DATA, isAsakusa) {
     SND.handover();
     /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
     $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
+    HO.sashiT = now + HO_RISE; HO.cfDone = false; setTimeout(() => { if (!S.done) SND.cheer(); }, HO_RISE);
     S.infoSig = null; navPop();
   }
   function legNext() {
@@ -8935,10 +8999,12 @@ function start(DATA, isAsakusa) {
       if (DS && DS.bob !== undefined) { bob = DS.bob * big; roll = DS.roll * big; }
       /* 3分版：建物が乗った瞬間（S.sinkT）は、神輿全体（担ぎ手・担ぎ棒ごと）が一度沈んで跳ね返る。
          担げない建物に弾かれたとき（S.recoilT）は、前を持ち上げるように縦に何度かあおられ、横にもがたつく（くっつくときと見分けがつくように） */
-      let pitch = 0;
+      let pitch = 0, saH = 0;
       { const nowS = performance.now(), ts = nowS - (S.sinkT || -1e9), tr = nowS - (S.recoilT || -1e9);
         if (ts < 900) bob += -0.55 * Math.exp(-ts / 170) * Math.cos(ts / 1000 * Math.PI * 2 * 2.6);
-        if (tr < 900) { const k = Math.exp(-tr / 210); pitch = 0.15 * k * Math.sin(tr / 1000 * Math.PI * 2 * 3.4); roll += 0.07 * k * Math.sin(tr / 1000 * Math.PI * 2 * 5.1); } }
+        if (tr < 900) { const k = Math.exp(-tr / 210); pitch = 0.15 * k * Math.sin(tr / 1000 * Math.PI * 2 * 3.4); roll += 0.07 * k * Math.sin(tr / 1000 * Math.PI * 2 * 5.1); }
+        /* 11/08 受け渡しの差し上げ（sashiNow） */
+        const sa = sashiNow(nowS); if (sa) { bob += sa.h; roll += sa.r; pitch += sa.p; saH = sa.h; } }
       if (!S.intro && !S.done) {
         /* つかえて曲がずっこけた後、また動き出したら（0.8秒より後）担ぐ場面に戻す */
         if (SND.scene() === 'stuck' && S.spd > 2 && performance.now() - (S.stuckT || 0) > 800) SND.setScene('carry');
@@ -8946,7 +9012,8 @@ function start(DATA, isAsakusa) {
       }
       S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift));
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, pitch, 'YXZ');
-      if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, bob * 0.6)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
+      /* 差し上げの間、担ぎ手は少し跳び上がるだけ（神輿だけを高く上げる。saH） */
+      if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, (bob - saH) * 0.6 + saH * 0.3)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
       /* 見えている位置・向き・倍率と担ぎ手の広がり（人力車が次のこまで逃げる判定に使う） */
       if (!S.vis) S.vis = {};
@@ -8954,9 +9021,9 @@ function start(DATA, isAsakusa) {
       /* 建物の中に入る担ぎ手は出さず、担ぎ棒は建物の手前で止める（見た目だけ。直す係 第1回・不具合1・4） */
       /* 運び出しの最初（担ぎ手がまだ見えないこま）も、担ぎ棒だけは人力車・建物の手前で止める */
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
-      joinStep(performance.now(), px, py, ori, bob);
+      joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);

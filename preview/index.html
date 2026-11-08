@@ -3349,12 +3349,13 @@ function start(DATA, isAsakusa) {
      段ごとに、画面に写した四角（段の幅より広めに取る）に神輿の 6〜50m 先の道が入っていたら、かぶさっていると見る（0.12秒ごと）。
      （塔の全部を薄くすると、見た人2人が「何を積んだか分からない。煙かガラスの柱に見える」と言った。道にかからない段は町の建物のまま見せる）
      着いた後（宮入り・花火・高さ比べ）と、乗り始めは半透明にしない。縁取りは半透明にできない（神輿と共用）ので、薄くしている間は隠す */
-  const SF_A = 0.35, SF = { t: 0, cover: false, a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), ah: [] };
+  const SF_A = 0.35, SF_MINH = 12, SF = { t: 0, cover: false, a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), ah: [] };
   /* 積んだ塔のいちばん下（土台の屋根） */
   const stackBase = () => (S.mesh && S.mesh.userData.roofY) || (S.b ? S.b.h : 0);
   function stackFade(now, dt) {
     const L = S.stack; if (!L || !L.length || !S.mesh) return;
-    const on = L.length >= 1 && !S.done && !S.intro && mode === 'carry';
+    /* 11/08 本人「最初の建物が透けてる」：仲見世の店を1〜2軒積んだだけの低い塔まで薄くしていた。積んだ塔が SF_MINH m より低い間は薄くしない（前はほとんどふさがない） */
+    const on = L.length >= 1 && !S.done && !S.intro && mode === 'carry' && L[L.length - 1].top - stackBase() >= SF_MINH;
     if (now - SF.t > 120) {
       SF.t = now; SF.cover = false;
       for (const it of L) it.cov = false;

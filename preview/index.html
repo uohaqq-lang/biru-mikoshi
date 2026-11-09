@@ -90,6 +90,13 @@
   /* 3分版：担ぎ手が増えた瞬間、数字が跳ねる */
   #info.pop .ppl { display:inline-block; animation:pplPop .38s ease-out; }
   @keyframes pplPop { 0% { transform:scale(1.55); color:#e0442c; } 60% { transform:scale(.95); } 100% { transform:scale(1); } }
+  /* 11/09 本人「スマホでは気にならないけど、パソコンだと小さすぎてもったいない」：PCだけ担ぎ手の数を大きく（スマホ body.sm は前のまま）。
+     100人ごとの節目を越えたときは、長めに大きく跳ねる（#info.big） */
+  body:not(.sm) #info { font-size:15px; padding:8px 14px 6px; line-height:1.3; }
+  body:not(.sm) #info .ppl { font-size:34px; letter-spacing:.01em; }
+  #info.big .ppl { display:inline-block; animation:pplBig .9s ease-out; }
+  #info .ppl { transform-origin:85% 70%; }
+  @keyframes pplBig { 0% { transform:scale(1); } 18% { transform:scale(1.9); color:#e0442c; } 45% { transform:scale(.92); } 70% { transform:scale(1.12); color:#e0442c; } 100% { transform:scale(1); } }
   @keyframes ouch { 0%,100% { transform:translateX(0); } 15% { transform:translateX(-7px); } 35% { transform:translateX(6px); } 55% { transform:translateX(-4px); } 75% { transform:translateX(2px); } }
   #carry.nope { animation:szNo .4s; }
   /* 大きさ（実物大・半分・神輿）は使わない（10/30 組の人数で担げる大きさが決まる形にしたため） */
@@ -186,6 +193,12 @@
   #hrun .ln { position:absolute; left:0; right:0; height:0; border-top:1.5px dashed rgba(43,36,32,.6); }
   #hrun .me { position:absolute; right:5px; bottom:0; width:11px; height:0; background:linear-gradient(#e0b02a 0 4px, #c8322a 4px); transition:height .45s cubic-bezier(.3,.7,.3,1); }
   #hrun .nm { margin-top:3px; width:92px; font-size:12px; font-weight:800; color:var(--ink); line-height:1.2; text-align:center; white-space:pre-line; }
+  /* 11/09 いまの塔の高さ（m）を札の上に。PCは大きめ */
+  #hrun .hm { font-weight:800; font-size:15px; color:var(--red); line-height:1.1; margin-bottom:3px; white-space:nowrap; }
+  #hrun .hm small { font-size:.6em; margin-left:1px; }
+  body:not(.sm) #hrun .hm { font-size:24px; }
+  body:not(.sm) #hrun .g { width:116px; height:148px; }
+  body:not(.sm) #hrun .nm { width:116px; font-size:14px; }
   #hrun.pass .sil { animation:hrPass .7s ease-out; }
   #hrun.pass { animation:hrGlow .9s ease-out; }
   #hrun .sil.in { animation:hrIn .45s ease-out; }
@@ -533,7 +546,7 @@
 <div id="msg"></div>
 <div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div><button id="doneAgain">もう一回</button></div>
 <div id="hcmp"><div id="hcmpH"></div><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
-<div id="hrun"><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><div class="me"></div></div><div class="nm"></div></div>
+<div id="hrun"><div class="hm"></div><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><div class="me"></div></div><div class="nm"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
 <div id="hint"></div>
 <div id="pickHint"></div>
@@ -3550,6 +3563,7 @@ function start(DATA, isAsakusa) {
     }
     const b = Math.min(100, H / hrunTop(HR.i, H) * 100);
     if (Math.abs(b - HR.bar) > 0.15) { HR.bar = b; el.querySelector('.me').style.height = b.toFixed(1) + '%'; }
+    const hm = Math.round(H); if (hm !== HR.hm) { HR.hm = hm; el.querySelector('.hm').innerHTML = `${hm}<small>m</small>`; }
   }
   /* 提灯の明るさの山：0.12秒でぱっと上がり、0.25秒保って、ゆっくり（時定数0.7秒）戻る */
   function msPulse(now) {
@@ -4906,7 +4920,10 @@ function start(DATA, isAsakusa) {
     const sig = (S.infoOpen ? 'o' : 'c') + ppl + ',' + b.id;
     if (S.infoSig === sig && $('info').innerHTML) { if (gn && !S.infoOpen) gn.style.top = ''; return; }   // 中身が変わらないときは書き直さない（毎こま呼ばれるため）
     S.infoSig = sig;
-    if (S.infoPpl !== undefined && ppl > S.infoPpl) { const inf = $('info'); inf.classList.add('pop'); clearTimeout(inf._pop); inf._pop = setTimeout(() => inf.classList.remove('pop'), 420); }
+    if (S.infoPpl !== undefined && ppl > S.infoPpl) {
+      const inf = $('info'), big = Math.floor(ppl / 100) > Math.floor(S.infoPpl / 100);
+      inf.classList.remove('pop', 'big'); void inf.offsetWidth; inf.classList.add(big ? 'big' : 'pop'); clearTimeout(inf._pop); inf._pop = setTimeout(() => inf.classList.remove('pop', 'big'), big ? 950 : 420);
+    }
     S.infoPpl = ppl;
     if (!S.infoOpen) { $('info').innerHTML = `担ぎ手 <b class="ppl">${fmt(ppl)}人</b> ▾${nextL}`; if (gn) gn.style.top = ''; return; }
     /* 開いたときも、建物の名前と担ぎ手（飛び入り）だけ。10/30 本人（スマホで遊んで）「一気に情報量が多い」→ 寸法・重さ・入っている店は出さない */

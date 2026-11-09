@@ -3166,7 +3166,8 @@ function start(DATA, isAsakusa) {
      最後の1打（HO_RISE）で、新しく担げるようになった建物がいっせいに浮く（riseCheck）。一本締めが終わって動けるようになったら勢いがつく。
      勢い：止まり終えてから HO_BOOST ミリ秒、神輿が HO_BOOST_K 倍の速さで進み、見物人も HO_BOOST_R 倍の所から駆け寄る（最後の1秒で元に戻す） */
   /* 11/08 差し上げ（1.5秒）を足したので、止まる時間を 2.7→3.9秒に（最後の1打 HO_RISE から差し上げが終わるまで） */
-  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6, HO_STOP = 3900, HO_RISE = 2350;
+  /* 11/09 拍子木を2つ足したので、最後の1打が 2.35→3.2秒、止まる時間が 3.9→4.75秒 */
+  const HO_BOOST = 5000, HO_BOOST_K = 1.4, HO_BOOST_R = 1.6, HO_STOP = 4750, HO_RISE = 3200;
   const hoStopEnd = () => HO.stopT + HO_STOP;
   const hoStop = () => !!HO.stopT && !S.done && performance.now() < hoStopEnd();
   const boostQ = () => { if (!HO.boostT || S.done) return 0; const e = performance.now() - hoStopEnd(); return e < 0 || e > HO_BOOST ? 0 : Math.min(1, (HO_BOOST - e) / 1000); };
@@ -4612,16 +4613,19 @@ function start(DATA, isAsakusa) {
     function crowdTo(mul, t, tau) { crowdMul = mul; if (scene !== 'idle' && scene !== 'iri') bus.crowd.gain.setTargetAtTime(Math.min(1, crowdN / 140) * 0.5 * mul, t, tau); }
     function cerStop() { if (cerRun) { cerRun.gain.setTargetAtTime(0, ctx.currentTime, 0.08); cerRun = null; } crowdMul = 1; }
     /* 11/05 町会から町会へ受け渡す瞬間（handover）：曲と掛け声を少し下げて（accentDuck）、一本締め（3・3・3・1。お祓いの短い版と同じ間合い）と歓声。
-       本物で確かめられた所作（役員のあいさつ・お囃子で迎える・一本締め）に合わせた。拍子木は本物で確かめられていないので鳴らさない。曲（お囃子）はそのまま続ける */
+       本物で確かめられた所作（役員のあいさつ・お囃子で迎える・一本締め）に合わせた。曲（お囃子）はそのまま続ける。
+       11/09 本人「紙吹雪はパーティに寄っちゃってる」→ 選んだ「纏が上がる＋拍子木」：拍子木を2つ（カン、カン）打ってから一本締め（本人「入れてもいいんじゃない」）。
+       最後の1打は始まりから約3.2秒（ゲームの HO_RISE と合わせる） */
     function handover() {
       log('handover');
       if (!ctx || scene === 'idle' || scene === 'iri') return;
       cerPrepare(true);
       if (!cerIn) return;
-      const t = ctx.currentTime + 0.05, b = 0.18, g0 = 0.15;
+      const t = ctx.currentTime + 0.05, b = 0.18, g0 = 1.05;
       accentDuck(t, g0 + 12 * b + 0.3);
       if (cerRun) cerRun.gain.setTargetAtTime(0, t, 0.05);
       cerRun = ctx.createGain(); cerRun.connect(cerIn);
+      cerPlay(CB.ki[0], t + 0.1, 0.75, 0); cerPlay(CB.ki[1 % CB.ki.length], t + 0.6, 0.75, 0);
       let c = 0;
       for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) cerPlay(CB.clap[c++ % CB.clap.length], t + g0 + k * 4 * b + j * b - 0.1, j === 2 ? 0.68 : 0.58, 0);
       cerPlay(CB.clap[c++ % CB.clap.length], t + g0 + 12 * b - 0.1, 0.75, 0);
@@ -5107,7 +5111,7 @@ function start(DATA, isAsakusa) {
     clearCarry();
     team = TEAM0; arriveN = 0; MS.lv = 0; MS.t0 = 0; HR.i = -1; HR.next = 0; HR.busy = 0; RS.leg = -1; RS.t = -1e9; RS.wait = 0; RS.see = 0; RS.keep.clear();
     /* 3回着く形：1回目（南の雷門通り）から。切り替えの途中なら暗くしたのを戻す */
-    setLeg(0); $('legFade').classList.remove('on'); chokaiClear();
+    setLeg(0); $('legFade').classList.remove('on'); chokaiClear(); matoiClear();
     if (!base) { $('dialWrap').style.display = 'none'; $('rot').style.display = 'none'; $('again').style.display = 'none'; enterPick(true); return; }
     choose(base, 'site');
   }
@@ -7318,7 +7322,7 @@ function start(DATA, isAsakusa) {
     const e = now - HO.sashiT; if (e < 0 || e > HO_SASHI) return null;
     const q = e / HO_SASHI, sm = x => x * x * (3 - 2 * x);
     const up = q < 0.2 ? sm(q / 0.2) : q < 0.72 ? 1 : 1 - sm((q - 0.72) / 0.28);
-    if (!HO.cfDone) { HO.cfDone = true; confettiFire(S.x, S.y, LIFT + (S.dim ? S.dim.h * (S.visK || 1) * 0.3 : 3) + 1.5, S.dim ? Math.max(S.dim.L, S.dim.W) * 0.6 : 4); }
+    /* 11/09 紙吹雪は出さない（本人「お祭りっていうよりパーティに寄っちゃってる」）。代わりに纏（matoiShow） */
     return { h: HO_SASHI_H * up, r: up * 0.05 * Math.sin(e / 1000 * Math.PI * 2 * 2.6), p: up * 0.035 * Math.sin(e / 1000 * Math.PI * 2 * 1.9 + 1) };
   }
   function hoMeet(now) {
@@ -7334,6 +7338,55 @@ function start(DATA, isAsakusa) {
       if (Math.hypot(dx, dy) - Math.hypot(S.dim.L, S.dim.W) / 2 > HO_MEET || d < 0.05) continue;
       const st = Math.min(d, HO_RUN * dt) / d, mu = ex * st, mv = ey * st;
       p.x += mu * c - mv * sn; p.y += mu * sn + mv * c;
+    }
+  }
+  /* ---------- 11/09 本人が選んだ「纏が上がる」 ----------
+     受け渡しで止まったら、神輿の前の斜め横に町会の纏（白い頭と、まわりに垂れた馬簾）が立ち、ぐるぐる回る（回るほど馬簾が外へ広がる）。
+     拍子木のころに回り始め、一本締めの間は速く回り、差し上げが終わったら小さくなって消える。見えやすいように実物の MT_K 倍 */
+  /* 11/09 1回目の試し：神輿の前に置いたら塔に隠れて見えなかった → 神輿の横（真ん中の左右、道の上にある側）に2本まで。どちらも道でなければ神輿の後ろ */
+  const MT_K = 2.2, MT = { list: [], t0: 0 };
+  function matoiClear() { for (const m of MT.list) { scene.remove(m.g); m.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } MT.list.length = 0; }
+  function matoiShow(now) {
+    matoiClear();
+    if (!S.dim) return;
+    const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), at = (u, v) => [S.x + u * c - v * sn, S.y + u * sn + v * c];
+    let spots = [1, -1].map(sd => at(0, sd * (S.dim.W / 2 + 2.4))).filter(([x, y]) => onRoad(x, y));
+    if (!spots.length) spots = [at(-S.dim.L / 2 - 3, 0)];
+    for (let k = 0; k < spots.length; k++) matoiOne(spots[k][0], spots[k][1], k);
+    MT.t0 = now;
+  }
+  function matoiOne(x, y, k) {
+    const white = new THREE.MeshBasicMaterial({ color: 0xf4f1e8 }), black = new THREE.MeshBasicMaterial({ color: 0x1c1c1c });
+    const g = new THREE.Group(), r = new THREE.Group(), strips = []; g.add(r);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 3.6, 6), woodMat); pole.position.y = 1.8; r.add(pole);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.34, 0.5), white); head.position.y = 3.95; r.add(head);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.07, 0.52), black); band.position.y = 3.8; r.add(band);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8), white); ball.position.y = 4.3; r.add(ball);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.05, 20), black); disc.position.y = 3.72; r.add(disc);
+    for (let i = 0; i < 18; i++) {
+      const piv = new THREE.Group(); piv.rotation.y = i / 18 * Math.PI * 2; piv.position.y = 3.7; r.add(piv);
+      const hinge = new THREE.Group(); hinge.position.x = 0.4; piv.add(hinge);
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.78, 0.1), white); st.position.y = -0.39; hinge.add(st);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.08, 0.102), black); tip.position.y = -0.82; hinge.add(tip);
+      strips.push(hinge);
+    }
+    g.position.copy(V(x, y, 0)); g.scale.setScalar(MT_K); r.rotation.y = k * 1.3;
+    scene.add(g); MT.list.push({ g, r, strips, k });
+  }
+  function matoiStep(now) {
+    if (!MT.list.length) return;
+    const e = now - MT.t0, end = HO_STOP + 300;
+    if (e > end + 500 || S.done) { matoiClear(); return; }
+    /* 回る速さ（rad/秒）：0.4秒で回り出し、一本締めの間（約1〜3.2秒）は速く、差し上げのあとゆっくり */
+    const w = e < 400 ? 4 * e / 400 : e < HO_RISE ? 4 + 7 * Math.min(1, (e - 400) / 900) : Math.max(3, 11 - (e - HO_RISE) / 200);
+    const sp = Math.min(1.05, w * 0.1), ks = e > end ? Math.max(0.01, 1 - (e - end) / 500) : 1;
+    for (const m of MT.list) {
+      /* 2本目は逆回り。拍子に合わせて少し持ち上げる（0.36秒ごと） */
+      m.r.rotation.y += (m.k ? -1 : 1) * w * 0.016;
+      m.r.position.y = 0.18 * Math.max(0, Math.sin(e / 360 * Math.PI + m.k * 0.6));
+      m.r.rotation.z = 0.06 * Math.sin(e / 520 + m.k);
+      for (const h of m.strips) h.rotation.z = sp;
+      m.g.scale.setScalar(MT_K * ks);
     }
   }
   function hoTouch() {
@@ -7354,6 +7407,7 @@ function start(DATA, isAsakusa) {
     /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
     $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
     HO.sashiT = now + HO_RISE; HO.cfDone = false; setTimeout(() => { if (!S.done) SND.cheer(); }, HO_RISE);
+    matoiShow(now);
     S.infoSig = null; navPop();
   }
   function legNext() {
@@ -9026,7 +9080,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);

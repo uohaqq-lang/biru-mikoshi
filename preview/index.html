@@ -7345,6 +7345,8 @@ function start(DATA, isAsakusa) {
      拍子木のころに回り始め、一本締めの間は速く回り、差し上げが終わったら小さくなって消える。見えやすいように実物の MT_K 倍 */
   /* 11/09 1回目の試し：神輿の前に置いたら塔に隠れて見えなかった → 神輿の横（真ん中の左右、道の上にある側）に2本まで。どちらも道でなければ神輿の後ろ */
   const MT_K = 2.2, MT = { list: [], t0: 0 };
+  /* 受け渡しの間のカメラ（斜め前）：進む向きから左右に A rad、神輿から R m（＋大きさの分）、高さ Z m、見る高さ LZ m */
+  const HOC = { A: 0.65, R: 16, Z: 5, LZ: 4 };
   function matoiClear() { for (const m of MT.list) { scene.remove(m.g); m.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } MT.list.length = 0; }
   function matoiShow(now) {
     matoiClear();
@@ -9268,6 +9270,24 @@ function start(DATA, isAsakusa) {
       /* 次の町会に呼ばれる場面（legNext）：call は次の出発の所を写し、move は上がって全体を見下ろす */
       const lgCam = S.done && S.done.leg ? (S.done.phase === 'call' ? S.done.callCam : S.done.phase === 'move' ? S.done.moveCam : null) : null;
       if (lgCam) { back.copy(lgCam.pos); look.copy(lgCam.look); }
+      /* 11/09 本人が選んだ案A「受け渡しの間はカメラが斜め前へ回り込む」（本人「このゲームって前から見るシーンてずっとない。前からのシーンはここ」）：
+         止まっている間（HO_STOP）、神輿の斜め前（進む向きから左右 HOC.A rad、HOC.R m、高さ HOC.Z m）へ回り込み、神輿の足もと〜纏の高さを見る。
+         左右は、神輿の頭（3m）までの見通しが建物でふさがれない側（どちらも駄目なら近くへ寄る）。0.7秒で回り込み、動けるようになったら0.9秒で真後ろへ戻る */
+      if (HO.stopT && !S.done && mode === 'carry' && raimonB) {
+        const e = performance.now() - HO.stopT, sm = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+        const w = e < HO_STOP ? sm(e / 700) : 1 - sm((e - HO_STOP) / 900);
+        if (w > 0) {
+          if (!HO.cam || HO.cam.t !== HO.stopT) {
+            const f = S.camHead, skip = bb => bb === S.b || flatState.get(bb) === 1, wide = S.dim ? Math.max(S.dim.L, S.dim.W) : 6;
+            const clear = (x, y, z) => { const L = Math.hypot(x - S.x, y - S.y); for (let q = 2; q < L - wide / 2; q += 1.5) { const k = q / L; if (bldAt(S.x + (x - S.x) * k, S.y + (y - S.y) * k, 3 + (z - 3) * k, skip)) return false; } return true; };
+            let pick = null;
+            for (const R of [HOC.R + wide * 0.6, HOC.R * 0.75 + wide * 0.5, wide * 0.5 + 6]) { for (const sd of [1, -1]) { const a = f + sd * HOC.A, x = S.x + Math.cos(a) * R, y = S.y + Math.sin(a) * R, z = HOC.Z + R * 0.12; if (clear(x, y, z)) { pick = { x, y, z }; break; } } if (pick) break; }
+            if (!pick) { const a = f + HOC.A, R = wide * 0.5 + 6; pick = { x: S.x + Math.cos(a) * R, y: S.y + Math.sin(a) * R, z: HOC.Z + 4 }; }
+            HO.cam = { t: HO.stopT, pos: V(pick.x, pick.y, pick.z), look: V(S.x, S.y, HOC.LZ) };
+          }
+          back.lerp(HO.cam.pos, w); look.lerp(HO.cam.look, w);
+        }
+      }
       const slow = hbCam || resCam || lgCam || (S.hbLeft && t - S.hbLeft < 2500);
       /* 11/04 本人「動かしやすい位置に固定でよい」：建物が乗った直後の1.5秒（peek）は、カメラの位置はそのままで、見る向きだけ上へ（CAM.peekA＝10°まで）向けて、乗った所を見せる */
       if (peek > 0 && !S.done && !S.intro && mode === 'carry') {

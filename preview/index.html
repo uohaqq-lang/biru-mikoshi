@@ -191,7 +191,14 @@
   #hrun .sil .dim { fill:#3b3431; opacity:.22; }
   #hrun .sil .on { fill:#3b3431; }
   #hrun .ln { position:absolute; left:0; right:0; height:0; border-top:1.5px dashed rgba(43,36,32,.6); }
-  #hrun .me { position:absolute; right:5px; bottom:0; width:11px; height:0; background:linear-gradient(#e0b02a 0 4px, #c8322a 4px); transition:height .45s cubic-bezier(.3,.7,.3,1); }
+  /* 11/09 本人「右が神輿って分かりづらい。赤と黄色にしてるのなんなの」→ 細い棒（赤＋黄のてっぺん）をやめ、名所と同じく影絵の背比べに：
+     下に朱色の神輿の影絵（.mk。屋根・鳳凰・胴・台・担ぎ棒）、その上に積んだ建物の箱（.stk。1段ずつ細い線で区切る）を、いまの高さまで伸ばす */
+  #hrun .me { position:absolute; right:3px; bottom:0; width:22px; height:0; min-height:15px; transition:height .45s cubic-bezier(.3,.7,.3,1); }
+  #hrun .me .mk { position:absolute; left:0; bottom:0; width:100%; height:15px; fill:#c8322a; display:block; }
+  #hrun .me .stk { position:absolute; left:3px; right:3px; bottom:14px; top:0; background:repeating-linear-gradient(to top, #c8322a 0 7px, #f0a08c 7px 8px); border-radius:1px 1px 0 0; }
+  body:not(.sm) #hrun .me { width:28px; min-height:19px; }
+  body:not(.sm) #hrun .me .mk { height:19px; }
+  body:not(.sm) #hrun .me .stk { bottom:18px; left:4px; right:4px; background:repeating-linear-gradient(to top, #c8322a 0 9px, #f0a08c 9px 10px); }
   #hrun .nm { margin-top:3px; width:92px; font-size:12px; font-weight:800; color:var(--ink); line-height:1.2; text-align:center; white-space:pre-line; }
   /* 11/09 いまの塔の高さ（m）を札の上に。PCは大きめ */
   #hrun .hm { font-weight:800; font-size:15px; color:var(--red); line-height:1.1; margin-bottom:3px; white-space:nowrap; }
@@ -546,7 +553,7 @@
 <div id="msg"></div>
 <div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div><button id="doneAgain">もう一回</button></div>
 <div id="hcmp"><div id="hcmpH"></div><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
-<div id="hrun"><div class="hm"></div><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><div class="me"></div></div><div class="nm"></div></div>
+<div id="hrun"><div class="hm"></div><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><div class="me"><i class="stk"></i><svg class="mk" viewBox="0 0 24 19" preserveAspectRatio="none"><path d="M11 0.4H13L13.7 2.3 12 3.2 10.3 2.3Z M1 9Q6 8.3 9 5Q12 2.4 15 5Q18 8.3 23 9V10H1Z M7 10H17V15H7Z M4 15H20V17H4Z M0 17.6H24V18.9H0Z"/></svg></div></div><div class="nm"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
 <div id="hint"></div>
 <div id="pickHint"></div>
@@ -3543,7 +3550,7 @@ function start(DATA, isAsakusa) {
   const hrunTop = (i, H) => { const L = LMK[Math.min(i, LMK.length - 1)]; return i < LMK.length ? Math.max(L.h * 1.15, L.full * 1.06) : Math.max(L.h * 1.15, H * 1.08); };
   function hrunDraw(i, H, enter) {
     const el = $('hrun'), g = el.querySelector('.g'), L = LMK[Math.min(i, LMK.length - 1)], top = hrunTop(i, H), cs = getComputedStyle(g);
-    const G = parseFloat(cs.height) || 118, GW = parseFloat(cs.width) || 92, hp = G * L.full / top, w = Math.min(GW - 22, hp * L.a);
+    const G = parseFloat(cs.height) || 118, GW = parseFloat(cs.width) || 92, hp = G * L.full / top, w = Math.min(GW - (GW > 100 ? 36 : 29), hp * L.a);
     const sv = el.querySelector('.sil'), [vw, vh] = L.vb, cut = vh * (1 - L.h / L.full);
     sv.setAttribute('viewBox', `0 0 ${vw} ${vh}`); sv.style.height = hp.toFixed(1) + 'px'; sv.style.width = w.toFixed(1) + 'px';
     sv.innerHTML = `<defs><clipPath id="hrClip"><rect x="-10" y="${cut.toFixed(1)}" width="${vw + 20}" height="${vh + 10}"/></clipPath></defs><path class="dim" d="${L.d}"/><path class="on" clip-path="url(#hrClip)" d="${L.d}"/>`;

@@ -3170,7 +3170,7 @@ function start(DATA, isAsakusa) {
   function legStart() { const L = LEGS[LEG], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
   /* 回を替える：道順を差し替え、建物ごとに覚えた「道順からの近さ」（routeNear）を数え直させる */
   /* S.gateIn・S.gateCel（雷門をくぐり終えた・くぐった瞬間の演出を出した）は1回目の始めに戻す。2回目からは曲を太鼓だけにしない（1回目に門を通らずに着いたときのため） */
-  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; HO.stopT = 0; HO.sashiT = 0; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
+  function setLeg(k) { LEG = k; ROUTE = LEGS[k].route; RT.i = 0; RT.manualT = 0; S.gateIn = false; if (k === 0) { S.gateCel = false; NKW.t0 = 0; HO.shown = -1; HO.boostT = 0; HO.stopT = 0; HO.sashiT = 0; TIER.v = 0; TIER.msg = ''; } else if (RUN3) SND.setDrumOnly(false); for (const b of blds) b._rn = undefined; }
   /* 11/05 受け渡し（handoverStep）：HO.shown＝次の町の担ぎ手を待たせた区（-1 はまだ）。HO.callT＝受け渡しの字を出した時刻 */
   const HO = { shown: -1, callT: 0, boostT: 0, stopT: 0 };
   /* 11/07 本人「町会のみんなに会ったときに何かしらの報酬が欲しい」→ 選んだのは「ご祝儀で大きい建物が解禁」と「一本締めで勢いがつく」。
@@ -3241,7 +3241,13 @@ function start(DATA, isAsakusa) {
      前と同じく「頑張ればスカイツリーを超えられる」くらいに戻すため、3区の高さの倍率を0.65から0.42に下げた（3区の伸び約+405m → 前の3回目の約+265mに近づける） */
   const LEG_HMAX = [11, 20, Infinity], LEG_CAPK = [1, 1.3, 1.6], LEG_STH = [ST_HMAX, 20, 60], LEG_STR = [ST_STR, 8, 16], LEG_HK = [1, 0.55, 0.42];
   const legOf = A => A[raimonB ? Math.min(LEG, A.length - 1) : 0];
-  function stCap() { return Math.max(ST_MIN, ST_K * (S.dim ? S.dim.W : 3)) * (raimonB ? legOf(LEG_CAPK) : 1); }
+  /* 11/09 本人「高さの上限を人数で決める。これじゃないとゲーム性がない（塊魂も）」：積める建物の高さの上限（LEG_HMAX）と、乗せたときの大きさの決まり（LEG_CAPK・STH・STR・HK）は、
+     町会（LEG）ではなく担ぎ手の数の段（TIER）で決める。担ぎ手が CREW_T[0] 人で2段目（20mまで）、CREW_T[1] 人で3段目（上限なし）。一度上がった段は下がらない。
+     ふつうに遊ぶと、1回目の町会の直前は約107人で町会の32人が加わって約139人、2回目は約440人＋40人で約480人になるので、町会で段が上がる（150・500人だと町会では届かず、数秒あとの見物人で上がっていた）。
+     頑張って人を集めれば町会より前に上がる */
+  const CREW_T = [130, 470], TIER = { v: 0, msgT: 0, msg: '' };
+  const tierOf = A => A[raimonB ? Math.min(TIER.v, A.length - 1) : 0];
+  function stCap() { return Math.max(ST_MIN, ST_K * (S.dim ? S.dim.W : 3)) * (raimonB ? tierOf(LEG_CAPK) : 1); }
   const AT = { t: 0, last: 0, combo: 0, fly: [], log: [] };
   /* 道順（ROUTE）から建物までの近さ（m）と、いちばん近い道順の点の番号。建物ごとに一度だけ数える */
   function routeNear(b) {
@@ -3262,7 +3268,7 @@ function start(DATA, isAsakusa) {
      仲見世に入った所の担ぎ手は14〜40人で、最初の1棟（first）のあと45秒ほど何もくっつかなかった（fix3/10fix/q1a）。くっつく間は今までどおり NAKA_GAP あける */
   const nakaFree = b => RUN3 && LEG === 0 && S.gateIn && nearNaka(b);
   const attachable = (b, crewN) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
-    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > legOf(LEG_HMAX)) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
   /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
@@ -3442,7 +3448,7 @@ function start(DATA, isAsakusa) {
     const hv = HV.get(b); if (hv) { HV.delete(b); hvHalo(hv); }
     liftOut(b, true);
     const y0 = AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackTop();
-    const cap = stCap(), s0 = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv0 = Math.max(s0, Math.min(1, s0 * legOf(LEG_STR), legOf(LEG_STH) / Math.max(1, b.h))) * legOf(LEG_HK);
+    const cap = stCap(), s0 = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv0 = Math.max(s0, Math.min(1, s0 * tierOf(LEG_STR), tierOf(LEG_STH) / Math.max(1, b.h))) * tierOf(LEG_HK);
     /* 11/04 分けた仲見世の店（nakaShop）は、塔が低いうちは実物大で乗せ、高くなったらなめらかに縮める（nakaScale）。足元と高さは同じ倍率 */
     const s = b.nakaShop ? nakaScale(b, y0) : s0, sv = b.nakaShop ? s : sv0, L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
     /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
@@ -3650,7 +3656,7 @@ function start(DATA, isAsakusa) {
   function riseCheck(now) {
     if (!raimonB || !S.b || S.intro || S.done || mode !== 'carry') return;
     if (now - RS.chk < 300) return; RS.chk = now;
-    const crewN = team + JN.n, hmax = legOf(LEG_HMAX);
+    const crewN = team + JN.n, hmax = tierOf(LEG_HMAX);
     const ack = () => { RS.crew = Math.max(RS.crew, crewN); RS.hmax = Math.max(RS.hmax, hmax); RS.see = 0; };
     if (RS.leg < 0) { RS.crew = crewN; RS.hmax = hmax; RS.leg = LEG; return; }
     /* 11/07 受け渡しで止まったときは、一本締めの最後の1打（HO.stopT＋HO_RISE）で浮かせる */
@@ -7362,6 +7368,21 @@ function start(DATA, isAsakusa) {
      拍子木のころに回り始め、一本締めの間は速く回り、差し上げが終わったら小さくなって消える。見えやすいように実物の MT_K 倍 */
   /* 11/09 1回目の試し：神輿の前に置いたら塔に隠れて見えなかった → 神輿の横（真ん中の左右、道の上にある側）に2本まで。どちらも道でなければ神輿の後ろ */
   const MT_K = 2.2, MT = { list: [], t0: 0 };
+  /* 担ぎ手の数で段を上げる（毎こま）。上がったら、上の真ん中に一言（TIER_MSG ミリ秒）。
+     受け渡しで止まっている間や、カメラが真後ろへ戻る間（派手な場面）に上がったときは、動けるようになってから約1秒後に出す（本人「派手なことをやってるときは見ない。落ち着いたら文字で」） */
+  const TIER_MSG = 2800, TIER_TXT = ['', '担ぎ手130人！ 高い建物も担げる', '担ぎ手470人！ どんな建物も担げる'];
+  function tierRaise(crewN, now) {
+    let v = TIER.v;
+    while (v < CREW_T.length && crewN >= CREW_T[v]) v++;
+    if (v > TIER.v) { TIER.v = v; TIER.msg = TIER_TXT[v] || ''; const calm = HO.stopT && now - HO.stopT < HO_STOP + 1900 ? HO.stopT + HO_STOP + 1900 : 0; TIER.msgT = Math.max(now + 300, calm); }
+  }
+  function tierStep(now) {
+    if (!raimonB || !S.b || S.intro || S.done) return;
+    tierRaise(team + JN.n, now);
+    if (TIER.msg && now >= TIER.msgT && !(HO.callT && now - HO.callT < HO_CALL && $('legCall').textContent !== TIER.msg)) {
+      $('legCall').textContent = TIER.msg; $('legCall').classList.add('on'); HO.callT = now - (HO_CALL - TIER_MSG); TIER.msg = '';
+    }
+  }
   /* 受け渡しの間のカメラ（斜め前）：進む向きから左右に A rad、神輿から R m（＋大きさの分）、高さ Z m、見る高さ LZ m */
   const HOC = { A: 0.65, R: 16, Z: 5, LZ: 4 };
   function matoiClear() { for (const m of MT.list) { scene.remove(m.g); m.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } MT.list.length = 0; }
@@ -7419,6 +7440,8 @@ function start(DATA, isAsakusa) {
     /* 新しい区の道すじのそばの人力車に、一団を待たせる（前の legArrive2 と同じ） */
     for (const r of rickshaws) { r.jnHide = null; if (!r.jn && onRouteRk(r)) r.jn = RKJ_N[0] + Math.floor(Math.random() * (RKJ_N[1] - RKJ_N[0] + 1)); }
     const sp = CH.spots.slice(); CH.spots.length = 0;
+    /* 11/09 町会の人は駆け寄って少しずつ数に入る（6秒ほど）。担ぎ手の段（TIER）は、加わると決まったここで数えて上げる（いっせいに浮くのを一本締めの最後の1打に合わせる） */
+    const crew0 = team + JN.n;
     if (sp.length) joinAdd(sp.length, i => ({ x: sp[i].x, y: sp[i].y, P: sp[i].P }), now, 35);
     for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
     CH.poles.length = 0;
@@ -7426,7 +7449,7 @@ function start(DATA, isAsakusa) {
     /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
     $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
     HO.sashiT = now + HO_RISE; HO.cfDone = false; setTimeout(() => { if (!S.done) SND.cheer(); }, HO_RISE);
-    matoiShow(now);
+    matoiShow(now); tierRaise(crew0 + sp.length, now);
     S.infoSig = null; navPop();
   }
   function legNext() {
@@ -9099,7 +9122,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);

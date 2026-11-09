@@ -4867,8 +4867,13 @@ function start(DATA, isAsakusa) {
   // 本人「ゲームオーバーになったら選べるとか、わかりやすくしてほしい」。文字の説明は足さない。小さい方を押せば、その場で縮んでそのまま押して進める。
   // 今より大きくするとまわりにめり込む大きさは、薄くして押しても替わらないようにする
   // 研究を受けた直し：担ぎ始めや、かすっただけでは出さない。押して（進む・バック・向き）も1秒以上まったく動けないときだけ（角がかする・境内の建物は2.5秒）
+  /* 11/09 本人（iPhone）「つっかえるのやめないか。戻るのボタンが出ると押しちゃうやついそうだし、つっかえる必要もないしこのゲーム」：
+     つかえたときに「やり直す」を大きくして大きさの3つのボタンを出す仕組みと、曲のずっこけ（stuck）をやめる。
+     大きさのボタン（resizeCarry）は神輿を作り直すので、上に積んだ建物の見た目が消え、高さの数字（52m）だけ残っていた。壁に当たれば今までどおり止まる・弾かれる。
+     抜けられない所は、今までどおりしばらくすると近くの道へ担ぎ直す */
+  const STUCK_UI = false;
   function stuckUI(res) {
-    if (mode !== 'carry' || !S.b) return;
+    if (!STUCK_UI || mode !== 'carry' || !S.b) return;
     $('again').classList.add('big'); document.body.classList.add('stuck');
     for (const el of $('diffSel').children) el.classList.toggle('no', !fitsScale(scaleOf(S.b, el.dataset.d)));
   }
@@ -4903,7 +4908,7 @@ function start(DATA, isAsakusa) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.noGo = 0; S.noGoPose = null; return; }
     const p = { x: S.x, y: S.y, h: S.head }, lp = S.noGoPose; S.noGoPose = p;
     const moved = !lp || Math.abs(p.x - lp.x) + Math.abs(p.y - lp.y) > 0.01 || Math.abs(p.h - lp.h) > 1e-4;
-    if (moved || !S.stuck) { S.noGo = 0; return; }
+    if (moved || !S.stuck) { S.noGo = 0; S.noGoCounted = false; return; }
     /* 押していない間は数えない。ただし幅・高さではっきりつかえたときは、指を離していても出す
        （10/23 本人「どのタイミングで建物のサイズ変えられるの？」。押し続けないと出ず、見つからなかった）。
        担ぎ始めの置き場所でもうつかえているだけ（まだ一度もドンと当たっていない）なら、押すまで出さない（実物大の公会堂で、何もしないうちに出ていた） */
@@ -4913,7 +4918,7 @@ function start(DATA, isAsakusa) {
     if (performance.now() - (S.introEnd || 0) < 1500) return;
     S.noGo += dt;
     /* 本当につかえたとき（押しているのに0.6秒進めない）だけ、曲もずっこけて止める。また動き出したら担ぐ場面に戻す（毎こまの所） */
-    if (S.noGo >= 0.6 && SND.scene() === 'carry') { SND.setScene('stuck'); S.stuckT = performance.now(); S.bumps = (S.bumps || 0) + 1; }
+    if (S.noGo >= 0.6 && !S.noGoCounted) { S.noGoCounted = true; S.stuckT = performance.now(); S.bumps = (S.bumps || 0) + 1; if (STUCK_UI && SND.scene() === 'carry') SND.setScene('stuck'); }
     /* バックでも向きでも動けない所では、押したらすぐ出す（直す係 第3回・3-2）。はっきりつかえたときは、ドンのすぐ後に出す。
        雷門の前（門から30m以内）でつかえたときも、すぐ出す（10/29 本人「雷門のところ通ってみたい人多そう。雷門にあたって通れない時は小さくできるように」） */
     const atGate = gate.lantern && Math.hypot(S.x - gate.x, S.y - gate.y) < 30;

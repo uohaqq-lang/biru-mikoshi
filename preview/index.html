@@ -161,7 +161,14 @@
   #hcmp.on { opacity:1; }
   #hcmp .bars { display:flex; align-items:flex-end; gap:14px; height:150px; padding:0 6px; border-bottom:2px solid #8a7f72; }
   #hcmp .sky { width:16px; fill:#5d86b8; }
-  #hcmp .me { width:12px; background:linear-gradient(#e0b02a 0 5px, #c8322a 5px); position:relative; }
+  /* 11/10 本人「赤と黄色にしてるのなんなの」（11/09）を左の札（#hrun）だけ直して、結果の高さ比べの棒はてっぺんが黄色のままだった。
+     #hrun と同じ見た目にそろえる：下に朱色の神輿の影絵（.mk）、その上に積んだ箱（.stk。朱色を細い薄い線で1段ずつ区切る）。黄色・金色は使わない */
+  #hcmp .me { width:18px; min-height:13px; position:relative; }
+  #hcmp .me .mk { position:absolute; left:0; bottom:0; width:100%; height:13px; fill:#c8322a; display:block; }
+  #hcmp .me .stk { position:absolute; left:3px; right:3px; bottom:12px; top:0; background:repeating-linear-gradient(to top, #c8322a 0 7px, #f0a08c 7px 8px); border-radius:1px 1px 0 0; }
+  body.sm #hcmp .me { width:16px; min-height:12px; }
+  body.sm #hcmp .me .mk { height:12px; }
+  body.sm #hcmp .me .stk { bottom:11px; left:2.5px; right:2.5px; background:repeating-linear-gradient(to top, #c8322a 0 6px, #f0a08c 6px 7px); }
   #hcmp .prev { position:absolute; left:-8px; right:-8px; height:0; border-top:2px dashed #2b2420; opacity:.7; display:none; }
   /* 11/07 本人「最後に高さを出して欲しい」：棒の上に塔の高さの数字 */
   #hcmpH { margin-bottom:6px; font-weight:800; font-size:15px; color:var(--ink); white-space:nowrap; }
@@ -199,6 +206,14 @@
   body:not(.sm) #hrun .me { width:28px; min-height:19px; }
   body:not(.sm) #hrun .me .mk { height:19px; }
   body:not(.sm) #hrun .me .stk { bottom:18px; left:4px; right:4px; background:repeating-linear-gradient(to top, #c8322a 0 9px, #f0a08c 9px 10px); }
+  /* 11/10 今の担ぎ手の数で積める高さ（capH）を、積んだ箱と同じ幅の薄い枠で、箱の後ろに出す（字は足さない）。
+     人が増えると枠が伸び、塔が枠に届くと（それ以上はくっつかない）、枠の代わりに積んだ箱より少し幅の広い黒い蓋が塔のてっぺんに乗る。上限が目盛りの上端より上なら上の線は消す。
+     （初めは届いたら枠の線を濃い実線にしていたが、赤い箱と重なって見分けられなかった。fix3/30fix/shots/満3_札.png） */
+  #hrun .cap { position:absolute; right:6px; bottom:0; width:16px; height:0; box-sizing:border-box; border:1.5px dashed rgba(200,50,42,.55); border-bottom:none; background:rgba(200,50,42,.08); border-radius:1px 1px 0 0; transition:height .45s cubic-bezier(.3,.7,.3,1), border-color .3s; }
+  body:not(.sm) #hrun .cap { right:7px; width:20px; }
+  #hrun .cap.open { border-top-color:transparent; }
+  #hrun.full .cap { z-index:1; right:1px; width:26px; min-height:15px; background:none; border:none; border-top:3px solid #3b3431; border-radius:1px; }
+  body:not(.sm) #hrun.full .cap { right:1px; width:32px; min-height:19px; border-top-width:4px; }
   #hrun .nm { margin-top:3px; width:92px; font-size:12px; font-weight:800; color:var(--ink); line-height:1.2; text-align:center; white-space:pre-line; }
   /* 11/09 いまの塔の高さ（m）を札の上に。PCは大きめ */
   #hrun .hm { font-weight:800; font-size:15px; color:var(--red); line-height:1.1; margin-bottom:3px; white-space:nowrap; }
@@ -552,8 +567,8 @@
 <div id="goalNav"><span id="goalLeg"></span><span id="goalArrow">➤</span><span id="goalText"></span></div><div id="legFade"></div><div id="legCall"></div>
 <div id="msg"></div>
 <div id="done"><div id="doneLbl">担ぎ手</div><div id="doneInfo"></div><button id="doneAgain">もう一回</button></div>
-<div id="hcmp"><div id="hcmpH"></div><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
-<div id="hrun"><div class="hm"></div><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><div class="me"><i class="stk"></i><svg class="mk" viewBox="0 0 24 19" preserveAspectRatio="none"><path d="M11 0.4H13L13.7 2.3 12 3.2 10.3 2.3Z M1 9Q6 8.3 9 5Q12 2.4 15 5Q18 8.3 23 9V10H1Z M7 10H17V15H7Z M4 15H20V17H4Z M0 17.6H24V18.9H0Z"/></svg></div></div><div class="nm"></div></div>
+<div id="hcmp"><div id="hcmpH"></div><div class="bars"><svg class="sky" viewBox="0 0 40 634" preserveAspectRatio="none"><path d="M2,634 L10,304 L7,299 L7,282 L11,276 L12,194 L10,190 L10,182 L14,178 L15,139 L18,134 L19.4,0 L20.6,0 L22,134 L25,139 L26,178 L30,182 L30,190 L28,194 L29,276 L33,282 L33,299 L30,304 L38,634 Z"/></svg><div class="me"><i class="stk"></i><svg class="mk" viewBox="0 0 24 19" preserveAspectRatio="none"><path d="M11 0.4H13L13.7 2.3 12 3.2 10.3 2.3Z M1 9Q6 8.3 9 5Q12 2.4 15 5Q18 8.3 23 9V10H1Z M7 10H17V15H7Z M4 15H20V17H4Z M0 17.6H24V18.9H0Z"/></svg><i class="prev"></i></div></div><div id="hcmpTxt"></div></div>
+<div id="hrun"><div class="hm"></div><div class="g"><svg class="sil" preserveAspectRatio="none"></svg><i class="ln"></i><i class="cap"></i><div class="me"><i class="stk"></i><svg class="mk" viewBox="0 0 24 19" preserveAspectRatio="none"><path d="M11 0.4H13L13.7 2.3 12 3.2 10.3 2.3Z M1 9Q6 8.3 9 5Q12 2.4 15 5Q18 8.3 23 9V10H1Z M7 10H17V15H7Z M4 15H20V17H4Z M0 17.6H24V18.9H0Z"/></svg></div></div><div class="nm"></div></div>
 <div id="best" class="hud"><div id="bestCnt"></div><div id="bestBig"></div></div>
 <div id="hint"></div>
 <div id="pickHint"></div>
@@ -3246,7 +3261,10 @@ function start(DATA, isAsakusa) {
      道順に沿って進むだけの通しテストで、塔は約500m（スカイツリーまであと百m余り）。両側の建物をこまめに拾えば634mを超える（fix3/t7.py。倍率なしでは道順どおりで710mになり、簡単に超えた） */
   /* 11/05 一筆書き（案1）にしたら、3区（約610m。前の3回目は約270m）で大きなビルが続き、道順どおり進むだけで最後の塔が685mになってスカイツリーを超えた（fix3/16fix/s1）。
      前と同じく「頑張ればスカイツリーを超えられる」くらいに戻すため、3区の高さの倍率を0.65から0.42に下げた（3区の伸び約+405m → 前の3回目の約+265mに近づける） */
-  const LEG_HMAX = [11, 20, Infinity], LEG_CAPK = [1, 1.3, 1.6], LEG_STH = [ST_HMAX, 20, 60], LEG_STR = [ST_STR, 8, 16], LEG_HK = [1, 0.55, 0.42];
+  /* 11/10 積める高さの上限を担ぎ手の数で決めた（capH）ので、3段目の倍率を0.42から0.9に上げた。0.42 のままだと、人を集めて上限が640mあっても
+     建物1棟ずつの伸びが足りず、寄って走っても549m（直す前も590m）で、どう走ってもスカイツリーに届かなかった（fix3/30fix/f1g・b0g）。0.6 では寄って600m（f2g）、
+     0.75 では寄って643m（上限678mの手前で建物が尽きた。g3g・g4g）。塔の高さは、建物の伸びではなく担ぎ手の数（上限）で止まるようにする */
+  const LEG_HMAX = [11, 20, Infinity], LEG_CAPK = [1, 1.3, 1.6], LEG_STH = [ST_HMAX, 20, 60], LEG_STR = [ST_STR, 8, 16], LEG_HK = [1, 0.55, 0.9];
   const legOf = A => A[raimonB ? Math.min(LEG, A.length - 1) : 0];
   /* 11/09 本人「高さの上限を人数で決める。これじゃないとゲーム性がない（塊魂も）」：積める建物の高さの上限（LEG_HMAX）と、乗せたときの大きさの決まり（LEG_CAPK・STH・STR・HK）は、
      町会（LEG）ではなく担ぎ手の数の段（TIER）で決める。担ぎ手が CREW_T[0] 人で2段目（20mまで）、CREW_T[1] 人で3段目（上限なし）。一度上がった段は下がらない。
@@ -3254,6 +3272,18 @@ function start(DATA, isAsakusa) {
      頑張って人を集めれば町会より前に上がる */
   const CREW_T = [130, 470], TIER = { v: 0, msgT: 0, msg: '' };
   const tierOf = A => A[raimonB ? Math.min(TIER.v, A.length - 1) : 0];
+  /* 11/10 友達が遊んで「ちょい簡単すぎる」「1回目でスカイツリーと同じ高さになった」、本人「普通にいったら高さが出ちゃう。人のバランスとか高さのバランスをもうちょいむずく」
+     「2回やった時にクリアできるくらい」：前は担ぎ手が470人を超えると何でも積めたので、道なりに走るだけで塔が536mになった（fix3/30fix/b0a）。
+     積める塔の高さに、担ぎ手の数で伸びる上限を付ける（CAP_H0＋CAP_K×担ぎ手^CAP_P m）。上限に届いていると、それ以上は建物がくっつかない（担げない建物と同じで、浮きもしない）。
+     人が増えれば上限も上がるので、見物人のそばを通って人を集めるほど高く積める。上限は塔のいちばん上（飛んでいる途中の建物を含む）で見る。
+     数え方：見物人が加わる範囲を狭めた（JOIN_R 9→4）うえで、宮入りの手前の担ぎ手は、道なりに走ると約870〜910人、人の多い側へ寄って走ると約1,200〜1,290人（fix3/30fix/n3a・f1a・f2a／n3g・f1g・f2g）。
+     人数の差は1.3〜1.4倍しかないので、人数にそのまま比例させる（15m＋1人0.52m）と、道なり472m・寄って600m で高さの差も1.3倍にしかならず、
+     「道なりは7割ほど、寄って集めれば超える」に分けられなかった（f2a・f2g）。人数の1.3乗にして、人が多いほど1人あたりで積める高さも少しずつ増えるようにした
+     （900人で約470m・1,200人で約670m・1,300人で約740m。1回目の仲見世の50人ほどでは約36mで、前の1回目の塔（約37m）とほぼ同じ） */
+  const CAP_H0 = 25, CAP_K = 0.064, CAP_P = 1.3;
+  const capH = n => CAP_H0 + CAP_K * Math.pow(Math.max(0, n === undefined ? team + JN.n : n), CAP_P);
+  const towerNow = () => (AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackHeight()) + LIFT;
+  const capFull = n => !!(raimonB && RUN3 && S.b && towerNow() >= capH(n));
   function stCap() { return Math.max(ST_MIN, ST_K * (S.dim ? S.dim.W : 3)) * (raimonB ? tierOf(LEG_CAPK) : 1); }
   const AT = { t: 0, last: 0, combo: 0, fly: [], log: [] };
   /* 道順（ROUTE）から建物までの近さ（m）と、いちばん近い道順の点の番号。建物ごとに一度だけ数える */
@@ -3275,7 +3305,7 @@ function start(DATA, isAsakusa) {
      仲見世に入った所の担ぎ手は14〜40人で、最初の1棟（first）のあと45秒ほど何もくっつかなかった（fix3/10fix/q1a）。くっつく間は今までどおり NAKA_GAP あける */
   const nakaFree = b => RUN3 && LEG === 0 && S.gateIn && nearNaka(b);
   const attachable = (b, crewN) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
-    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && !capFull(crewN) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
   /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
@@ -3350,6 +3380,24 @@ function start(DATA, isAsakusa) {
     hullScale({ m: hull, L: b.d.L, W: b.d.W, H: topH }, s);
     g.scale.set(s, sv, s);
     return { g, h: topH * sv };
+  }
+  /* 11/10 本人「最後のビル神輿の色を変えて欲しい」：結果の画面で、積んだ塔が夜空の中で灰色っぽい細い線に見え、青いスカイツリーと並べると目立たなかった。
+     結果の画面（phase 'result'）でだけ、積んだ建物が提灯の明かりに照らされたように、自分で光る色（emissive）を朱〜橙（WARM_C）へ WARM_T ミリ秒かけて寄せる。
+     夜は写真の柄をそのまま光らせている（emissiveMap）ので、柄と面ごとの陰は残ったまま暖色になる（べた塗りにしない）。昼は自分で光っていないので、建物の色の半分を元にする。
+     縁取り（神輿と共用）と土台の神輿は変えない。担いでいる間は変えない。積んだ建物の材質は建物ごとに作ったもので、やり直すと捨てる（restoreStack）ので戻さない */
+  const WARM_C = new THREE.Color(0xff6a35), WARM_T = 1200, warmTmp = new THREE.Color();
+  function stackWarm(now) {
+    const D = S.done, L = S.stack;
+    if (!D || D.phase !== 'result' || !L || !L.length) return;
+    const k = Math.min(1, (now - D.t0) / WARM_T);
+    if (D.warmK === k) return;
+    D.warmK = k;
+    for (const it of L) it.m.traverse(o => {
+      if (!o.isMesh || o === it.m.userData.hull || !o.material || !o.material.isMeshLambertMaterial) return;
+      const m = o.material, u = m.userData;
+      if (!u.warm0) { u.warm0 = m.emissive.clone(); u.warmB = u.warm0.r + u.warm0.g + u.warm0.b > 0.01 ? u.warm0.clone() : m.color.clone().multiplyScalar(0.5); }
+      m.emissive.copy(u.warm0).lerp(warmTmp.copy(u.warmB).multiply(WARM_C), k);
+    });
   }
   /* 積んだ建物の窓の明かり：町の建物（nightWin）と同じ大きさ・色の窓を、建物そのものの座標で決める（縮めて乗せても、窓は建物と一緒に縮む）。
      町のものより窓を多めに灯す（縮めると窓が小さくなり、まばらだと見えないため）。明かりの届く範囲の外を暗くする仕掛けは付けない */
@@ -3556,7 +3604,7 @@ function start(DATA, isAsakusa) {
     sv.innerHTML = `<defs><clipPath id="hrClip"><rect x="-10" y="${cut.toFixed(1)}" width="${vw + 20}" height="${vh + 10}"/></clipPath></defs><path class="dim" d="${L.d}"/><path class="on" clip-path="url(#hrClip)" d="${L.d}"/>`;
     el.querySelector('.ln').style.bottom = (L.h / top * 100).toFixed(2) + '%';
     el.querySelector('.nm').textContent = L.nm;
-    HR.G = G; HR.bar = -1; HR.top = top;
+    HR.G = G; HR.bar = -1; HR.cap = -1; HR.top = top;
     if (enter) { sv.classList.remove('in'); void sv.getBoundingClientRect(); sv.classList.add('in'); }
   }
   function hrunFrame(now) {
@@ -3576,6 +3624,12 @@ function start(DATA, isAsakusa) {
     }
     const b = Math.min(100, H / hrunTop(HR.i, H) * 100);
     if (Math.abs(b - HR.bar) > 0.15) { HR.bar = b; el.querySelector('.me').style.height = b.toFixed(1) + '%'; }
+    /* 11/10 今の担ぎ手で積める高さの枠（capH）。届いているときは、蓋を塔のてっぺん（上限を少し超えて乗った建物の上）に置く。着いた後は動かさない */
+    if (RUN3 && !S.done) {
+      const fl = capFull(), cr = (fl ? Math.max(capH(), H) : capH()) / hrunTop(HR.i, H) * 100, cb = Math.min(100, cr), ce = el.querySelector('.cap');
+      if (Math.abs(cb - HR.cap) > 0.15) { HR.cap = cb; ce.style.height = cb.toFixed(1) + '%'; ce.classList.toggle('open', cr > 100); }
+      if (fl !== HR.full) { HR.full = fl; el.classList.toggle('full', fl); }
+    }
     const hm = Math.round(H); if (hm !== HR.hm) { HR.hm = hm; el.querySelector('.hm').innerHTML = `${hm}<small>m</small>`; }
   }
   /* 提灯の明るさの山：0.12秒でぱっと上がり、0.25秒保って、ゆっくり（時定数0.7秒）戻る */
@@ -5272,7 +5326,9 @@ function start(DATA, isAsakusa) {
   /* 11/07 B：見物人がそばを通れば加わるようにしたので、JOIN_R を7.5→9mに（道の反対側の人も届きやすく） */
   /* 11/07 人力車の一団：人力車は道ばた（雷門の前・伝法院通り・浅草寺の西など）に停まっていて、道順から一番近くても26〜50m。14m では一度も加わらなかった（本人「気が付かなかった」）。
      神輿の足元から RKJ_R＝40m に来たら、人力車の所から走って駆けつける（走る時間は距離に合わせる。joinAdd の label）。いつも一団が待つのは、道順から RKJ_ROUTE＝45m 以内の人力車 */
-  const JOIN_R = 9, JOIN_CELL = 16, JOIN_MAX = 400, JOIN_WAIT_MAX = 300, RKJ_R = 40, RKJ_RATE = 0.3, RKJ_N = [8, 16], LAMP_MAX = 200, JOIN_SLOTS = 1200, RKJ_ROUTE = 45;
+  /* 11/10 難しさの調整（capH の説明）：9m だと道のまん中を進むだけで両側の見物人がほぼ加わり、見物人に寄って走っても担ぎ手は1割ほどしか増えなかった（fix3/30fix/b0a・b0g）。
+     4m にして、人の多い側へ寄せると集まるようにした（5m でも寄って1.25倍どまり。g2）。手を上げて跳ねる合図（JOIN_R＋SPEC_REACT＝10m 以内）は前と同じ仕組みなので、寄れば来る人が動きで分かる */
+  const JOIN_R = 4, JOIN_CELL = 16, JOIN_MAX = 400, JOIN_WAIT_MAX = 300, RKJ_R = 40, RKJ_RATE = 0.3, RKJ_N = [8, 16], LAMP_MAX = 200, JOIN_SLOTS = 1200, RKJ_ROUTE = 45;
   const JN = { n: 0, list: [], keys: new Set(), wait: [], drop: [], lastCue: 0, slots: [], slotKey: '', mask: [], maskKey: '', pmask: [], pmaskKey: '', hold: 0, acc: 0, accT: 0, lab: '', labN: 0, labT: 0 };
   /* 11/07 本人が選んだ B（建物では担ぎ手を増やさない代わりに、町で見ている人がどんどん加わる）：
      見物人のうち SPEC_FRAC の割合の人が、神輿の足元から JOIN_R m 以内を通ると走って来る（1人ずつ。提灯なし）。残りは見ているだけ。
@@ -7382,7 +7438,7 @@ function start(DATA, isAsakusa) {
   const MT_K = 2.2, MT = { list: [], t0: 0 };
   /* 担ぎ手の数で段を上げる（毎こま）。上がったら、上の真ん中に一言（TIER_MSG ミリ秒）。
      受け渡しで止まっている間や、カメラが真後ろへ戻る間（派手な場面）に上がったときは、動けるようになってから約1秒後に出す（本人「派手なことをやってるときは見ない。落ち着いたら文字で」） */
-  const TIER_MSG = 2800, TIER_TXT = ['', '担ぎ手130人！ 高い建物も担げる', '担ぎ手470人！ どんな建物も担げる'];
+  const TIER_MSG = 2800, TIER_TXT = ['', '担ぎ手130人！ 高い建物も担げる', '担ぎ手470人！ 大きなビルも担げる'];
   function tierRaise(crewN, now) {
     let v = TIER.v;
     while (v < CREW_T.length && crewN >= CREW_T[v]) v++;
@@ -9134,7 +9190,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -9421,6 +9477,7 @@ function start(DATA, isAsakusa) {
     rsSurvey: R => blds.filter(b => selectable(b) && !lmOfBld.has(b) && b !== S.b && routeNear(b).d <= (R || ATT_RMAX) + 2.3).map(b => [routeNear(b).k, +b.h.toFixed(1), needOf(b), +routeNear(b).d.toFixed(1)]).sort((p, q) => p[0] - q[0]),
     hrunShow: i => { HR.i = i; HR.next = 0; hrunDraw(i, stackHeight() + LIFT, false); },
     rise: () => ({ n: RS.log.filter(g => g.n).length, log: RS.log, keep: RS.keep.size, hv: HV.size, crew: RS.crew, hmax: RS.hmax }),
+    capH: () => capH(), capFull: () => capFull(), specFrac,
     hrun: () => ({ i: HR.i, nm: (LMK[Math.min(Math.max(0, HR.i), LMK.length - 1)] || {}).nm, H: +(stackHeight() + LIFT).toFixed(1), next: !!HR.next, vis: getComputedStyle($('hrun')).display !== 'none' }),
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }

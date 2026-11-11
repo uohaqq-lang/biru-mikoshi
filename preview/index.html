@@ -3599,8 +3599,67 @@ function start(DATA, isAsakusa) {
     MS.lv = lv;
     if (S.done) return;
     const sl = MS_LV[lv - 1];
-    MS.t0 = now; MS.k = 0.75 + 0.1 * sl;
-    SND.milestone(sl);
+    /* 11/11 33fix：カメラを引く節目なら、太鼓の連打と提灯の明かりは引き始めに回す（mscStep） */
+    if (RUN3 && mscWant(now)) { MSC.pend = { sl, i: lv - 1, t: now }; MSC.log.push({ t: Math.round(now), i: lv - 1, pull: 'wait' }); return; }
+    if (RUN3) MSC.log.push({ t: Math.round(now), i: lv - 1, pull: false });
+    msFire(now, sl);
+  }
+  function msFire(now, sl) { MS.t0 = now; MS.k = 0.75 + 0.1 * sl; SND.milestone(sl); }
+  /* ---------- 11/11 本人が選んだ「節目でカメラが引く」（33fix） ----------
+     本人「塊魂が気持ちいいのは、引いても、大きくなった分だけ動きが速くなるから。ビル神輿は道を壊して進めないので速くできない。だから達成感は定期的に出す形がよい」。
+     塔の高さが左の札の名所（LMK）を抜いた瞬間に、MSC_DUR ミリ秒だけ、カメラを上へも後ろへもぐっと引き（塔の高さの MSC_DK 倍うしろ、塔の高さの半分＋その距離の MSC_ZK 倍の高さ）、
+     塔のてっぺんまでと、小さくなった町と、抜いた名所（雷門・宝蔵門・本堂・五重塔・スカイツリー。東京タワーは町の外）を一枚に入れて、真後ろの運転カメラへなめらかに戻る（入り MSC_IN、戻り MSC_OUT）。
+     抜いた名所が画面に入るよう、真後ろから左右へ少しずつ回り込んだ向きを選ぶ（入らなければ真後ろ）。太鼓の連打・提灯の明かりは、引き始めに合わせて鳴らす。字は出さない。
+     「定期的に」：前に引いてから MSC_GAP ミリ秒は引かず、音と明かりだけにする（1区の雷門・宝蔵門・本堂は数秒おきに続けて抜くので、1回だけ引く）。
+     引く前に待つ：町会の受け渡しの手前約48mから止まっている間（と、その後1.2秒）・大物を担いで2.5秒・道順の先がまっすぐでない（曲がり角の手前で引くと壁に当たる）。
+     MSC_WAIT ミリ秒待っても引けなければ、音と明かりだけにする（受け渡しの手前約48mから、止まって動き出すまでを待てるように12秒） */
+  const MSC_DUR = 2600, MSC_IN = 650, MSC_OUT = 900, MSC_GAP = 18000, MSC_WAIT = 12000, MSC_DK = 1.65, MSC_ZK = 0.36;
+  const MSC = { pend: null, cam: null, last: -1e9, log: [] };
+  const mscWant = now => !MSC.pend && !MSC.cam && now - MSC.last >= MSC_GAP;
+  const mscDist = H => Math.max(60, H * MSC_DK);
+  function mscBusy(now) {
+    if (S.done || S.intro || mode !== 'carry') return true;
+    if (HO.stopT && now < HO.stopT + HO_STOP + 1200) return true;
+    /* 受け渡しの手前（道順の終わりまで12点＝約48m）も待つ（展望台を抜いてすぐ受け渡しで止まり、引きと受け渡しのカメラが重なった。fix3/30fix/u1a） */
+    if (LEG < LEGS.length - 1 && ROUTE.length - 1 - RT.i < 12) return true;
+    return !!(BIG.list && BIG.list.some(B => B.takenT && now - B.takenT < 2500));
+  }
+  /* 道順の先（点2つ先〜8つ先、約8〜32m）がまっすぐで、神輿もその向きに進んでいる */
+  function mscStraight() {
+    const R = ROUTE, i = Math.min(RT.i, R.length - 1), j = Math.min(R.length - 1, i + 2), k = Math.min(R.length - 2, i + 7);
+    if (j <= i || k <= j) return true;
+    const a1 = Math.atan2(R[j][1] - R[i][1], R[j][0] - R[i][0]), a2 = Math.atan2(R[k + 1][1] - R[k][1], R[k + 1][0] - R[k][0]), df = a => Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+    return df(a2 - a1) < 0.5 && df(S.head + S.rot - a1) < 0.6;
+  }
+  /* 抜いた名所の位置（LMK の番号。雷門は門、宝蔵門・本堂・五重塔は名所の建物、スカイツリーは SKY。東京タワーは無い） */
+  function mscLm(i) {
+    if (i === 0 && gate && gate.x !== undefined) return { x: gate.x, y: gate.y };
+    if (i >= 1 && i <= 3) { const id = (LANDMARKS[i].ids || [])[0], b = id && blds.find(q => q.id === id); if (b) return { x: b.d.cx, y: b.d.cy }; }
+    if (i === LMK.length - 1) return { x: SKY.x, y: SKY.y };
+    return null;
+  }
+  function mscPlan(i, now) {
+    const base = S.head + S.rot + Math.PI, L = mscLm(i), hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), d = mscDist(stackHeight() + LIFT);
+    let a = base;
+    if (L) for (const off of [0, 0.25, -0.25, 0.5, -0.5, 0.8, -0.8]) {
+      const cx = S.x + Math.cos(base + off) * d, cy = S.y + Math.sin(base + off) * d, am = Math.atan2(S.y - cy, S.x - cx), al = Math.atan2(L.y - cy, L.x - cx);
+      if (Math.abs(Math.atan2(Math.sin(al - am), Math.cos(al - am))) < hh * 0.8) { a = base + off; break; }
+    }
+    return { t0: now, a, i };
+  }
+  function mscStep(now) {
+    if (MSC.cam && now - MSC.cam.t0 > MSC_DUR) MSC.cam = null;
+    /* 引いている途中で受け渡しが始まったら、引きをやめる（受け渡しのカメラにする） */
+    if (MSC.cam && HO.stopT && now >= HO.stopT && now - HO.stopT < HO_STOP) MSC.cam = null;
+    const P = MSC.pend; if (!P) return;
+    if (S.done) { MSC.pend = null; return; }
+    const late = now - P.t > MSC_WAIT;
+    if (!late && (mscBusy(now) || !mscStraight())) return;
+    MSC.pend = null;
+    const e = MSC.log.find(q => q.t === Math.round(P.t) && q.pull === 'wait');
+    if (late) { if (e) e.pull = false; msFire(now, P.sl); return; }
+    if (e) { e.pull = true; e.wait = Math.round(now - P.t); }
+    MSC.cam = mscPlan(P.i, now); MSC.last = now; msFire(now, P.sl);
   }
   /* 左の高さ比べの札（#hrun）。HR.i：今見せている名所の番号（＝抜いた数として見せている数。全部抜いたら LMK.length）。-1 は「次のこまで黙って合わせる」。
      抜いたとき：札が光り、影絵が跳ねる（0.65秒）→次の名所に替わる。続けて二つ抜いたときは、一つずつ順に見せる。
@@ -9340,7 +9399,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); if (CB.list.size) capBumpStep(nowA); bigStep(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); if (CB.list.size) capBumpStep(nowA); bigStep(nowA); if (RUN3) mscStep(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -9546,6 +9605,15 @@ function start(DATA, isAsakusa) {
           back.lerp(HO.cam.pos, w); look.lerp(HO.cam.look, w);
         }
       }
+      /* 11/11 33fix 節目でカメラが引く（mscStep が決めた向き MSC.cam.a へ、塔の高さに合わせて引く。神輿が進んでもついていく） */
+      if (MSC.cam && !S.done && mode === 'carry' && raimonB) {
+        const e = performance.now() - MSC.cam.t0, sm = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+        const w = e < MSC_IN ? sm(e / MSC_IN) : e < MSC_DUR - MSC_OUT ? 1 : 1 - sm((e - (MSC_DUR - MSC_OUT)) / MSC_OUT);
+        if (w > 0) {
+          const H = stackHeight() + LIFT, d = mscDist(H), a = MSC.cam.a;
+          back.lerp(V(S.x + Math.cos(a) * d, S.y + Math.sin(a) * d, H * 0.5 + d * MSC_ZK), w); look.lerp(V(S.x, S.y, H * 0.5), w);
+        }
+      }
       const slow = hbCam || resCam || lgCam || (S.hbLeft && t - S.hbLeft < 2500);
       /* 11/04 本人「動かしやすい位置に固定でよい」：建物が乗った直後の1.5秒（peek）は、カメラの位置はそのままで、見る向きだけ上へ（CAM.peekA＝10°まで）向けて、乗った所を見せる */
       if (peek > 0 && !S.done && !S.intro && mode === 'carry') {
@@ -9629,6 +9697,8 @@ function start(DATA, isAsakusa) {
     rise: () => ({ n: RS.log.filter(g => g.n).length, log: RS.log, keep: RS.keep.size, hv: HV.size, crew: RS.crew, hmax: RS.hmax }),
     capH: () => capH(), capFull: () => capFull(), specFrac,
     /* 11/11 浮きかけて落ちた回数・今動いている数・合図の状態・うちわの数 */
+    /* 11/11 33fix：節目の記録（t：ページの時刻、i：LMK の番号、pull：引いたか、wait：待ったミリ秒）と、今引いているか */
+    msc: () => ({ log: MSC.log.map(q => Object.assign({}, q, { t: +(q.t / 1000).toFixed(1) })), on: !!MSC.cam }),
     /* 11/11 大物（32fix）：建物の番号・担げる数・担げる数に届いたか・担いだか・浮きかけて落ちた回数、乗せた高さの合計 */
     bigs: () => ({ add: +BIG.add.toFixed(1), list: bigList().map(B => ({ id: B.b.id.slice(5, 13), need: B.need, ready: B.ready, taken: B.taken, bumps: B.bumps, x: +B.b.d.cx.toFixed(1), y: +B.b.d.cy.toFixed(1), h: +B.b.h.toFixed(1), halo: !!(B.halo && B.halo.visible) })) }),
     capBump: () => ({ n: CB.n, live: CB.list.size, sig: SIG.on, fans: fanMesh.count, stall: Math.round(performance.now() - (S.capStallT || -1e9)), at: [...CB.list.keys()].map(b => [+b.d.cx.toFixed(1), +b.d.cy.toFixed(1), +b.h.toFixed(1)]) }),

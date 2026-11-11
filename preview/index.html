@@ -3304,8 +3304,9 @@ function start(DATA, isAsakusa) {
      前は雷門通りを約200m進む間に道ばたの店23棟で担ぎ手が増え、仲見世に入るころには店（要る人数55〜62人）が担げた。出発を門の正面にしたら、
      仲見世に入った所の担ぎ手は14〜40人で、最初の1棟（first）のあと45秒ほど何もくっつかなかった（fix3/10fix/q1a）。くっつく間は今までどおり NAKA_GAP あける */
   const nakaFree = b => RUN3 && LEG === 0 && S.gateIn && nearNaka(b);
-  const attachable = (b, crewN) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
-    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && !capFull(crewN) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
+  /* noCap：上限（capFull）を見ない（上限のときに「ふだんならくっつく建物」を探す。capBump） */
+  const attachable = (b, crewN, noCap) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && (noCap || !capFull(crewN)) && (needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
   /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
@@ -3501,6 +3502,8 @@ function start(DATA, isAsakusa) {
     if (ghosts.has(b)) { const gm = ghosts.get(b); scene.remove(gm); gm.geometry.dispose(); ghosts.delete(b); ghostHit.delete(b); }
     /* 浮かんで揺れていた写し（hoverStep）があれば、それをそのまま飛ばす（浮いていた所から吸い寄せられる） */
     const hv = HV.get(b); if (hv) { HV.delete(b); hvHalo(hv); }
+    /* 11/11 浮きかけて落ちる途中（capBump）の写しがあれば片付ける */
+    if (CB.list.has(b)) capBumpDrop(b, CB.list.get(b));
     liftOut(b, true);
     const y0 = AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackTop();
     const cap = stCap(), s0 = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv0 = Math.max(s0, Math.min(1, s0 * tierOf(LEG_STR), tierOf(LEG_STH) / Math.max(1, b.h))) * tierOf(LEG_HK);
@@ -3669,13 +3672,15 @@ function start(DATA, isAsakusa) {
     if (now - AT.last < ATT_GAP) return;
     const crewN = team + JN.n, R = Math.min(ATT_RMAX, ATT_R0 + ATT_RK * crewN), ori = S.head + S.rot, c = Math.cos(ori), s = Math.sin(ori);
     const ext = Math.max(S.dim.L, S.dim.W) / 2 + R + 1, seen = new Set();
+    /* 11/11 上限に届いているときは、ふだんならくっつく建物を同じ決め方で探し、くっつける代わりに浮きかけて落ちる（capBump） */
+    const capped = capFull(crewN);
     let best = null;
     for (let i = Math.floor((S.x - ext) / BG); i <= Math.floor((S.x + ext) / BG); i++) for (let j = Math.floor((S.y - ext) / BG); j <= Math.floor((S.y + ext) / BG); j++) {
       const a = bgrid.get(i * 100003 + j); if (!a) continue;
       for (const b of a) {
         if (seen.has(b)) continue; seen.add(b);
         const [x0, y0, x1, y1] = b.bb; if (S.x + ext < x0 || S.x - ext > x1 || S.y + ext < y0 || S.y - ext > y1) continue;
-        if (!attachable(b, crewN) || (raimonB && now - AT.last < nakaGapNow() && nearNaka(b))) continue;
+        if (!attachable(b, crewN, capped) || (raimonB && now - AT.last < nakaGapNow() && nearNaka(b))) continue;
         let dm = Infinity;
         for (const [u, v] of S.samples) {
           const px = S.x + u * c - v * s, py = S.y + u * s + v * c;
@@ -3685,7 +3690,7 @@ function start(DATA, isAsakusa) {
         if (dm <= (nakaTouch(b) ? NAKA_TOUCH_R : R) && (!best || dm < best.d)) best = { b, d: dm };
       }
     }
-    if (best) attach(best.b);
+    if (best) { if (capped) { if (raimonB) capBump(best.b, now); } else attach(best.b); }
   }
   /* ---------- くっつく前の見分け（10/30 本人「担ぎ替えるのがやっぱりまだわかりづらい」） ----------
      担げる建物だけが、近づくと人の背丈くらいの高さ（HV_UP m）までふわっと浮き上がり、ゆっくり上下に揺れる。担げない建物は動かない（光らせる演出は前に消したので、動きで見せる）。
@@ -3796,7 +3801,7 @@ function start(DATA, isAsakusa) {
       for (let i = Math.floor((S.x - RR) / BG); i <= Math.floor((S.x + RR) / BG); i++) for (let j = Math.floor((S.y - RR) / BG); j <= Math.floor((S.y + RR) / BG); j++) {
         const a = bgrid.get(i * 100003 + j); if (!a) continue;
         for (const b of a) {
-          if (HV.has(b) ? !attachable(b, crewN) : (flatState.get(b) || !attachable(b, crewN))) continue;
+          if (CB.list.has(b) || (HV.has(b) ? !attachable(b, crewN) : (flatState.get(b) || !attachable(b, crewN)))) continue;
           /* 道ばたで、これから通る（道順の今の所より先にある）建物だけ。街区の奥の建物は浮かせない */
           if (raimonB && (!roadside(b, R) || routeNear(b).k < RT.i - 3 || routeNear(b).k > RT.i + HV_AHEAD)) continue;
           /* 新しく担げるようになって、まだいっせいに浮かせていない建物は、静かには浮かせない（riseCheck が浮かせる） */
@@ -3831,7 +3836,44 @@ function start(DATA, isAsakusa) {
     }
   }
   function hvHalo(H) { if (H.halo) { scene.remove(H.halo); H.halo.material.dispose(); H.halo = null; } }
-  function hoverClear() { for (const [b, H] of HV) { scene.remove(H.m); hvHalo(H); setFlat(b, 0); } HV.clear(); }
+  function hoverClear() { for (const [b, H] of HV) { scene.remove(H.m); hvHalo(H); setFlat(b, 0); } HV.clear(); for (const [b, C] of CB.list) capBumpDrop(b, C); }
+  /* ---------- 11/11 本人が選んだ (a)「建物が浮きかけて落ちる」（塊魂の「巻き込めない物にぶつかると塊は止まり、相手の物が揺れる」。字は出さない） ----------
+     塔が上限（capH）に届いているときに、ふだんならくっつく建物に触れる（attachScan が見つけた、くっつく範囲のいちばん近い建物）と、
+     その建物の写し（stackLook）が、ぐらっと揺れながら少し（CB_UP m まで）浮きかけ、重そうに元の場所へ落ちて、鈍い「どすん」（SND.capThud）と小さな揺れ。
+     神輿も CB_STALL ミリ秒つっかえる（進む力を0にする。holdStep）。どこかで起きたら CB_GAP ミリ秒、同じ建物は CB_GAP_B ミリ秒あける（何度も鳴らない）。
+     1回の動きは CB_DUR ミリ秒：前半5割で浮きかけ、次の1割2分で落ち、残りで揺れが収まる。町の建物は、その間だけ平らにして写しを見せる（浮かべる写しと同じ） */
+  const CB_DUR = 950, CB_GAP = 2000, CB_GAP_B = 8000, CB_STALL = 300;
+  const CB = { t: 0, n: 0, list: new Map() };
+  function capBump(b, now) {
+    if (CB.list.has(b) || HV.has(b) || flatState.get(b) || now - CB.t < CB_GAP || now - (b._cbT || 0) < CB_GAP_B) return;
+    const L = stackLook(b, 1, true); L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); scene.add(L.g);
+    setFlat(b, 1);
+    /* 浮きかける高さ：低い建物で0.8m、高い建物ほど少し高く（1.8m まで） */
+    CB.list.set(b, { m: L.g, t0: now, ph: hash(b.d.cx, b.d.cy) * 6.283, hit: false, up: Math.min(1.8, 0.8 + b.h * 0.03) });
+    CB.t = now; b._cbT = now; CB.n++; S.capStallT = now;
+  }
+  function capBumpDrop(b, C) {
+    scene.remove(C.m);
+    C.m.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== stackHullMat && o.material.isMeshLambertMaterial) o.material.dispose(); });
+    CB.list.delete(b); setFlat(b, 0);
+  }
+  function capBumpStep(now) {
+    for (const [b, C] of CB.list) {
+      const q = (now - C.t0) / CB_DUR;
+      if (q >= 1) { capBumpDrop(b, C); continue; }
+      let y = 0, tilt = 0;
+      /* 浮きかける：ぐらぐら揺れながら、上がり切らない */
+      if (q < 0.5) { const u = q / 0.5; y = C.up * Math.sin(u * Math.PI / 2) * (0.85 + 0.15 * Math.sin(u * 20)); tilt = Math.sin(u * 18 + C.ph) * 0.06 * u; }
+      /* 重そうに落ちる（だんだん速く） */
+      else if (q < 0.62) { const u = (q - 0.5) / 0.12; y = C.up * (1 - u * u); tilt = 0.03 * (1 - u); }
+      /* どすんと戻り、少し揺れが残る */
+      else {
+        const u = (q - 0.62) / 0.38; tilt = Math.sin(u * 14) * 0.03 * (1 - u);
+        if (!C.hit) { C.hit = true; try { SND.capThud(); } catch (e) { /* 音が出せない環境では鳴らさない */ } S.shake = Math.max(S.shake || 0, 0.35); }
+      }
+      C.m.position.y = y; C.m.rotation.x = tilt; C.m.rotation.z = tilt * 0.7;
+    }
+  }
   /* ぶつかった所（はみ出した足元の点）に立っている、担げる建物（無ければ null）。ぶつかったら弾かれる代わりに、その建物をくっつける */
   function touchAttachable(res) {
     if (res.x === undefined) return null;
@@ -4446,6 +4488,8 @@ function start(DATA, isAsakusa) {
       g.setTargetAtTime(BGM_GAIN * 0.3, t, 0.008);
       g.setTargetAtTime(BGM_GAIN, end, 0.15);
     }
+    /* 11/11 上限のときに浮きかけた建物が元の場所へ戻る音（capBump）：ぶつかったときのドン（boom）より低くて短い、鈍い「どすん」。曲は下げない */
+    function capThud() { log('capThud', {}); if (!ctx) return; const t = ctx.currentTime; tone(t, 64, 33, 0.34, 'sine', 0.8, bus.fx); noiseHit(t, 0.1, 'lowpass', 420, 0.7, 0.34, bus.fx); }
     function boom(hv) { hv = hv || 0; log('thud', { hv }); if (!ctx) return; const t = ctx.currentTime; duck(t); tone(t, 110 - 38 * hv, 42 - 14 * hv, 0.35 + 0.3 * hv, 'sine', 0.95, bus.fx); noiseHit(t, 0.12 + 0.1 * hv, 'lowpass', 1200 - 500 * hv, 0.7, 0.4, bus.fx); if (hv > 0.3) rumble(t, 0.5 + 0.5 * hv, 140, 0.5 * hv); }
     /* はじき飛ばされた人の「わっ」（10/30 本人「減るのがよく見ないと分からない」）：ドンのすぐ後に、短い声を飛ばされた人数に応じて1〜3人分重ねる。
        声は、のこぎり波の声帯に、口の響き（第1・第2・第3の共鳴）を帯域の通過で付けて作る。「w」の口のすぼまり（共鳴が低い）から「a」の開いた口へ0.08秒で移り、
@@ -4888,7 +4932,7 @@ function start(DATA, isAsakusa) {
       if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, oops, bigTaiko, pon, milestone, rise, setDrumOnly, gatePass, handover,
+    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, capThud, oops, bigTaiko, pon, milestone, rise, setDrumOnly, gatePass, handover,
       drumState: () => ({ drum: drumOnly, bgmDrum: bgm && bgm.drumOnly ? bgm.drumOnly() : null, kake: ctx ? +bus.kake.gain.value.toFixed(3) : null, pre: ctx && bus.pre ? +bus.pre.gain.value.toFixed(3) : null, ctx: ctx ? ctx.state : null }), hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
@@ -5058,7 +5102,8 @@ function start(DATA, isAsakusa) {
   function holdStep(dt) {
     if (!S.b || S.intro || S.done || mode !== 'carry') { S.v = 0; return; }
     const sk = S.speedK || 1;   // 重い建物ほど少しゆっくり
-    const target = hoStop() ? 0 : hold.on ? runSpeed() * sk * hold.k * (1 + (HO_BOOST_K - 1) * boostQ()) :hold.back ? -BACK_SPEED * sk * hold.k : 0;
+    /* 11/11 上限のときに建物が浮きかけて落ちたら（capBump）、CB_STALL ミリ秒つっかえる */
+    const target = hoStop() || performance.now() - (S.capStallT || -1e9) < CB_STALL ? 0 : hold.on ? runSpeed() * sk * hold.k * (1 + (HO_BOOST_K - 1) * boostQ()) :hold.back ? -BACK_SPEED * sk * hold.k : 0;
     /* 弾かれた直後（S.bounceT から BOUNCE_MS の間）は、立ち上がりをゆっくりにして、後ろへ戻る動きを見せる */
     const bouncing = performance.now() - (S.bounceT || 0) < BOUNCE_MS;
     /* 11/06 立ち上がりを 0.17→0.13 秒に（押したらすぐ走り出す） */
@@ -5229,11 +5274,12 @@ function start(DATA, isAsakusa) {
       for (let x = Math.round(S.x - R); x <= S.x + R; x += st) for (let y = Math.round(S.y - R); y <= S.y + R; y += st) {
         if (!onRoad(x, y)) continue;
         if (onRoad(x + e, y) && onRoad(x - e, y) && onRoad(x, y + e) && onRoad(x, y - e)) continue; // 道の端だけ
-        const r = hash(x, y);
-        if (r > 0.75) continue;   /* 11/07 見物人を約1.5倍に（0.5→0.75。建物で担ぎ手が増えなくなった分、町の人で増やす） */
-        // 境内の広場では、縁（建物の壁ぎわ）に半分の数だけ並べる。社殿の前のゴールのまわり14mにはいない（お祓いの場所をあける）
+        const r = hash(x, y), L1 = l1Boost();
+        /* 11/07 見物人を約1.5倍に（0.5→0.75。建物で担ぎ手が増えなくなった分、町の人で増やす）。11/11 1区は L1_DENS まで（l1Boost の説明） */
+        if (r > (L1 ? L1_DENS : 0.75)) continue;
+        // 境内の広場では、縁（建物の壁ぎわ）に半分の数だけ並べる。社殿の前のゴールのまわり14mにはいない（お祓いの場所をあける）。11/11 1区は L1_KEI まで
         const ki = idx(x, y), inK = ki >= 0 && keidaiIn[ki] && !roadBase[ki];
-        if (inK && (r > 0.25 || goals.some(g => Math.hypot(x - g.x, y - g.y) < 14))) continue;
+        if (inK && (r > (L1 ? L1_KEI : 0.25) || goals.some(g => Math.hypot(x - g.x, y - g.y) < 14))) continue;
         // 広い交差点の角には並べない：まわり16方向のうち、15m以上道が続く向きが多すぎる所（まっすぐな道の端なら半分くらい）
         let open = 0;
         for (let k = 0; k < 16; k++) if (run(x, y, k * Math.PI / 8, 15) >= 15) open++;
@@ -5248,12 +5294,16 @@ function start(DATA, isAsakusa) {
       for (const p of best.values()) p.j = true;
       /* 境内の広場や広い通りでは、見物人が壁ぎわにしかいないので、道順から離れていて飛び入りに会えず、15秒ほど何も起きない所があった
          （10/31 境内・雷門通りの中ほど・馬道通りの出だし）。道順の点に24mおきに、近く（7m）に待つ人がいなければ、道順の左右交互に4.5mの所へ足す
-         （道からはみ出す所・ゴールのまわり20mは除く） */
-      if (raimonB) for (let i = 0; i < ROUTE.length - 1; i += 6) {
+         （道からはみ出す所・ゴールのまわり20mは除く）。
+         11/11 1区（l1Boost）は、道順の点 L1_FILL 個（4mおき）ごとに、近く（3m）に待つ人がいなければ足す（仲見世の通りの中は前のまま。仲見世の人は一団で加わる） */
+      const L1f = l1Boost(), fst = L1f ? L1_FILL : 6;
+      if (raimonB) for (let i = 0; i < ROUTE.length - 1; i += fst) {
         const q = ROUTE[i], n = ROUTE[i + 1]; if (Math.hypot(q[0] - S.x, q[1] - S.y) > R) continue;
+        if (L1f && i % 6 && nakaZone(q[0], q[1])) continue;
         if (goals.some(g => Math.hypot(q[0] - g.x, q[1] - g.y) < 20)) continue;
-        if (crowdSpots.some(o => o.j && Math.hypot(o.x - q[0], o.y - q[1]) < 7)) continue;
-        const a = Math.atan2(n[1] - q[1], n[0] - q[0]) + (i % 12 ? 1 : -1) * Math.PI / 2, x = q[0] + Math.cos(a) * 4.5, y = q[1] + Math.sin(a) * 4.5;
+        if (crowdSpots.some(o => o.j && Math.hypot(o.x - q[0], o.y - q[1]) < (L1f ? 3 : 7))) continue;
+        /* 左右交互（前の i % 12 と同じ並び。1区は L1_FILL おきに交互） */
+        const a = Math.atan2(n[1] - q[1], n[0] - q[0]) + (Math.floor(i / fst) % 2 ? 1 : -1) * Math.PI / 2, x = q[0] + Math.cos(a) * 4.5, y = q[1] + Math.sin(a) * 4.5;
         if (!onRoad(x, y) || crewBlocked(x, y)) continue;
         const p = { x, y, c: crowdColors[i % crowdColors.length], s: 1, j: true, jh: 0 };
         if (!crowdSpots.some(o => Math.hypot(o.x - x, o.y - y) < 0.8)) crowdSpots.push(p);
@@ -5292,7 +5342,7 @@ function start(DATA, isAsakusa) {
     for (const p of crowdSpots) {
       if (p.j) continue;   /* 飛び入りを待つ人は、跳ねるので別に毎こま描く（joinStep） */
       if (p.gone) continue;   /* 11/07 もう加わった見物人 */
-      if (car && specOk(p) && specNear(p, joinR() + SPEC_REACT)) continue;   /* 11/07 神輿が近い見物人は、手を上げて跳ねるので joinStep で描く */
+      if (car && specSig(p)) continue;   /* 11/07 神輿が近い見物人は、手を上げて跳ねるので joinStep で描く（11/11 上限のあいだは広く。specSig） */
       const dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
       if (Math.abs(u) < L2 && Math.abs(v) < W2) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
@@ -5337,14 +5387,42 @@ function start(DATA, isAsakusa) {
   /* 11/07 本人「一番最初に人が来すぎて勿体無い。最初はあんまり参加しないけど、徐々に人がバンバン増えていくようにしたい」：
      道のりの進み具合（SPEC.p：0＝出発、1＝宮入り。区の数で割って、区の中は道順の進んだ割合）で、
      加わる見物人の割合を SPEC_F0 → SPEC_FRAC へ上げ、1人が連れて来る人数（連れ）を 1 → 1＋SPEC_MUL 人へ増やす（後半ほど一度にどっと来る） */
-  const SPEC_F0 = 0.12, SPEC_MUL = 3.6, SPEC = { p: 0 };   /* 2.2 だと3区の伸びが 456→1,161人で弱かった（fix3/17fix/n21a） */
-  const specFrac = () => SPEC_F0 + (SPEC_FRAC - SPEC_F0) * SPEC.p * SPEC.p * (3 - 2 * SPEC.p);
+  /* 2.2 だと3区の伸びが 456→1,161人で弱かった（fix3/17fix/n21a）。
+     11/11 1区の見物人を増やした（l1Boost）ので、1区の終わりの担ぎ手が約96→約170人になり、道なりでも宮入りの手前で約960〜990人、塔493〜513m と高くなりすぎた（fix3/30fix/p1a・p2a）。
+     本人の言うとおり2・3区の側で合わせ、3.6→3.3 にした（3.0 では道なり445m・寄って629m で、寄ってもスカイツリーに届かなかった。q1a・q1g） */
+  const SPEC_F0 = 0.12, SPEC_MUL = 3.3, SPEC = { p: 0 };
+  /* 11/11 本人が選んだ「仲見世〜境内の見物人を増やす」：初めての人の通しで、1区の34〜82秒は塔40m・担ぎ手52→65人のまま上限に張り付き、退屈だった（fix3/30fix/play_human）。
+     1区（l1Boost）だけ、道ばたの見物人を増やし（L1_DENS・境内は L1_KEI）、加わる割合を L1_FRAC 以上・連れを L1_MUL 倍以上にし、
+     道順のそばに待つ人を L1_FILL 点（8m）おきに足す。初めての人でも担ぎ手が途切れずに少しずつ増え、上限も少しずつ上がって、塔がゆっくり伸び続ける。
+     仲見世の通りの中は前のまま（一団が、その側へ寄ったときだけ加わる） */
+  const L1_DENS = 0.95, L1_KEI = 0.5, L1_FRAC = 0.6, L1_MUL = 1.6, L1_FILL = 2;
+  const l1Boost = () => !!(RUN3 && raimonB && LEG === 0);
+  const specFrac = () => { const f = SPEC_F0 + (SPEC_FRAC - SPEC_F0) * SPEC.p * SPEC.p * (3 - 2 * SPEC.p); return l1Boost() ? Math.max(f, L1_FRAC) : f; };
   const specOk = p => !p.j && !p.gone && p.jh < specFrac() && !(RUN3 && LEG === 0 && nakaZone(p.x, p.y));
   function specNear(p, d) {
     if (!S.dim) return false;
     const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), dx = p.x - S.x, dy = p.y - S.y;
     return Math.abs(dx * c + dy * sn) < S.dim.L / 2 + d && Math.abs(-dx * sn + dy * c) < S.dim.W / 2 + d;
   }
+  /* ---------- 11/11 本人が選んだ (b)「見物人の合図を目立たせる」（字は出さない） ----------
+     塔が上限に張り付いているあいだ（SIG.on）だけ、手を上げて跳ねる見物人（加わる側の人）を、ふだんの範囲（JOIN_R＋SPEC_REACT）より広く、
+     画面に映る道の両脇の手前側（神輿の足元から横へ SIG_LAT m、前へ SIG_FWD m、後ろへ SIG_BACK m）まで出し、高く跳ねさせて（SIG_HOP）、うちわを振らせる（fanMesh）。
+     塔は画面のまん中に立つので、遠い先の人は塔に隠れる。手前の両脇なら見える。上限が外れても SIG_OFF ミリ秒は続ける（人が1人加わるたびに上限が少し上がって、合図がちらつかないように） */
+  const SIG_LAT = 16, SIG_FWD = 14, SIG_BACK = 2, SIG_HOP = 0.75, SIG_OFF = 2500, SIG = { on: false, offT: 0 };
+  function specSig(p) {
+    if (!specOk(p)) return false;
+    if (specNear(p, joinR() + SPEC_REACT)) return true;
+    if (!SIG.on || !S.dim) return false;
+    const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), dx = p.x - S.x, dy = p.y - S.y, u = dx * c + dy * sn, v = -dx * sn + dy * c;
+    return u > -S.dim.L / 2 - SIG_BACK && u < S.dim.L / 2 + SIG_FWD && Math.abs(v) < S.dim.W / 2 + SIG_LAT;
+  }
+  /* うちわ：丸い面（半径 FAN_R m）を、上げた手の先から上に。色は朱・白・藍（黄色・金色は使わない）。左右に振る。
+     実物大（半径0.13m ほど）ではスマホの縦の画面で点にしか見えなかったので（fix3/30fix/31shots/b2）、大きめにした */
+  const FAN_MAX = 300, FAN_C = [0xd23a2c, 0xf2eee4, 0x2f4f8f], FAN_R = 0.42;
+  const fanMesh = (() => { const g = new THREE.CircleGeometry(FAN_R, 14); g.translate(0, FAN_R + 0.05, 0); g.rotateY(Math.PI / 2);
+    const m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), FAN_MAX); m.count = 0; m.frustumCulled = false; scene.add(m);
+    const col = new THREE.Color(); for (let i = 0; i < FAN_MAX; i++) m.setColorAt(i, col.setHex(FAN_C[i % FAN_C.length])); return m; })();
+  const fanV = new THREE.Vector3(), fanQ = new THREE.Quaternion(), fanE = new THREE.Euler(0, 0, 0, 'YXZ'), fanS = new THREE.Vector3(1, 1, 1), fanM = new THREE.Matrix4();
   /* 待つ人の目印：頭の上に掲げた小さな提灯（赤く灯る） */
   /* 10/30 拾う距離を4.5mにしたので、遠くから見つけやすいよう提灯を大きく（半径0.22→0.36m） */
   const jlGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.68, 12); jlGeo.translate(0, 2.4, 0);
@@ -5767,7 +5845,7 @@ function start(DATA, isAsakusa) {
       }
       if (sj) {
         /* 連れ（SPEC.p が進むほど多い）：その人のまわり1.2m から、同じ道ばたにいた人として一緒に走って来る（格好は町の人・着物・海外の方のどれか） */
-        const F = [], mul = 1 + SPEC_MUL * SPEC.p * SPEC.p;
+        const F = [], mul = Math.max(1 + SPEC_MUL * SPEC.p * SPEC.p, l1Boost() ? L1_MUL : 1);
         for (const p of sj) {
           const n = Math.max(1, Math.round(mul * (0.6 + 0.8 * hash(p.x + 1.3, p.y - 2.9))));
           F.push({ x: p.x, y: p.y, P: p.Pc || (p.Pc = crowdP(p)) });
@@ -5809,12 +5887,24 @@ function start(DATA, isAsakusa) {
       if (p.nk) for (let k = 1; k < p.nk.n; k++) { const q = nkMember(p, k); ptPut(nkP(p, k), q.x, q.y, Math.max(0, Math.sin(now * 0.011 + hash(q.y, q.x) * 6.283)) * 0.6, Math.atan2(py - q.y, px - q.x), p.s); }
     }
     /* 11/07 B：神輿が近い見物人（加わる手前 SPEC_REACT m）は、神輿の方を向いて片手を上げ、跳ねて待つ（crowdLayout では描かない） */
+    /* 11/11 上限に張り付いているか（SIG.on）。外れても SIG_OFF ミリ秒は続ける。切り替わったら、立って見ている人を並べ直す（crowdLayout と同じ決め方にそろえる） */
+    /* 合図の範囲が広いあいだは、神輿が進むと範囲に入る人・出る人が多いので、0.4秒ごとに並べ直す（二重に描かれたり、消えたりしないように） */
+    { const on = carrying && capFull(); if (on) SIG.offT = now + SIG_OFF; const sOn = on || (carrying && now < SIG.offT);
+      if (sOn !== SIG.on || (sOn && now - (SIG.layT || 0) > 400)) { SIG.on = sOn; SIG.layT = now; crowdLayout(); } }
+    let nf = 0;
     if (carrying) for (const p of crowdSpots) {
-      if (!specOk(p) || !specNear(p, joinR() + SPEC_REACT)) continue;
+      if (!specSig(p)) continue;
       if (rkCrowdNear.length && rkCovers(p.x, p.y, rkCrowdNear)) continue;
-      const dx = p.x - S.x, dy = p.y - S.y, hop = Math.max(0, Math.sin(now * 0.013 + hash(p.y, p.x) * 6.283)) * 0.45;
-      ptPut(p.Pc || (p.Pc = crowdP(p)), p.x, p.y, hop, Math.atan2(-dy, -dx), p.s, 0, hash(p.x, p.y + 3.1) < 0.5 ? 1 : 2);
+      const dx = p.x - S.x, dy = p.y - S.y, ph = hash(p.y, p.x) * 6.283, hop = Math.max(0, Math.sin(now * 0.013 + ph)) * (SIG.on ? SIG_HOP : 0.45), up = hash(p.x, p.y + 3.1) < 0.5 ? 1 : 2, face = Math.atan2(-dy, -dx);
+      ptPut(p.Pc || (p.Pc = crowdP(p)), p.x, p.y, hop, face, p.s, 0, up);
+      /* うちわ：上げた手（armUpP の手の先。1＝右の腕は絵の中の +z）に持たせ、進む向きの軸のまわりに左右へ振る */
+      if (SIG.on && nf < FAN_MAX) {
+        fanV.set(0, 1.8, (up === 1 ? 0.35 : -0.35)).applyMatrix4(tmpM);
+        fanQ.setFromEuler(fanE.set(Math.sin(now * 0.016 + ph) * 0.7, face, 0, 'YXZ'));
+        fanS.setScalar(p.s || 1); fanM.compose(fanV, fanQ, fanS); fanMesh.setMatrixAt(nf++, fanM);
+      }
     }
+    fanMesh.count = nf; if (nf) fanMesh.instanceMatrix.needsUpdate = true;
     jwLamp.count = w;
     updN(jwLamp.instanceMatrix, w);
     /* 半纏の人：帰り道からは出さない（担ぎ手と一緒に散ったことにする）。選ぶ画面でも出さない */
@@ -9190,7 +9280,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); if (CB.list.size) capBumpStep(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -9478,6 +9568,8 @@ function start(DATA, isAsakusa) {
     hrunShow: i => { HR.i = i; HR.next = 0; hrunDraw(i, stackHeight() + LIFT, false); },
     rise: () => ({ n: RS.log.filter(g => g.n).length, log: RS.log, keep: RS.keep.size, hv: HV.size, crew: RS.crew, hmax: RS.hmax }),
     capH: () => capH(), capFull: () => capFull(), specFrac,
+    /* 11/11 浮きかけて落ちた回数・今動いている数・合図の状態・うちわの数 */
+    capBump: () => ({ n: CB.n, live: CB.list.size, sig: SIG.on, fans: fanMesh.count, stall: Math.round(performance.now() - (S.capStallT || -1e9)), at: [...CB.list.keys()].map(b => [+b.d.cx.toFixed(1), +b.d.cy.toFixed(1), +b.h.toFixed(1)]) }),
     hrun: () => ({ i: HR.i, nm: (LMK[Math.min(Math.max(0, HR.i), LMK.length - 1)] || {}).nm, H: +(stackHeight() + LIFT).toFixed(1), next: !!HR.next, vis: getComputedStyle($('hrun')).display !== 'none' }),
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
 }

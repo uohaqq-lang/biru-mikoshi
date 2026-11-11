@@ -7833,7 +7833,8 @@ function start(DATA, isAsakusa) {
           D.phase = 'hanabi'; D.t0 = now; D.tier = tier;
           /* 花火の間は、上の札（担ぎ手の人数）を消して空をあける。花火のあと、元の場所へ収まるまで、また出す */
           $('done').classList.remove('on');
-          $('skip').style.display = 'block';
+          /* 11/11 本人「最後の花火を飛ばすボタンはいらない」：花火の間も「飛ばす ▶」は出さない（画面に触れる・スペースで飛ばせるのは前のまま） */
+          $('skip').style.display = 'none';
         } else toBack(now);
       }
       return { px: S.x, py: S.y, ori: S.head + S.rot + Math.sin(el / 90) * 0.12 * k, lift: 1, shake: k, bob: Math.abs(Math.sin(el / 120)) * 1.6 * k, roll: Math.sin(el / 150) * 0.12 * k };

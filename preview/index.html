@@ -1979,7 +1979,7 @@ function start(DATA, isAsakusa) {
   const ptrs = new Map();
   let downAt = null, pinch0 = 0, hoverReq = null;
   const panScale = () => mapCam.dist * 2 * Math.tan(camera.fov * Math.PI / 360) / innerHeight;
-  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; if (S.done && S.done.phase === 'hanabi') S.done.skipF = true; };
+  $('skip').onclick = () => { endIntro(); endOpening(); if (S.done && S.done.phase === 'back') S.done.skip = true; };
   window.addEventListener('keydown', e => { if (S.intro) endIntro(); if (opening) endOpening(); }, true);
   window.addEventListener('wheel', () => endOpening(), true);
   view.addEventListener('pointerdown', e => {
@@ -5201,7 +5201,7 @@ function start(DATA, isAsakusa) {
   const firstPush = () => { if (S.intro) return; document.body.classList.remove('calm1', 'calm2'); };
   /* お祓い（拍子木→一本締め）と魂振りは飛ばせない（10/25 本人「お祓いは飛ばすことできなくて良い」）。その間に進む（スペース・↑）を押しても何もしない。
      花火の間に押したら、花火を飛ばして帰り道へ */
-  function startHold() { holdHint(false); if (S.done && (S.done.phase === 'harai' || S.done.phase === 'tamafuri' || S.done.phase === 'result')) return; if (S.done && S.done.phase === 'hanabi') { S.done.skipF = true; return; } if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; camFollow = true; $('hold').classList.add('on'); SND.unlock(); }
+  function startHold() { holdHint(false); if (S.done && (S.done.phase === 'harai' || S.done.phase === 'tamafuri' || S.done.phase === 'result')) return; if (S.done && S.done.phase === 'hanabi') return; if (!S.b || mode !== 'carry') return; firstPush(); hold.on = true; hold.locked = false; camFollow = true; $('hold').classList.add('on'); SND.unlock(); }
   function stopHold() { hold.on = false; $('hold').classList.remove('on'); }
   function startBack() { rotHint(false); if (!S.b || mode !== 'carry') return; firstPush(); hold.back = true; $('back').classList.add('on'); SND.unlock(); }
   function stopBack() { hold.back = false; $('back').classList.remove('on'); }
@@ -7833,13 +7833,13 @@ function start(DATA, isAsakusa) {
           D.phase = 'hanabi'; D.t0 = now; D.tier = tier;
           /* 花火の間は、上の札（担ぎ手の人数）を消して空をあける。花火のあと、元の場所へ収まるまで、また出す */
           $('done').classList.remove('on');
-          /* 11/11 本人「最後の花火を飛ばすボタンはいらない」：花火の間も「飛ばす ▶」は出さない（画面に触れる・スペースで飛ばせるのは前のまま） */
+          /* 11/11 本人「最後の花火を飛ばすボタンはいらない」「花火は飛ばせないようにしたい」：花火の間は「飛ばす ▶」を出さず、スペース・↑・画面に触れても飛ばない（startHold） */
           $('skip').style.display = 'none';
         } else toBack(now);
       }
       return { px: S.x, py: S.y, ori: S.head + S.rot + Math.sin(el / 90) * 0.12 * k, lift: 1, shake: k, bob: Math.abs(Math.sin(el / 120)) * 1.6 * k, roll: Math.sin(el / 150) * 0.12 * k };
     }
-    /* 花火（8〜12秒）。「飛ばす ▶」・スペース・↑（進む）で帰り道へ（D.skipF） */
+    /* 花火（8〜12秒）。11/11 から飛ばせない（D.skipF は立たない）。終わるか、2回目からは6秒で帰り道へ */
     if (D.phase === 'hanabi') {
       /* 2回目からは6秒で切り上げる（飛ばしたときと同じ止め方） */
       const cut = D.fast && now - D.t0 > 6000;

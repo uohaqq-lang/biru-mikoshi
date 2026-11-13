@@ -7072,13 +7072,33 @@ function start(DATA, isAsakusa) {
     }
     // 元の場所（持ち上げた跡）
     if (S.site) { const [x, y] = toPx(S.site.x, S.site.y); mctx.strokeStyle = '#2b2420'; mctx.lineWidth = 3; mctx.strokeRect(x - 7, y - 7, 14, 14); }
+    /* 11/13 本人「目的地が左上に出てない。ゴールだけで」：受け渡しのある区では、いま向かう町（受け渡しの所＝道順の終わり）を
+       点線（道順に沿う）と町の色の旗・町の名前で出す。浅草神社の旗は小さく残し、点線は引かない。最後の区は前と同じく浅草神社へ点線 */
+    const legOn = raimonB && ROUTE && ROUTE.length > 1 && LEG < LEGS.length - 1;
+    if (legOn) {
+      const P = routePos(cx, cy), Cm = routeCum(ROUTE), E = ROUTE[ROUTE.length - 1];
+      mctx.save(); mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 3; mctx.setLineDash([8, 7]);
+      mctx.beginPath(); mctx.moveTo(C, C);
+      for (let i = 0; i < ROUTE.length; i++) if (Cm[i] > P.s) { const [qx, qy] = toPx(ROUTE[i][0], ROUTE[i][1]); mctx.lineTo(qx, qy); }
+      mctx.stroke(); mctx.restore();
+      const [ex, ey] = toEdge(...toPx(E[0], E[1]), 18), nk = LEGS[LEG + 1];
+      const col = '#' + (CHOKAI_C[LEG + 1] || 0x2c4fa0).toString(16).padStart(6, '0');
+      mctx.fillStyle = '#2b2420'; mctx.fillRect(ex - 1, ey - 22, 3, 24);
+      mctx.fillStyle = col; mctx.strokeStyle = '#fff'; mctx.lineWidth = 2;
+      mctx.beginPath(); mctx.moveTo(ex + 2, ey - 22); mctx.lineTo(ex + 22, ey - 15); mctx.lineTo(ex + 2, ey - 8); mctx.closePath(); mctx.stroke(); mctx.fill();
+      mctx.font = 'bold 20px "Hiragino Sans","Noto Sans JP",sans-serif'; mctx.textAlign = 'center'; mctx.textBaseline = 'middle';
+      const lx = Math.min(W - 70, Math.max(70, ex)), ly = Math.min(W - 40, Math.max(40, ey < C ? ey + 18 : ey - 36)), tw = mctx.measureText(nk.name).width + 14;
+      mctx.fillStyle = 'rgba(244,239,230,.92)'; mctx.fillRect(lx - tw / 2, ly - 13, tw, 26);
+      mctx.fillStyle = col; mctx.fillText(nk.name, lx, ly + 1);
+    }
     // ゴールへの方向（点線）とゴールの旗（地図の外なら縁に）
     for (const g of goals) {
       const [gx0, gy0] = toPx(g.x, g.y), [gx, gy] = toEdge(gx0, gy0, 14);
-      mctx.save(); mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 3; mctx.setLineDash([8, 7]);
-      mctx.beginPath(); mctx.moveTo(C, C); mctx.lineTo(gx, gy); mctx.stroke(); mctx.restore();
-      mctx.fillStyle = '#2b2420'; mctx.fillRect(gx - 1, gy - 16, 3, 18);
-      mctx.fillStyle = '#e0b02a'; mctx.beginPath(); mctx.moveTo(gx + 2, gy - 16); mctx.lineTo(gx + 16, gy - 11); mctx.lineTo(gx + 2, gy - 6); mctx.fill();
+      if (!legOn) { mctx.save(); mctx.strokeStyle = '#c8322a'; mctx.lineWidth = 3; mctx.setLineDash([8, 7]);
+        mctx.beginPath(); mctx.moveTo(C, C); mctx.lineTo(gx, gy); mctx.stroke(); mctx.restore(); }
+      const sc = legOn ? 0.7 : 1;
+      mctx.fillStyle = '#2b2420'; mctx.fillRect(gx - 1, gy - 16 * sc, 3, 18 * sc);
+      mctx.fillStyle = '#e0b02a'; mctx.beginPath(); mctx.moveTo(gx + 2, gy - 16 * sc); mctx.lineTo(gx + 2 + 14 * sc, gy - 11 * sc); mctx.lineTo(gx + 2, gy - 6 * sc); mctx.fill();
     }
     // 今いる所（いつも上を向いた三角）
     mctx.fillStyle = '#c8322a'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 3; mctx.beginPath();

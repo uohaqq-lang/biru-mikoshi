@@ -78,6 +78,15 @@
   body:not([data-mode=carry]) #praise { display:none; }
   #praise.bad { color:#6a6a72; text-shadow:0 0 3px #fff, 0 0 8px rgba(255,255,255,.8); }
   #praise.bad.on { animation:praiseDown 1.4s ease-in forwards; }
+  /* 11/13 35fix 町会の波（cwStep）：ふだんの「＋○人」より大きく、駆け寄った人が着くたびに数が増え、着き終わったら跳ねて消える */
+  #cwBig { position:fixed; left:50%; top:24%; z-index:25; font-weight:900; font-size:72px; color:#e0442c; pointer-events:none; opacity:0; white-space:nowrap;
+    text-shadow:0 0 4px #fff8e8, 0 0 12px #fff8e8, 0 3px 6px rgba(0,0,0,.45); transform:translateX(-50%) scale(.6); transition:opacity .25s, transform .25s cubic-bezier(.3,1.6,.5,1); }
+  #cwBig.on { opacity:1; transform:translateX(-50%) scale(1); }
+  #cwBig.tick { transform:translateX(-50%) scale(1.08); transition:transform .06s; }
+  #cwBig.fin { animation:cwFin 1.5s ease-out forwards; }
+  @keyframes cwFin { 0% { opacity:1; transform:translateX(-50%) scale(1); } 14% { transform:translateX(-50%) scale(1.3); } 30% { transform:translateX(-50%) scale(1.05); } 70% { opacity:1; } 100% { opacity:0; transform:translateX(-50%) translateY(-18px) scale(1.05); } }
+  body.sm #cwBig { font-size:52px; }
+  body:not([data-mode=carry]) #cwBig { display:none; }
   @keyframes praiseDown { 0% { opacity:0; transform:translate(-50%, -6px); } 15% { opacity:1; transform:translate(-50%, 0); } 70% { opacity:1; } 100% { opacity:0; transform:translate(-50%, 22px); } }
   /* はじき飛ばされて減った（10/30 本人「よく見ないと分からない」）：神輿の所に赤い「−3」がふわっと浮いて消える。右上の担ぎ手の数は赤くなって揺れる */
   #lose { position:fixed; left:50%; top:45%; z-index:24; font-weight:900; font-size:36px; color:#e0262a; pointer-events:none; opacity:0;
@@ -574,7 +583,7 @@
 <div id="pickHint"></div>
 <div id="goGoal">ゴールの浅草神社に向かおう！</div>
 <div id="sel"><div id="selInfo"></div><button id="carry">この建物を担ぐ</button></div>
-<div id="praise"></div><div id="lose"></div>
+<div id="praise"></div><div id="lose"></div><div id="cwBig"></div>
 <div id="zoom"><button id="zIn" title="寄る（＋）">＋</button><button id="zOut" title="引く（−）">−</button><button id="recenter" title="神輿のところへ戻る">◎</button></div>
 <div id="rot"><button id="rL" title="押している間 左へ向きを変える（Q・←）">⟲ 向き</button><button id="rR" title="押している間 右へ向きを変える（E・→）">向き ⟳</button></div>
 <div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button>
@@ -3280,7 +3289,12 @@ function start(DATA, isAsakusa) {
      人数の差は1.3〜1.4倍しかないので、人数にそのまま比例させる（15m＋1人0.52m）と、道なり472m・寄って600m で高さの差も1.3倍にしかならず、
      「道なりは7割ほど、寄って集めれば超える」に分けられなかった（f2a・f2g）。人数の1.3乗にして、人が多いほど1人あたりで積める高さも少しずつ増えるようにした
      （900人で約470m・1,200人で約670m・1,300人で約740m。1回目の仲見世の50人ほどでは約36mで、前の1回目の塔（約37m）とほぼ同じ） */
-  const CAP_H0 = 25, CAP_K = 0.064, CAP_P = 1.3;
+  /* 11/13 35fix：町会の波（CW_N。1回目100人・2回目130人）で、道なりでも宮入りの手前の担ぎ手が約850→約1,060人、人を集めると約1,400人になり、
+     前の式のままでは道なり598m・集めて945m（重い建物の足し152m を含む）と高くなりすぎた（fix3/30fix/w1a・w1g）。
+     式を 25＋0.116×人数^1.18 にした（50人で36m・150人で67m と、1区は前とほとんど同じ。1,080人で約465m、1,360人で約600m）。
+     重い建物（BIG_DEF）の乗せる高さも下げ、全部担ぐと合わせて約90m（前の大物4棟だけで58〜80m）。
+     0.12 では道なり496m・集めて702m（x1a・x1g）で、道なりが前の目安（440〜490m）より少し高かった */
+  const CAP_H0 = 25, CAP_K = 0.116, CAP_P = 1.18;
   /* 11/11 34fix：最後の境内で加わった人（FIN.n）は数えない（crewEff） */
   const capH = n => CAP_H0 + CAP_K * Math.pow(Math.max(0, n === undefined ? crewEff() : n), CAP_P);
   const towerNow = () => (AT.fly.length ? AT.fly[AT.fly.length - 1].y1 : stackHeight()) + LIFT;
@@ -3307,8 +3321,9 @@ function start(DATA, isAsakusa) {
      仲見世に入った所の担ぎ手は14〜40人で、最初の1棟（first）のあと45秒ほど何もくっつかなかった（fix3/10fix/q1a）。くっつく間は今までどおり NAKA_GAP あける */
   const nakaFree = b => RUN3 && LEG === 0 && S.gateIn && nearNaka(b);
   /* noCap：上限（capFull）を見ない（上限のときに「ふだんならくっつく建物」を探す。capBump） */
-  const attachable = (b, crewN, noCap) => b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
-    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && b.h > tierOf(LEG_HMAX)) && (noCap || b.bigNeed !== undefined || !capFull(crewN)) && (b.bigNeed !== undefined ? crewN >= b.bigNeed : needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length)));
+  /* 11/13 35fix：大物・重い建物（bigNeedOf。その区のものだけ）は、段の高さの上限（LEG_HMAX）と積める高さの上限（capH）を見ず、担げる数だけで決める */
+  const attachable = (b, crewN, noCap) => { const bn = bigNeedOf(b); return b !== S.b && (!flatState.get(b) || HV.has(b)) && selectable(b) && !lmOfBld.has(b)
+    && !(raimonB && Math.hypot(b.d.cx - gate.x, b.d.cy - gate.y) < 16) && !(RUN3 && LEG === 0 && !S.gateIn) && !(raimonB && bn === undefined && b.h > tierOf(LEG_HMAX)) && (noCap || bn !== undefined || !capFull(crewN)) && (bn !== undefined ? crewN >= bn : needOf(b) <= crewN || nakaFree(b) || (raimonB && LEGS[LEG].first && b.id.startsWith(LEGS[LEG].first) && !(S.stack && S.stack.length))); };
   /* 仲見世の店は、くっつく間を NAKA_GAP ミリ秒あける（10/30 「担げる建物が道沿いにまったくない区間ができないように」で仲見世の店もくっつくようにした。
      間をあけないと両側の店が次々にくっついて、仲見世の景色がなくなり、塔も空まで伸びた） */
   /* 11/04 仲見世の棟を1軒ずつに分けて、店を実物大（塔が高くなってからはなめらかに縮めて）乗せるようにしたら、1.8秒おきのままでは1回目に32軒がくっつき、
@@ -3348,7 +3363,7 @@ function start(DATA, isAsakusa) {
   /* 積んだ高さ（地面から。カメラの寄り引きに使う） */
   function stackHeight() { return S.b ? Math.max(S.b.h, stackTop()) : 0; }
   function restoreStack() {
-    hoverClear(); bigReset();
+    hoverClear(); bigReset(); cwReset();
     /* 積んだ建物の形と材質は、建物ごとに作ったものなので捨てる（縁取りの材質は共用なので残す） */
     const drop = m => m && m.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== stackHullMat && !(S.mesh && S.mesh.userData.night && o.material === S.mesh.userData.night.hull) && o.material.isMeshLambertMaterial) o.material.dispose(); });
     for (const s of S.stack || []) { liftOut(s.b, false); drop(s.m); }
@@ -3511,8 +3526,9 @@ function start(DATA, isAsakusa) {
     const cap = stCap(), s0 = Math.min(1, cap / Math.max(b.d.L, b.d.W)), sv0 = Math.max(s0, Math.min(1, s0 * tierOf(LEG_STR), tierOf(LEG_STH) / Math.max(1, b.h))) * tierOf(LEG_HK);
     /* 11/04 分けた仲見世の店（nakaShop）は、塔が低いうちは実物大で乗せ、高くなったらなめらかに縮める（nakaScale）。足元と高さは同じ倍率 */
     /* 11/11 大物（32fix）は、高さを建物の BIG_HK 倍で乗せる（足元は、ほかの建物と同じに縮める） */
-    const isBig = b.bigNeed !== undefined && raimonB;
-    const s = b.nakaShop ? nakaScale(b, y0) : s0, sv = b.nakaShop ? s : isBig ? BIG_HK : sv0, L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
+    /* 11/13 35fix：1区・2区の重い建物も同じ扱い。倍率は建物ごと（b.bigHK） */
+    const isBig = bigNeedOf(b) !== undefined;
+    const s = b.nakaShop ? nakaScale(b, y0) : s0, sv = b.nakaShop ? s : isBig ? (b.bigHK || BIG_HK) : sv0, L = hv ? { g: hv.m, h: hv.h * sv } : stackLook(b, s, false, sv);
     /* 塔の中の置き方：土台の向きにそろえ、少しずつずらして回す（積み木を雑に重ねた感じ） */
     /* 11/04 分けた仲見世の店は、長い方の辺（間口か奥行き）を土台の長い辺にそろえる（実物大の店が、土台の横へ大きくはみ出して前の道をふさがないように） */
     const turn = b.nakaShop ? b.d.W > b.d.L : b.d.L * s > S.dim.L * 1.6;
@@ -3620,7 +3636,8 @@ function start(DATA, isAsakusa) {
   const mscDist = H => Math.max(60, H * MSC_DK);
   function mscBusy(now) {
     if (S.done || S.intro || mode !== 'carry') return true;
-    if (HO.stopT && now < HO.stopT + HO_STOP + 1200) return true;
+    /* 11/13 35fix：町会の波のカメラ（CW_CAM）が済むまでも待つ */
+    if (HO.stopT && now < HO.stopT + HO_STOP + Math.max(1200, CW_CAM + 400)) return true;
     /* 受け渡しの手前（道順の終わりまで12点＝約48m）も待つ（展望台を抜いてすぐ受け渡しで止まり、引きと受け渡しのカメラが重なった。fix3/30fix/u1a） */
     if (LEG < LEGS.length - 1 && ROUTE.length - 1 - RT.i < 12) return true;
     return !!(BIG.list && BIG.list.some(B => B.takenT && now - B.takenT < 2500));
@@ -3751,7 +3768,7 @@ function start(DATA, isAsakusa) {
       for (const b of a) {
         if (seen.has(b)) continue; seen.add(b);
         const [x0, y0, x1, y1] = b.bb; if (S.x + ext < x0 || S.x - ext > x1 || S.y + ext < y0 || S.y - ext > y1) continue;
-        const big = b.bigNeed !== undefined && raimonB, bigShort = big && crewN < b.bigNeed;
+        const bn = bigNeedOf(b), big = bn !== undefined, bigShort = big && crewN < bn;
         if (bigShort ? (flatState.get(b) || CB.list.has(b)) : (!attachable(b, crewN, capped) || (raimonB && now - AT.last < nakaGapNow() && nearNaka(b)))) continue;
         let dm = Infinity;
         for (const [u, v] of S.samples) {
@@ -3919,15 +3936,26 @@ function start(DATA, isAsakusa) {
      その建物の写し（stackLook）が、ぐらっと揺れながら少し（CB_UP m まで）浮きかけ、重そうに元の場所へ落ちて、鈍い「どすん」（SND.capThud）と小さな揺れ。
      （神輿も CB_STALL ミリ秒つっかえていたが、34fix でやめた。CB_STALL と S.capStallT は試験用の時刻合わせにだけ使う）。どこかで起きたら CB_GAP ミリ秒、同じ建物は CB_GAP_B ミリ秒あける（何度も鳴らない）。
      1回の動きは CB_DUR ミリ秒：前半5割で浮きかけ、次の1割2分で落ち、残りで揺れが収まる。町の建物は、その間だけ平らにして写しを見せる（浮かべる写しと同じ） */
-  const CB_DUR = 950, CB_GAP = 2000, CB_GAP_B = 8000, CB_STALL = 300;
+  /* 11/13 35fix 本人「担げない感が欲しい」（塊魂の、巻き込めない物に当たると弾かれる）：間引きが長く（2秒・同じ建物8秒）、触っても何も起きないことが多くて気づきにくかった。
+     触れた瞬間に、鈍い「ゴン」（SND.capGon）と、神輿がほんの少し後ろへ揺れる（S.cbKickT。見た目だけで、進む速さ・位置は変えない。本人「動きにくくなるのは爽快感がなくなる」）。
+     間引きは、どこかで起きたら CB_GAP ミリ秒、同じ建物は「いったん離れて（CB_RETOUCH ミリ秒触れていない）また触れた」なら CB_GAP_B、触れたままなら CB_HOLD ミリ秒あける
+     （触るたびにほぼ毎回分かり、壁ぞいにこすり続けても鳴りっぱなしにならない） */
+  const CB_DUR = 950, CB_GAP = 1000, CB_GAP_B = 1200, CB_HOLD = 3000, CB_RETOUCH = 450, CB_STALL = 300, CB_KICK = 0.32;
   const CB = { t: 0, n: 0, list: new Map() };
   function capBump(b, now) {
-    if (CB.list.has(b) || HV.has(b) || flatState.get(b) || now - CB.t < CB_GAP || now - (b._cbT || 0) < CB_GAP_B) return;
+    const fresh = now - (b._cbSeen || -1e9) > CB_RETOUCH; b._cbSeen = now;
+    if (CB.list.has(b) || HV.has(b) || flatState.get(b) || now - CB.t < CB_GAP || now - (b._cbT || 0) < (fresh ? CB_GAP_B : CB_HOLD)) return;
     const L = stackLook(b, 1, true); L.g.position.copy(V(b.d.cx, b.d.cy, 0)); L.g.rotation.set(0, b.d.a, 0); scene.add(L.g);
     setFlat(b, 1);
-    /* 浮きかける高さ：低い建物で0.8m、高い建物ほど少し高く（1.8m まで） */
-    CB.list.set(b, { m: L.g, t0: now, ph: hash(b.d.cx, b.d.cy) * 6.283, hit: false, up: Math.min(1.8, 0.8 + b.h * 0.03) });
+    /* 浮きかける高さ：低い建物で0.8m、高い建物ほど少し高く（1.8m まで）。
+       11/13 35fix：人が足りない重い建物・大物は、2.9〜4m までぐらっと持ち上がりかける（後ろからのカメラでも分かるように。前の0.8〜1.8m では、低い重い建物はほとんど動いて見えなかった） */
+    const heavy = bigNeedOf(b) !== undefined;
+    CB.list.set(b, { m: L.g, t0: now, ph: hash(b.d.cx, b.d.cy) * 6.283, hit: false, up: heavy ? Math.min(4, 2.6 + b.h * 0.05) : Math.min(1.8, 0.8 + b.h * 0.03), tk: heavy ? Math.min(1.8, 25 / Math.max(1, b.d.L, b.d.W)) : 1 });
+    /* （tk：重い建物の傾きの強さ。足元の広い建物ほど小さく。広い建物を大きく傾けると、端が地面に沈んで見える） */
     CB.t = now; b._cbT = now; CB.n++; S.capStallT = now;
+    /* 当たった瞬間：ゴン、神輿が少し弾かれる、画面も少し揺れる */
+    S.cbKickT = now; S.shake = Math.max(S.shake || 0, 0.25);
+    try { SND.capGon(); } catch (e) { /* 音が出せない環境では鳴らさない */ }
   }
   function capBumpDrop(b, C) {
     scene.remove(C.m);
@@ -3948,7 +3976,7 @@ function start(DATA, isAsakusa) {
         const u = (q - 0.62) / 0.38; tilt = Math.sin(u * 14) * 0.03 * (1 - u);
         if (!C.hit) { C.hit = true; try { SND.capThud(); } catch (e) { /* 音が出せない環境では鳴らさない */ } S.shake = Math.max(S.shake || 0, 0.35); }
       }
-      C.m.position.y = y; C.m.rotation.x = tilt; C.m.rotation.z = tilt * 0.7;
+      C.m.position.y = y; C.m.rotation.x = tilt * (C.tk || 1); C.m.rotation.z = tilt * 0.7 * (C.tk || 1);
     }
   }
   /* ---------- 11/11 本人が選んだ「終盤に大物を置く」（32fix。塊魂の「大きくなると、さっきまで障害物だった物が拾える」） ----------
@@ -3961,23 +3989,53 @@ function start(DATA, isAsakusa) {
      触れると上限のとき（capBump）と同じく、浮きかけて落ちる。担げる数に届いたら、朱の玉を消し、ふつうの担げる建物と同じく浮いて金色の玉が付く（近ければ、いっせいに浮くときと同じに跳ねて「ドン」）。
      大物は上限（capH）に関係なく担げ、乗せた高さ（BIG.add）は上限の勘定に入れない（大物で塔がぐんと伸びたあとも、ふつうの建物は今までどおり拾える）。
      乗せる高さは建物の高さの BIG_HK 倍（1棟で約17〜20m）。0.65 だと4棟とも担いだとき塔が759mになった（fix3/30fix/s2g。目安は650〜750m）。
+     （11/13 35fix：1区・2区にも重い建物を置き、上限の式も変えたので、0.55→0.3（1棟で約10m）。下の BIG_DEF の説明）
      担いだ瞬間は、名所を抜いたときの太鼓の連打・提灯の明かり・歓声と、少しの揺れ */
-  const BIG_DEF = [['a058656a', 540], ['ebbad3d6', 600], ['1fdb96d6', 630], ['6fe4742d', 760]];
-  const BIG_HK = 0.55, BIG_SEE = 380, BIG_RISE_D = 150, BIG = { list: null, add: 0 };
+  /* ---------- 11/13 35fix 本人「町会に行ったとき、めっちゃ増えた感じが欲しい。そこがポイント」 ----------
+     受け渡しで、出発の所の左右に待つ町会の人（CHOKAI_N）に加えて、まわりの通り・脇道から CW_N[区] 人が波のように駆け寄って加わる（cwShow・cwStep。下の handover の説明）。
+     ここで決めるのは人数だけ（大物・重い建物の担げる数を、この人数の分だけ上げるため、先に置く） */
+  const CW_N = [0, 100, 130];
+  /* その区に入るまでに町会の波で加わった人数の合計（2区は CW_N[1]、3区は CW_N[1]＋CW_N[2]） */
+  const cwSum = k => { let s = 0; for (let i = 1; i <= k && i < CW_N.length; i++) s += CW_N[i]; return s; };
+  const CW = { st: null, q: [], arr: [], i: 0, got: 0, base: 0, n: 0, k: 0, txtT: 0, camT: 0, log: [] };
+  /* ---------- 11/13 35fix 本人「担げないのがあったら担げない感が欲しいけど最初しかない。塊魂はどうなの。そこを多少踏襲したい」 ----------
+     塊魂の「巻き込めない物にぶつかると弾かれる」「さっき弾かれた物が、大きくなると巻き込める」を、3区だけだった大物（上の説明）を1区・2区にも広げて入れる。
+     BIG_DEF：[建物の番号, 担げる担ぎ手の数, 区（0〜2）, 乗せる高さの倍率]。どれも実在の PLATEAU の建物（作り足さない。fix3/30fix/heavy_cand.json）。
+     担げる数は、34fix の通しでその点を通ったときの担ぎ手（道なり v1a・v2a・v3a／人を集めた運転 v1g・v2g）の間に置く（道なりでは届かず、人を集めると届く）。
+     2区・3区は、その区までの町会の波（cwSum）の分を足す（34fix の通しには波が無かったので）。区ごとに担げる数が上がる（1区 118・153人、2区 405・458・480人、3区 770〜1,210人）。
+       1区：88ff94d2（お寺の建物 5.4m・道順の点90）、ecf0af31（お寺の建物 16.3m・点117）。道なり 107・140〜145人／集めて 128〜135・159〜168人。
+            （1区の道順のそばで、届く範囲に入る高さ5m以上の建物は、仲見世の店のほかにはこの2棟だけ）
+       2区：4cb84005（ホテル 50.7m・点39）、25340bf1（商業ビル 37.2m・点47）、880814bb（商業ビル 19m・点52）。道なり 273〜287・292〜307・314〜332人／集めて 301〜317・335〜354・346〜368人。
+            （点17のホテル de64dc73 も試したが、町会の波のすぐ後で、道なりでも担げた。fix3/30fix/w1a）
+       3区：前の大物4棟（32fix）と、4a728b57（15.3m・点93。境内の手前。道なり 829〜859人／集めて 1,103〜1,171人）。
+     乗せた高さは大物と同じく上限の勘定に入れない（BIG.add）。1区は低い建物なので倍率は大きめ（5〜10m）、2区・3区は高いので小さめ（1棟 5〜13m）。
+     全部担ぐと合わせて約90m（人を集めた運転の上限 約640m に足して、約700〜730m） */
+  /* 担げる数は、波を入れた通し（w1a 道なり／w1g 集めて）でその点を通った担ぎ手：1区 107・148／151・177人、2区 379・396・418／435・467・478人、
+     3区 654・734・747・853・1,071／828・925・948・1,127・1,397人（どれも道なりより上、集めた運転より下） */
+  /* ecf0af31 は 158人だと、集めた運転でも点117で155人のときがあり担げなかった（x1g）。道なりは5本とも140〜148人なので 153人に。
+     2区の 25340bf1 は 425人・438人でも、道なりで建物の横を通る間に届いて担げた（y2a・z2a。足元が38×25m と長い）ので 458人に（集めた運転は点52で440〜485人）。4cb84005 も 405人に。
+     880814bb は 450人でも道なりで担げた（z1a。建物が長く、横を通る間に人が増える）ので 480人に（人を集めた運転は道の反対側へ寄っていて、この棟には触れていない） */
+  const BIG_DEF = [['88ff94d2', 118, 0, 1], ['ecf0af31', 153, 0, 0.6],
+    ['4cb84005', 305 + cwSum(1), 1, 0.25], ['25340bf1', 358 + cwSum(1), 1, 0.25], ['880814bb', 380 + cwSum(1), 1, 0.3],
+    ['a058656a', 540 + cwSum(2), 2, 0.3], ['ebbad3d6', 600 + cwSum(2), 2, 0.3], ['1fdb96d6', 630 + cwSum(2), 2, 0.3], ['6fe4742d', 760 + cwSum(2), 2, 0.3], ['4a728b57', 980 + cwSum(2), 2, 0.3]];
+  const BIG_HK = 0.3, BIG_SEE = 380, BIG_RISE_D = 150, BIG = { list: null, add: 0 };
+  /* その区の大物・重い建物なら担げる数（ほかの区では、ふつうの建物と同じ扱い） */
+  const bigNeedOf = b => b.bigNeed !== undefined && raimonB && b.bigLeg === LEG ? b.bigNeed : undefined;
   function bigList() {
     if (BIG.list) return BIG.list;
     /* 浅草の町が出る前は覚えずに空を返す（あとで作り直す） */
     if (!RUN3 || !raimonB || !blds.length) return [];
     BIG.list = [];
-    for (const [id, need] of BIG_DEF) { const b = blds.find(q => q.id.slice(5, 13) === id); if (b) { b.bigNeed = need; BIG.list.push({ b, need, ready: false, taken: false, halo: null, bumps: 0 }); } }
+    for (const [id, need, leg, hk] of BIG_DEF) { const b = blds.find(q => q.id.slice(5, 13) === id); if (b) { b.bigNeed = need; b.bigLeg = leg; b.bigHK = hk; BIG.list.push({ b, need, leg, ready: false, taken: false, halo: null, bumps: 0 }); } }
     return BIG.list;
   }
   function bigReset() { BIG.add = 0; for (const B of bigList()) { B.ready = false; B.taken = false; B.bumps = 0; if (B.halo) B.halo.visible = false; } }
   function bigStep(now) {
     const L = bigList(); if (!L.length) return;
-    const crewN = crewEff(), on = !!(S.b && !S.intro && !S.done && mode === 'carry' && LEG === LEGS.length - 1);
+    /* 11/13 35fix：その区の大物・重い建物だけ（前は3区だけ） */
+    const crewN = crewEff(), on = !!(S.b && !S.intro && !S.done && mode === 'carry');
     for (const B of L) {
-      if (B.taken || !on) { if (B.halo) B.halo.visible = false; continue; }
+      if (B.taken || !on || B.leg !== LEG) { if (B.halo) B.halo.visible = false; continue; }
       const b = B.b, d = Math.hypot(b.d.cx - S.x, b.d.cy - S.y), ready = crewN >= B.need;
       /* 担げる数に届いた瞬間：近ければ、いっせいに浮くときと同じに跳ねて「ドン」。遠ければ、近づいたときにふつうの浮き方で浮く */
       if (ready && !B.ready) {
@@ -3988,8 +4046,10 @@ function start(DATA, isAsakusa) {
       const show = !ready && d < BIG_SEE && routeNear(b).k >= RT.i - 2;
       B.halo.visible = show;
       if (show) {
-        const q = Math.min(1, crewN / B.need), hk = (0.035 + 0.03 * q) * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.85 : 1) * (0.85 + 0.15 * Math.sin(now / 1000 * 3 + b.d.cx));
-        B.halo.position.copy(V(b.d.cx, b.d.cy, b.h + 6)); B.halo.scale.set(hk, hk, 1); B.halo.material.opacity = 0.5 + 0.45 * q;
+        /* 11/13 35fix：触れて浮きかけたら（b._cbT）、朱の玉が一度ぱっと大きく明るくなり、建物と一緒に跳ねる（どの建物が担げなかったのか分かるように） */
+        const pb = b._cbT ? Math.exp(-Math.max(0, now - b._cbT) / 280) : 0, CBm = CB.list.get(b);
+        const q = Math.min(1, crewN / B.need), hk = (0.035 + 0.03 * q) * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.85 : 1) * (0.85 + 0.15 * Math.sin(now / 1000 * 3 + b.d.cx)) * (1 + 0.9 * pb);
+        B.halo.position.copy(V(b.d.cx, b.d.cy, b.h + 6 + (CBm ? CBm.m.position.y : 0))); B.halo.scale.set(hk, hk, 1); B.halo.material.opacity = Math.min(1, 0.5 + 0.45 * q + 0.5 * pb);
       }
     }
   }
@@ -4612,6 +4672,8 @@ function start(DATA, isAsakusa) {
     }
     /* 11/11 上限のときに浮きかけた建物が元の場所へ戻る音（capBump）：ぶつかったときのドン（boom）より低くて短い、鈍い「どすん」。曲は下げない */
     function capThud() { log('capThud', {}); if (!ctx) return; const t = ctx.currentTime; tone(t, 64, 33, 0.34, 'sine', 0.8, bus.fx); noiseHit(t, 0.1, 'lowpass', 420, 0.7, 0.34, bus.fx); }
+    /* 11/13 35fix 担げない建物に当たった瞬間の「ゴン」：鈍い金物を打ったような短い音（低めの三角波が少し下がり、上に弱い倍音、頭に短い打撃の雑音）。曲は下げない */
+    function capGon() { log('capGon', {}); if (!ctx) return; const t = ctx.currentTime + 0.005; tone(t, 150, 112, 0.42, 'triangle', 0.6, bus.fx, 0.003); tone(t, 296, 262, 0.22, 'sine', 0.16, bus.fx, 0.003); noiseHit(t, 0.05, 'bandpass', 640, 1.4, 0.3, bus.fx); }
     function boom(hv) { hv = hv || 0; log('thud', { hv }); if (!ctx) return; const t = ctx.currentTime; duck(t); tone(t, 110 - 38 * hv, 42 - 14 * hv, 0.35 + 0.3 * hv, 'sine', 0.95, bus.fx); noiseHit(t, 0.12 + 0.1 * hv, 'lowpass', 1200 - 500 * hv, 0.7, 0.4, bus.fx); if (hv > 0.3) rumble(t, 0.5 + 0.5 * hv, 140, 0.5 * hv); }
     /* はじき飛ばされた人の「わっ」（10/30 本人「減るのがよく見ないと分からない」）：ドンのすぐ後に、短い声を飛ばされた人数に応じて1〜3人分重ねる。
        声は、のこぎり波の声帯に、口の響き（第1・第2・第3の共鳴）を帯域の通過で付けて作る。「w」の口のすぼまり（共鳴が低い）から「a」の開いた口へ0.08秒で移り、
@@ -5054,7 +5116,7 @@ function start(DATA, isAsakusa) {
       if (q.crk) fwCrk(q.burst + 0.28 + Math.random() * 0.12, q.crk, q.pan, q.len || 1);
     }
     /* _test：自動の確かめ用（音の出口に録音をつなぐため） */
-    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, capThud, oops, bigTaiko, pon, milestone, rise, setDrumOnly, gatePass, handover,
+    return { unlock, setMute, isMuted: () => muted, setScene, setHaraiFast, scene: () => scene, setIntensity, beat, carry, setCrowd, crowdLog, setJoin, cheer, boom, capThud, capGon, oops, bigTaiko, pon, milestone, rise, setDrumOnly, gatePass, handover,
       drumState: () => ({ drum: drumOnly, bgmDrum: bgm && bgm.drumOnly ? bgm.drumOnly() : null, kake: ctx ? +bus.kake.gain.value.toFixed(3) : null, pre: ctx && bus.pre ? +bus.pre.gain.value.toFixed(3) : null, ctx: ctx ? ctx.state : null }), hyoshigi: () => ctx && hyoshigi(ctx.currentTime, 1), fwPlay, fwOne, fwClose, fwClock, fwGrid,
       _test: () => { if (ctx && !miyaTap) miyaTap = ctx.createGain(); return { ctx, master, out: outNode, bus, bgm, bgmBus, kbufs, mbufs, miyaTap, fw: FW, oopsVoice, CB, haraiPlan, cerPrepare }; } };
   })();
@@ -5559,7 +5621,7 @@ function start(DATA, isAsakusa) {
     if (!raimonB || !RUN3 || CAPM.done || !S.b || S.intro || S.done) return;
     if (!CAPM.pend && capFull()) CAPM.pend = true;
     if (!CAPM.pend) return;
-    const busy = (HO.stopT && now < HO.stopT + HO_STOP + 1900) || (HO.callT && now - HO.callT < HO_CALL) || MSC.cam || (BIG.list && BIG.list.some(B => B.takenT && now - B.takenT < 2500)) || TIER.msg;
+    const busy = (HO.stopT && now < HO.stopT + HO_STOP + CW_CAM + 600) || (HO.callT && now - HO.callT < HO_CALL) || MSC.cam || (BIG.list && BIG.list.some(B => B.takenT && now - B.takenT < 2500)) || TIER.msg;
     if (busy) return;
     CAPM.done = true; CAPM.pend = false;
     $('legCall').textContent = CAP_MSG; $('legCall').classList.add('on'); HO.callT = now - (HO_CALL - TIER_MSG);
@@ -5681,6 +5743,8 @@ function start(DATA, isAsakusa) {
     const now = performance.now(), sp = S.spd || 0; if (sp < HIT_SPD || now - (JN.lostAt || 0) < 1500) return;
     /* 担ぎ始めの1.5秒と、建物がくっついてから2秒は減らさない（＋の直後に−が出ないように） */
     if (now - (S.introEnd || 0) < 1500 || now - (AT.last || 0) < 2000) return;
+    /* 11/13 35fix：町会の波が駆け寄っている間も減らさない（まだ数に入っていない人を飛ばして、数が合わなくなるのと、増えた直後に−が出るのを避ける） */
+    if (CW.st && CW.i < CW.arr.length) return;
     JN.lostAt = now;
     /* 10/31 一度に減るのは20人まで（1,600人いるときに「−485」と出た） */
     const f = 0.06 + 0.24 * Math.min(1, (sp - HIT_SPD) / 3), kWant = Math.min(JN.n, 20, Math.max(1, Math.round(JN.n * f)));
@@ -5717,7 +5781,8 @@ function start(DATA, isAsakusa) {
   }
   /* 加わる：k 人。from(i) は走り出す所と格好（{ x, y, P }）。力士は5人分に数える */
   /* back：はじき飛ばされた人が戻ってきた（ほめる字・太鼓・歓声は出さない。遠くからは走るぶん時間をかける） */
-  function joinAdd(k, from, now, gap, back, label) {
+  /* vis：見える人の数の上限（ふだんは JOIN_MAX。11/13 35fix 町会の受け渡しだけ JOIN_VIS） */
+  function joinAdd(k, from, now, gap, back, label, vis) {
     const F = Array.from({ length: k }, (_, i) => from(i)), pow = F.reduce((a, f) => a + powOf(f.P), 0), sumo = F.some(f => f.P && f.P.t === 'sumo');
     /* ほめる（案5）：「＋○人」を跳ねさせ、10人の節目を越えたら大太鼓も。
        力士だけは「力士！＋5人力」と字で出す（10/30 本人「誰が何人はいらない」→「力士は書いてもいい。結構特別だし、それが報酬だから」） */
@@ -5729,11 +5794,12 @@ function start(DATA, isAsakusa) {
     if (!back && !named) { JN.acc = now - JN.accT < 800 ? JN.acc + pow : pow; JN.accT = now; }
     /* 名前つきの一団が0.5秒以内に続いて来たら（隣り合った人力車が1こまずれて来る）、足し上げて1つの字に（JN.lab） */
     if (label) { JN.labN = JN.lab === label && now - JN.labT < 500 ? JN.labN + pow : pow; JN.lab = label; JN.labT = now; }
-    if (!back && (named || now >= JN.hold)) praise(label ? `${label}＋${fmt(JN.labN)}人` : sumo && k === 1 ? `力士！＋${fmt(pow)}人力` : `＋${fmt(JN.acc)}人`);
+    /* 11/13 35fix：町会の波の大きな「＋○人」（#cwBig）が出ている間は、ふだんの字を重ねない */
+    if (!back && (named || now >= JN.hold) && !cwBusy(now)) praise(label ? `${label}＋${fmt(JN.labN)}人` : sumo && k === 1 ? `力士！＋${fmt(pow)}人力` : `＋${fmt(JN.acc)}人`);
     if (!back && named) { JN.hold = now + 1200; JN.acc = 0; JN.accT = 0; }
     if (!back && (sumo || Math.floor((before + pow) / 10) > Math.floor(before / 10)) && !S.done) SND.bigTaiko();
     JN.n += pow;
-    for (let i = 0; i < k && JN.list.length < JOIN_MAX; i++) {
+    for (let i = 0; i < k && JN.list.length < (vis || JOIN_MAX); i++) {
       /* 11/07 名前つきで遠くから来る一団（車夫の一団）は、秒速8mで走って来る（前の1.1秒のままだと40mを一瞬で飛んで見える） */
       const f = F[i], dd = Math.hypot(f.x - S.x, f.y - S.y), dur = back ? Math.max(900, Math.min(2800, dd / 7 * 1000)) : label ? Math.max(1100, Math.min(5500, dd / 8 * 1000)) : undefined;
       JN.list.push({ sx: f.x, sy: f.y, t0: now + i * gap, dur, P: f.P || personOf(hash(f.x, i), hash(i, f.y)) });
@@ -6130,6 +6196,11 @@ function start(DATA, isAsakusa) {
       }
       for (const p of CH.poles) p.g.position.y = Math.max(0, Math.sin(now * 0.006 + p.ph)) * 0.6;
     }
+    /* 11/13 35fix まわりの通り・脇道で待つ町会の人（CH.far）：受け渡しの所のほうを向いて、手を上げて跳ねる */
+    if (CH.far && CH.far.length) {
+      const E = ROUTE[ROUTE.length - 1];
+      for (const q of CH.far) putP(q.P, q.x, q.y, Math.abs(Math.sin(now * 0.011 + q.ph)) * 0.55, Math.atan2(E[1] - q.y, E[0] - q.x), false, 0, q.ph < 3.14 ? 1 : 2);
+    }
     jnBody.count = n; jnLamp.count = nl;
     updN(jnBody.instanceMatrix, n); updN(jnLamp.instanceMatrix, nl);
     ptDone();
@@ -6164,7 +6235,8 @@ function start(DATA, isAsakusa) {
     JP.slots = cand;
     /* 3. 外を囲む人：棒の列の外側の長方形の輪（0.55mおき）。神輿のほうを向き、腕を上げる */
     const A0 = U + 0.5, B0 = W2 + 0.6 + JP_DV * (JP_ROWS - 1) + 0.8;
-    for (let k = 0; JP.slots.length < JOIN_MAX; k++) {
+    /* 11/13 35fix：町会の受け渡しでは JOIN_VIS 人まで見せるので、立つ所もそこまで作る */
+    for (let k = 0; JP.slots.length < JOIN_VIS; k++) {
       const a = A0 + k * 0.55, b = B0 + k * 0.55, per = 4 * (a + b), m = Math.floor(per / 0.55), ring = [];
       for (let i = 0; i < m; i++) {
         let t = i / m * per, u, v;
@@ -7522,11 +7594,11 @@ function start(DATA, isAsakusa) {
          動かせるようになったら、今までどおり上の札（回数の丸＋あと○m）。進む前の−は出ない（joinLose は担ぎ始めの1.5秒は減らさない）。
      町会の人の服の色は回ごとに替える（2回目は藍、3回目は緑）。人数は、2回目32人、3回目40人（見て「大勢待っている」と分かるくらい） */
   const LEG_CALL = 1800, LEG_MOVE = 3000, CHOKAI_N = [0, 32, 40], CHOKAI_C = [0, 0x2c4fa0, 0x2a8a52];
-  const CH = { spots: [], poles: [], ribbon: null, fadeT: 0 };
+  const CH = { spots: [], poles: [], ribbon: null, fadeT: 0, far: [] };
   function legStartOf(k) { const L = LEGS[k], R = L.route; if (L.st) return Object.assign({}, L.st); return { x: R[0][0], y: R[0][1], h: Math.atan2(R[2][1] - R[0][1], R[2][0] - R[0][0]) }; }
   const chokaiPoleMat = new THREE.MeshBasicMaterial({ color: 0xffa040 });
   function chokaiClear() {
-    CH.spots.length = 0;
+    CH.spots.length = 0; CH.far = [];
     for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
     CH.poles.length = 0;
     if (CH.ribbon) { scene.remove(CH.ribbon); CH.ribbon.geometry.dispose(); CH.ribbon.material.dispose(); CH.ribbon = null; }
@@ -7554,6 +7626,70 @@ function start(DATA, isAsakusa) {
       g.position.copy(V(x, y, 0)); scene.add(g); CH.poles.push({ g, ph: hash(x, u) * 6.283 });
     }
   }
+  /* ---------- 11/13 35fix 町会の波（本人「町会に行ったとき、めっちゃ増えた感じ」「そこがポイント」） ----------
+     受け渡しの所（HO_SHOW m 手前から）のまわりの通り・脇道（受け渡しの所から CW_R0〜CW_R1 m の歩ける所。神輿の通り道の前後 CW_LANE m は空ける）に、
+     そろいの色の町会の人を CW_N[区] 人待たせる（手を上げて跳ねる。CH.far）。
+     受け渡しで止まり（handover）、一本締めの終わりごろ（止まってから CW_GO ミリ秒）から、遠い人から順に走り出して神輿へ駆け寄り、
+     動けるようになる瞬間（HO_STOP）から CW_SPAN ミリ秒の間に次々と輪に着いて数に入る（cwStep。着いた人だけ数える）。
+     最初の人が着いたら、名所を抜いたときの太鼓の連打と歓声（SND.milestone）・提灯の明かり（MS）、画面の上に大きく「＋○人」（#cwBig。左右で待っていた町会の人を含む数。着くたびに増える）。
+     カメラは、受け渡しの斜め前（HOC）から戻るときに、神輿の後ろの高い所へ CW_CAM ミリ秒だけ引き、担ぎ手の輪が一気に広がるのを見せる（受け渡しのカメラ HOC の距離は変えない）。
+     見える人の数は、ふだんの JOIN_MAX（400人）を超えても JOIN_VIS 人まで描く（2回目の受け渡しでは、見える担ぎ手がもう400人に届いていて、駆け寄る人が見えなかった） */
+  /* 走り出しは一本締めの最後の1打の少し前（HO_RISE−0.4秒。遠い人ほど早く走り出す）。いちばん遠い人でも秒速8m ほどで着く */
+  const CW_R0 = 11, CW_R1 = 30, CW_LANE = 4.5, CW_GO = HO_RISE - 400, CW_SPAN = 1900, CW_SPD = 8, CW_CAM = 3600, CW_CAM_IN = 700, CW_CAM_OUT = 900, CW_SIDE = 0.75, CW_TXT = 1500, JOIN_VIS = 760;
+  function cwShow(k, st) {
+    CH.far = [];
+    const want = CW_N[k] || 0; if (!want) return;
+    const col = CHOKAI_C[k] || 0x2c4fa0, A = ROUTE.slice(-16), B = LEGS[k].route.slice(0, 12);
+    const laneD = (x, y) => { let d = Infinity; for (const R of [A, B]) for (let i = 0; i < R.length - 1; i++) { const [x1, y1] = R[i], [x2, y2] = R[i + 1], dx = x2 - x1, dy = y2 - y1, t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy || 1))); d = Math.min(d, Math.hypot(x - x1 - dx * t, y - y1 - dy * t)); } return d; };
+    /* 決まった乱数で、受け渡しの所のまわりの歩ける所を選ぶ（見つからなければ範囲を広げる） */
+    for (let pass = 0; pass < 3 && CH.far.length < want; pass++) {
+      const r1 = CW_R1 + pass * 12, lane = pass < 2 ? CW_LANE : 2.5;
+      for (let i = 0; i < want * 40 && CH.far.length < want; i++) {
+        const a = hash(i * 1.37 + pass, k * 3.1) * 6.283, r = CW_R0 + (r1 - CW_R0) * Math.sqrt(hash(k * 7.7 + pass, i * 0.91)), x = st.x + Math.cos(a) * r, y = st.y + Math.sin(a) * r;
+        if (!onRoad(x, y) || crewBlocked(x, y) || laneD(x, y) < lane) continue;
+        if (CH.far.some(q => Math.abs(q.x - x) < 0.6 && Math.abs(q.y - y) < 0.6)) continue;
+        CH.far.push({ x, y, ph: hash(x, y) * 6.283, d: r, P: { t: 'local', c: col, v: hash(y, x) } });
+      }
+    }
+  }
+  /* 受け渡し（handover）：待っていた人の走り出す時刻と着く時刻を決める。sideN は左右で待っていた町会の人（先に加わる）の数 */
+  function cwStart(k, now, sideN) {
+    const want = CW_N[k] || 0, far = (CH.far || []).slice().sort((p, q) => p.d - q.d); CH.far = [];
+    CW.st = { t: now, k }; CW.arr = []; CW.i = 0; CW.got = 0; CW.base = sideN; CW.n = want; CW.k = k; CW.txtT = 0; CW.camT = now + HO_STOP;
+    const go0 = now + CW_GO, a0 = now + HO_STOP;
+    for (let i = 0; i < want; i++) {
+      const arr = a0 + CW_SPAN * Math.pow(i / Math.max(1, want - 1), 0.85);
+      CW.arr.push(arr);
+      const p = far[i]; if (!p) continue;
+      /* 走る時間：距離を秒速 CW_SPD m で。走り出すのは CW_GO より前にはしない（そのぶん速く走る） */
+      const dur0 = Math.max(900, Math.min(3200, Math.hypot(p.x - S.x, p.y - S.y) / CW_SPD * 1000)), go = Math.max(go0, arr - dur0);
+      if (JN.list.length < JOIN_VIS) JN.list.push({ sx: p.x, sy: p.y, t0: go, dur: Math.max(500, arr - go), P: p.P });
+    }
+    JN.maskKey = '';
+    CW.log.push({ k, side: sideN, wave: want, shown: far.length, t: Math.round(now) });
+  }
+  function cwStep(now) {
+    const el = $('cwBig');
+    if (!CW.st) return;
+    if (S.done || mode !== 'carry') { CW.st = null; CW.camT = 0; el.classList.remove('on', 'tick', 'fin'); return; }
+    let got = 0;
+    while (CW.i < CW.arr.length && CW.arr[CW.i] <= now) { CW.i++; got++; }
+    if (got) {
+      /* 最初の人が着いた：太鼓の連打・歓声・提灯の明かり・大きな字 */
+      if (!CW.got) { SND.milestone(4); MS.t0 = now; MS.k = 1.2; el.classList.remove('fin'); el.classList.add('on'); }
+      CW.got += got; JN.n += got;
+      SND.setJoin(JN.n); SND.setIntensity(joinInten()); S.infoSig = null; showInfo();
+      el.textContent = `＋${fmt(CW.base + CW.got)}人`;
+      el.classList.add('tick'); clearTimeout(el._tk); el._tk = setTimeout(() => el.classList.remove('tick'), 70);
+      if (CW.i >= CW.arr.length) { CW.txtT = now; setTimeout(() => SND.cheer(), 150); }
+    }
+    /* 着き終わったら、字が跳ねて消える */
+    if (CW.txtT && now - CW.txtT > 350 && !el.classList.contains('fin')) { el.classList.remove('on', 'tick'); el.classList.add('fin'); }
+    if (CW.txtT && now - CW.txtT > 350 + CW_TXT) { el.classList.remove('fin'); CW.st = null; }
+  }
+  /* ふだんの「＋○人」を出さない間（大きな字が出ている間） */
+  const cwBusy = now => !!(CW.st && now >= CW.st.t + HO_STOP - 200);
+  function cwReset() { CW.st = null; CW.camT = 0; CW.arr = []; CW.log = []; CH.far = []; const el = $('cwBig'); if (el) el.classList.remove('on', 'tick', 'fin'); }
   /* 浅草神社から離れていく線（地面の上の金色の帯。幅3m。早送りで進んだ所まで描く） */
   function chokaiRibbon(path) {
     const pos = [];
@@ -7588,7 +7724,10 @@ function start(DATA, isAsakusa) {
     if (HO.shown !== LEG && rem < HO_SHOW) {
       HO.shown = LEG;
       const N = LEGS[LEG + 1].route;
-      chokaiShow(LEG + 1, { x: E[0], y: E[1], h: Math.atan2(N[2][1] - N[0][1], N[2][0] - N[0][0]) });
+      const st = { x: E[0], y: E[1], h: Math.atan2(N[2][1] - N[0][1], N[2][0] - N[0][0]) };
+      chokaiShow(LEG + 1, st);
+      /* 11/13 35fix：まわりの通り・脇道にも町会の人を待たせる（cwShow） */
+      cwShow(LEG + 1, st);
     }
     hoMeet(now);
     /* 11/08 受け渡しの点から5m以内（前の条件）は外した：町会の人は次の区の向きに3.5〜7m離れて立つので、まだ離れているのに始まった */
@@ -7668,7 +7807,8 @@ function start(DATA, isAsakusa) {
   function tierRaise(crewN, now) {
     let v = TIER.v;
     while (v < CREW_T.length && crewN >= CREW_T[v]) v++;
-    if (v > TIER.v) { TIER.v = v; TIER.msg = TIER_TXT[v] || ''; const calm = HO.stopT && now - HO.stopT < HO_STOP + 1900 ? HO.stopT + HO_STOP + 1900 : 0; TIER.msgT = Math.max(now + 300, calm); }
+    /* 11/13 35fix：受け渡しのあとは、町会の波のカメラと大きな「＋○人」が済んでから（CW_CAM＋0.6秒） */
+    if (v > TIER.v) { TIER.v = v; TIER.msg = TIER_TXT[v] || ''; const cw = HO_STOP + CW_CAM + 600, calm = HO.stopT && now - HO.stopT < cw ? HO.stopT + cw : 0; TIER.msgT = Math.max(now + 300, calm); }
   }
   function tierStep(now) {
     if (!raimonB || !S.b || S.intro || S.done) return;
@@ -7739,14 +7879,17 @@ function start(DATA, isAsakusa) {
     const sp = CH.spots.slice(); CH.spots.length = 0;
     /* 11/09 町会の人は駆け寄って少しずつ数に入る（6秒ほど）。担ぎ手の段（TIER）は、加わると決まったここで数えて上げる（いっせいに浮くのを一本締めの最後の1打に合わせる） */
     const crew0 = team + JN.n;
-    if (sp.length) joinAdd(sp.length, i => ({ x: sp[i].x, y: sp[i].y, P: sp[i].P }), now, 35);
+    /* 11/13 35fix：見える人の数は JOIN_VIS まで（2回目では、見える担ぎ手がもう JOIN_MAX に届いていて、町会の人が駆け寄っても見えなかった） */
+    if (sp.length) joinAdd(sp.length, i => ({ x: sp[i].x, y: sp[i].y, P: sp[i].P }), now, 35, false, undefined, JOIN_VIS);
+    /* 11/13 35fix：まわりの通りで待っていた町会の人が、一本締めのあと波のように駆け寄る（cwStart・cwStep） */
+    cwStart(k, now, sp.length);
     for (const p of CH.poles) { scene.remove(p.g); p.g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); }); }
     CH.poles.length = 0;
     SND.handover();
     /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
     $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
     HO.sashiT = now + HO_RISE; HO.cfDone = false; setTimeout(() => { if (!S.done) SND.cheer(); }, HO_RISE);
-    matoiShow(now); tierRaise(crew0 + sp.length, now);
+    matoiShow(now); tierRaise(crew0 + sp.length + (CW_N[k] || 0), now);
     S.infoSig = null; navPop();
   }
   function legNext() {
@@ -9396,10 +9539,13 @@ function start(DATA, isAsakusa) {
       if (DS && DS.bob !== undefined) { bob = DS.bob * big; roll = DS.roll * big; }
       /* 3分版：建物が乗った瞬間（S.sinkT）は、神輿全体（担ぎ手・担ぎ棒ごと）が一度沈んで跳ね返る。
          担げない建物に弾かれたとき（S.recoilT）は、前を持ち上げるように縦に何度かあおられ、横にもがたつく（くっつくときと見分けがつくように） */
-      let pitch = 0, saH = 0;
+      let pitch = 0, saH = 0, kbx = 0, kby = 0;
       { const nowS = performance.now(), ts = nowS - (S.sinkT || -1e9), tr = nowS - (S.recoilT || -1e9);
         if (ts < 900) bob += -0.55 * Math.exp(-ts / 170) * Math.cos(ts / 1000 * Math.PI * 2 * 2.6);
         if (tr < 900) { const k = Math.exp(-tr / 210); pitch = 0.15 * k * Math.sin(tr / 1000 * Math.PI * 2 * 3.4); roll += 0.07 * k * Math.sin(tr / 1000 * Math.PI * 2 * 5.1); }
+        /* 11/13 35fix 担げない建物に当たった（S.cbKickT）：絵だけ、0.09秒で CB_KICK m 後ろへ弾かれて戻り、前が少しあおられる（進む速さ・位置は変えない） */
+        const tk = nowS - (S.cbKickT || -1e9);
+        if (tk >= 0 && tk < 650 && !S.done) { const k = tk < 90 ? tk / 90 : Math.exp(-(tk - 90) / 130); kbx = -Math.cos(ori) * CB_KICK * k; kby = -Math.sin(ori) * CB_KICK * k; pitch += 0.07 * k * Math.sin(tk / 1000 * Math.PI * 2 * 4.2 + 0.6); roll += 0.03 * k * Math.sin(tk / 1000 * Math.PI * 2 * 5.3); }
         /* 11/08 受け渡しの差し上げ（sashiNow） */
         const sa = sashiNow(nowS); if (sa) { bob += sa.h; roll += sa.r; pitch += sa.p; saH = sa.h; } }
       if (!S.intro && !S.done) {
@@ -9407,10 +9553,10 @@ function start(DATA, isAsakusa) {
         if (SND.scene() === 'stuck' && S.spd > 2 && performance.now() - (S.stuckT || 0) > 800) SND.setScene('carry');
         SND.carry(S.phase, S.spd, S.weight ? S.weight.ton : 100, hz);
       }
-      S.mesh.position.copy(V(px + jx, py + jy, (LIFT + bob) * lift));
+      S.mesh.position.copy(V(px + jx + kbx, py + jy + kby, (LIFT + bob) * lift));
       S.mesh.rotation.set((Math.random() - 0.5) * sh * 0.06 + roll, ori, pitch, 'YXZ');
       /* 差し上げの間、担ぎ手は少し跳び上がるだけ（神輿だけを高く上げる。saH） */
-      if (S.crew) { S.crew.position.copy(V(px + jx, py + jy, (bob - saH) * 0.6 + saH * 0.3)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
+      if (S.crew) { S.crew.position.copy(V(px + jx + kbx, py + jy + kby, (bob - saH) * 0.6 + saH * 0.3)); S.crew.rotation.set(0, ori, 0); const sp = 1 + (1 - gather) * 1.8; S.crew.scale.set(sp, 1, sp); S.crew.visible = gather > 0.02; }
       if (S.shadow) { S.shadow.position.x = px; S.shadow.position.z = -py; S.shadow.rotation.z = ori; }
       /* 見えている位置・向き・倍率と担ぎ手の広がり（人力車が次のこまで逃げる判定に使う） */
       if (!S.vis) S.vis = {};
@@ -9420,7 +9566,7 @@ function start(DATA, isAsakusa) {
       if (S.crew && (S.crew.visible || S.intro)) fitCrew(px, py, ori, 1 + (1 - gather) * 1.8);
       joinStep(performance.now(), px, py, ori, bob - saH * 0.7);
       /* 3分版：くっつく建物を見回し、飛んでいる建物を塔の上へ運び、積んだ塔を揺らす */
-      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); if (CB.list.size) capBumpStep(nowA); bigStep(nowA); if (RUN3) mscStep(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); tierStep(nowA); capMsgStep(nowA); }
+      { const nowA = performance.now(); hoverScan(nowA); hoverStep(nowA, dt); attachScan(nowA); if (AT.fly.length) flyStep(nowA); stackSway(nowA); stackFade(nowA, dt); stackWarm(nowA); if (CB.list.size) capBumpStep(nowA); bigStep(nowA); if (RUN3) mscStep(nowA); chokaiRibbonStep(nowA); hrunFrame(nowA); confettiStep(nowA, dt); matoiStep(nowA); cwStep(nowA); tierStep(nowA); capMsgStep(nowA); }
     }
     /* 題字の画面の間は、題字の画面のカメラ（titleFrame）。触ったあとは、そのこまのうちに片付いて次のこまから降りてくる画面 */
     if (TS) titleFrame(dt);
@@ -9628,6 +9774,19 @@ function start(DATA, isAsakusa) {
           back.lerp(HO.cam.pos, w); look.lerp(HO.cam.look, w);
         }
       }
+      /* 11/13 35fix 町会の波（cwStart）：受け渡しの斜め前のカメラ（HOC）から戻るとき（止まってから HO_STOP）に、神輿の真後ろの高い所へ CW_CAM ミリ秒だけ引いて、
+         担ぎ手の輪が一気に広がるのを見せる。距離は、神輿のまわり13m が横の画角に入る所（スマホの縦は遠く、PC は近く。32〜80m）、高さは距離の 0.8 倍、足もとを見る */
+      if (CW.camT && !S.done && mode === 'carry' && raimonB) {
+        const e = performance.now() - CW.camT, sm = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+        if (e > CW_CAM) CW.camT = 0;
+        else if (e > 0) {
+          const w = e < CW_CAM_IN ? sm(e / CW_CAM_IN) : e < CW_CAM - CW_CAM_OUT ? 1 : 1 - sm((e - (CW_CAM - CW_CAM_OUT)) / CW_CAM_OUT);
+          /* 真後ろからだと塔の陰に輪の前半分が隠れた（fix3/30fix/35shots 1回目）。受け渡しの斜め前のカメラ（HOC）がいた側へ CW_SIDE rad 回り込んだ斜め後ろから見下ろす */
+          const f = S.camHead !== undefined ? S.camHead : S.head + S.rot, hc = HO.cam && HO.cam.pos, sd = hc && Math.sin(Math.atan2(-hc.z - S.y, hc.x - S.x) - f) < 0 ? -1 : 1;
+          const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), d = Math.max(32, Math.min(80, 13 / Math.tan(hh))), a = f + Math.PI - sd * CW_SIDE;
+          back.lerp(V(S.x + Math.cos(a) * d, S.y + Math.sin(a) * d, d * 0.8), w); look.lerp(V(S.x, S.y, 2), w);
+        }
+      }
       /* 11/11 33fix 節目でカメラが引く（mscStep が決めた向き MSC.cam.a へ、塔の高さに合わせて引く。神輿が進んでもついていく） */
       if (MSC.cam && !S.done && mode === 'carry' && raimonB) {
         const e = performance.now() - MSC.cam.t0, sm = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
@@ -9723,7 +9882,9 @@ function start(DATA, isAsakusa) {
     /* 11/11 33fix：節目の記録（t：ページの時刻、i：LMK の番号、pull：引いたか、wait：待ったミリ秒）と、今引いているか */
     msc: () => ({ log: MSC.log.map(q => Object.assign({}, q, { t: +(q.t / 1000).toFixed(1) })), on: !!MSC.cam }),
     /* 11/11 大物（32fix）：建物の番号・担げる数・担げる数に届いたか・担いだか・浮きかけて落ちた回数、乗せた高さの合計 */
-    bigs: () => ({ add: +BIG.add.toFixed(1), list: bigList().map(B => ({ id: B.b.id.slice(5, 13), need: B.need, ready: B.ready, taken: B.taken, bumps: B.bumps, x: +B.b.d.cx.toFixed(1), y: +B.b.d.cy.toFixed(1), h: +B.b.h.toFixed(1), halo: !!(B.halo && B.halo.visible) })) }),
+    /* 11/13 35fix：町会の波（受け渡しごとの、左右で待っていた人数・波の人数・見えた人数）と、今の状態 */
+    cw: () => ({ log: CW.log, on: !!CW.st, got: CW.got, n: CW.n, far: (CH.far || []).length, cam: !!CW.camT, list: JN.list.length }),
+    bigs: () => ({ add: +BIG.add.toFixed(1), list: bigList().map(B => ({ id: B.b.id.slice(5, 13), leg: B.leg, need: B.need, ready: B.ready, taken: B.taken, bumps: B.bumps, x: +B.b.d.cx.toFixed(1), y: +B.b.d.cy.toFixed(1), h: +B.b.h.toFixed(1), halo: !!(B.halo && B.halo.visible) })) }),
     /* 11/11 34fix：最後の境内で加わった人数と、今その中か */
     fin: () => ({ n: FIN.n, on: finOn() }),
     capBump: () => ({ n: CB.n, live: CB.list.size, capMsg: CAPM.done, stall: Math.round(performance.now() - (S.capStallT || -1e9)), at: [...CB.list.keys()].map(b => [+b.d.cx.toFixed(1), +b.d.cy.toFixed(1), +b.h.toFixed(1)]) }),

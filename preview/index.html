@@ -5709,6 +5709,8 @@ function start(DATA, isAsakusa) {
     if (LEG < LEGS.length - 1) { const C = routeCum(ROUTE); nearHo = C[C.length - 1] - routePos(S.x, S.y).s < CAP_HO_D; }
     const busy = nearHo || (HO.stopT && now < HO.stopT + HO_STOP + CW_CAM + 600) || (HO.callT && now - HO.callT < HO_CALL) || MSC.cam || (BIG.list && BIG.list.some(B => B.takenT && now - B.takenT < 2500)) || TIER.msg || cwBusy(now);
     if (busy) return;
+    /* 11/14 バグ探し6回目：待つ間に人が増えて上限から外れたのに、待っていた字が「担ぎ手470人！」の直後に出た。出す瞬間にまだ上限にいなければ出さない */
+    if (!full) { CAPM.pend = 0; return; }
     CAPM.done = true; CAPM.pend = 0; CAPM.lastT = now; CAPM.lastLeg = LEG; CAPM.legN[LEG] = (CAPM.legN[LEG] || 0) + 1; CAPM.n++; CAPM.log.push([Math.round(now), LEG, Math.round(stackHeight() + LIFT)]);
     $('legCall').textContent = CAP_MSG; $('legCall').classList.add('on'); HO.callT = now - (HO_CALL - CAP_SHOW);
   }

@@ -221,18 +221,12 @@
   body:not(.sm) #hrun .me .mk { height:19px; }
   body:not(.sm) #hrun .me .stk { bottom:18px; left:4px; right:4px; background:repeating-linear-gradient(to top, #c8322a 0 9px, #f0a08c 9px 10px); }
   /* 11/10 今の担ぎ手の数で積める高さ（capH）を、積んだ箱と同じ幅の薄い枠で、箱の後ろに出す（字は足さない）。
-     人が増えると枠が伸び、塔が枠に届くと（それ以上はくっつかない）、枠の代わりに積んだ箱より少し幅の広い黒い蓋が塔のてっぺんに乗る。上限が目盛りの上端より上なら上の線は消す。
-     （初めは届いたら枠の線を濃い実線にしていたが、赤い箱と重なって見分けられなかった。fix3/30fix/shots/満3_札.png） */
+     人が増えると枠が伸びる。上限が目盛りの上端より上なら上の線は消す。
+     11/14 36fix 本人「あれの蓋はなくしてもいいんじゃないかな、意味わからないから」：塔が枠に届いたときにてっぺんに乗せていた「ふた」はやめた。
+     届いたことは、字（「これ以上積めない！ 人を集めよう」capMsgStep）だけで知らせる */
   #hrun .cap { position:absolute; right:6px; bottom:0; width:16px; height:0; box-sizing:border-box; border:1.5px dashed rgba(200,50,42,.55); border-bottom:none; background:rgba(200,50,42,.08); border-radius:1px 1px 0 0; transition:height .45s cubic-bezier(.3,.7,.3,1), border-color .3s; }
   body:not(.sm) #hrun .cap { right:7px; width:20px; }
   #hrun .cap.open { border-top-color:transparent; }
-  /* 11/14 36fix 本人「積みあがっていってるとき、てっぺんが黒くなってる」「最初は出てないのに最後のほうで出てくる」：上限に届いたときの黒い蓋（#3b3431 の太い線）が、
-     塔の絵のてっぺんが焦げたように見えていた（上限に初めて届くのは、道なりで出発して約95秒。3Dの塔の段はどれも写真の柄で光っていて、黒い段は無かった。fix3/30fix/36shots/top1）。
-     黒をやめ、積んだ箱より少し幅の広い「ふた」の形（上の線と、両端が下へ少し折れた形）を、枠と同じ朱の濃い色（#9a2a20）で描く。箱の赤とは、白い縁で見分ける */
-  #hrun.full .cap { z-index:1; right:1px; width:26px; min-height:15px; background:none; border:none; border-radius:1px; }
-  #hrun.full .cap::before { content:''; position:absolute; left:0; right:0; top:-3px; height:6px; box-sizing:border-box; border:3px solid #9a2a20; border-bottom:none; border-radius:2px 2px 0 0; box-shadow:0 -1px 0 #fff8ee, -1px 0 0 #fff8ee, 1px 0 0 #fff8ee; }
-  body:not(.sm) #hrun.full .cap { right:1px; width:32px; min-height:19px; }
-  body:not(.sm) #hrun.full .cap::before { top:-4px; height:8px; border-width:4px; }
   #hrun .nm { margin-top:3px; width:92px; font-size:12px; font-weight:800; color:var(--ink); line-height:1.2; text-align:center; white-space:pre-line; }
   /* 11/09 いまの塔の高さ（m）を札の上に。PCは大きめ */
   #hrun .hm { font-weight:800; font-size:15px; color:var(--red); line-height:1.1; margin-bottom:3px; white-space:nowrap; }
@@ -379,7 +373,7 @@
   #legCall { position:fixed; left:50%; top:22%; transform:translate(-50%,-50%); background:rgba(200,50,42,.94); color:#fff; font-size:24px; font-weight:800; letter-spacing:.06em; padding:12px 28px; border-radius:26px; box-shadow:0 3px 16px rgba(0,0,0,.45); white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .4s; z-index:40; }
   #legCall.on { opacity:1; }
   body.sm #legCall { font-size:18px; padding:10px 18px; top:26%; }
-  /* 11/14 36fix：スマホの縦では、帯が左の高さの札（上から124px・高さ約150px）の下半分にかぶり、上限の「ふた」を隠した。帯は札より下（上から330px）に出す */
+  /* 11/14 36fix：スマホの縦では、帯が左の高さの札（上から124px・高さ約150px）の下半分にかぶった。帯は札より下（上から330px）に出す */
   body.sm #legCall { top:330px; }
   @keyframes glow { 0%,100% { box-shadow:0 0 0 0 rgba(200,50,42,.75); } 50% { box-shadow:0 0 0 14px rgba(200,50,42,0); } }
   #hold.glow, #back.glow, #rot button.glow { animation:glow 1s ease-in-out infinite; }
@@ -3734,12 +3728,11 @@ function start(DATA, isAsakusa) {
     }
     const b = Math.min(100, H / hrunTop(HR.i, H) * 100);
     if (Math.abs(b - HR.bar) > 0.15) { HR.bar = b; el.querySelector('.me').style.height = b.toFixed(1) + '%'; }
-    /* 11/10 今の担ぎ手で積める高さの枠（capH）。届いているときは、蓋を塔のてっぺん（上限を少し超えて乗った建物の上）に置く。着いた後は動かさない */
+    /* 11/10 今の担ぎ手で積める高さの枠（capH）。着いた後は動かさない */
     if (RUN3 && !S.done) {
       /* 11/11 大物（32fix）で乗せた高さ BIG.add の分は、枠を上へずらす（上限の勘定に入れないので） */
-      const cH = capH() + BIG.add, fl = capFull(), cr = (fl ? Math.max(cH, H) : cH) / hrunTop(HR.i, H) * 100, cb = Math.min(100, cr), ce = el.querySelector('.cap');
+      const cH = capH() + BIG.add, cr = cH / hrunTop(HR.i, H) * 100, cb = Math.min(100, cr), ce = el.querySelector('.cap');
       if (Math.abs(cb - HR.cap) > 0.15) { HR.cap = cb; ce.style.height = cb.toFixed(1) + '%'; ce.classList.toggle('open', cr > 100); }
-      if (fl !== HR.full) { HR.full = fl; el.classList.toggle('full', fl); }
     }
     const hm = Math.round(H); if (hm !== HR.hm) { HR.hm = hm; el.querySelector('.hm').innerHTML = `${hm}<small>m</small>`; }
   }
@@ -5683,7 +5676,7 @@ function start(DATA, isAsakusa) {
      受け渡し・大物を担いだ直後・節目でカメラが引いている間・担ぎ手の段の一言が出ている間は、落ち着いてから出す（本人「派手なときは見ない。落ち着いたら文字で」）。
      もう一回（restartRun → setLeg(0)）でまた1回出る */
   /* 「担ぎ手が足りない！ 人を集めて高く積もう」はスマホの縦で右が切れた（fix3/30fix/34shots/finale/一言_088秒）ので、担ぎ手の段の一言と同じくらいの長さに */
-  /* ---------- 11/14 36fix 本人「ふたの印だけではわかりにくい」：上限に届くたびに字で知らせる（前の「初回だけ」を本人が変えた） ----------
+  /* ---------- 11/14 36fix 本人「ふたの印だけではわかりにくい」：上限に届くたびに字で知らせる（前の「初回だけ」を本人が変えた）。そのあと、ふたはやめ、この字だけにした ----------
      上限に届いた瞬間に1回（CAPM.armed：上限より下にいる間に立つ。届いたら下ろす）。上限にいる間は、もう出さない。
      人が増えて上限が上がり、また積めるようになってから再び届いたら、また1回。前に出してから CAP_GAP ミリ秒以内に届いたときは出さない（終盤は細かく何度も届くので）。
      出すのは CAP_SHOW ミリ秒、担ぎ手の段の一言と同じ所（上の「あと○m」の札の下）。ほかの字（町会の波・受け渡しの帯・担ぎ手の段の一言）や、
@@ -7954,7 +7947,8 @@ function start(DATA, isAsakusa) {
      （fix3/30fix/34shots/before）。神輿の左右 SIDE m（纏と町会の人）までが横の画角に入る距離（その1.1倍）を、HOC.R より遠ければ使い、高さは距離の ZK 倍を足して見下ろす（遠くても手前の建物の上から見える）。
      縦も、纏のてっぺん（4.6m×MT_K）までが縦の画角に入る距離（その1.15倍）より遠くする（PC は横が広いので、こちらで決まる。前の16m では纏の頭が切れていた）。見る高さ LZ は纏の中ほど */
   /* PAD：カメラのまわりに建物が無いことを確かめる幅（m。11/14 36fix）。ARCPAD：回り込む弧の途中で壁から離す幅、ARCMIN：弧が塔（神輿の足元の半分）から離れる最小、ARCUP：弧の途中で持ち上げる高さ */
-  const HOC = { A: 0.65, R: 22, Z: 5, LZ: 5.5, SIDE: 4.8, ZK: 0.3, PAD: 3, ARCPAD: 1.5, ARCMIN: 12, ARCUP: 6 };
+  /* HIGH_Z：斜め前が無理なときに、真後ろから見下ろす高さ（m。だめなら1.4倍・1.9倍）。UPK：斜め前の置き場所を、手前の低い屋根を越えるように上げてみる倍率 */
+  const HOC = { A: 0.65, R: 22, Z: 5, LZ: 5.5, SIDE: 4.8, ZK: 0.3, PAD: 3, ARCPAD: 1.5, ARCMIN: 12, ARCUP: 6, HIGH_Z: 30, UPK: 1.6 };
   /* 真後ろのカメラ（back）から (x, y, z) へ、神輿のまわりを回る弧。t（0〜1）で位置 {x, y, z}（地図の座標と高さ）。
      途中は塔から wide/2＋ARCMIN m より内に入らず（始めと終わりの点はそのまま）、ARCUP m 持ち上がる */
   function hoArc(back, x, y, z, wide) {
@@ -8368,25 +8362,22 @@ function start(DATA, isAsakusa) {
      skySide：カメラを神輿のスカイツリーと反対の側から、どれだけ横へずらすか（rad）。神輿と積んだ塔が画面の左、スカイツリーが右に並び、塔がスカイツリーに重ならない。
        縦長の画面は横の画角が狭いので小さく。skyMid：カメラ (cx, cy) から見て、神輿 (x, y) とスカイツリーのちょうど間の向き */
   const SKC = { R: 55, Z: 26, P: -0.08, W: 0.025 };
-  /* 11/14 36fix 結果の高さ比べのカメラ（frame の resCam）：RES_W 横の画角のうち二つを入れる割合、RES_Z カメラの高さ、RES_L 見る高さ（どちらも高い方の高さに掛ける） */
-  /* PC（横長）は左上の担ぎ手の札と右下の高さ比べの札をよけて真ん中寄りに（0.78 では塔が左の札の陰、スカイツリーの足もとが右下の札の陰に入った）。縦長は横の画角が狭いので広めに */
-  /* 縦長の画面は横の画角が狭く（左右に約11°）、二つを横に並べると小さくなる（スカイツリーで画面の高さの約15%）。それより大きくすると、どちらかが画面の外へ出る */
-  const RES_W = 0.55, RES_WS = 0.75, RES_Z = 0.18, RES_L = 0.34;
-  /* 結果の2段（11/14 36fix）：花火のカメラから1段目へ移る時間、1段目で止まる時間、2段目へ引く時間（ミリ秒） */
-  const RES_IN = 1200, RES_HOLD = 2000, RES_MOVE = 3500;
-  /* 結果の間、地面の写真を暗くする倍率（nightFrame） */
+  /* 結果の画面（11/14 36fix）：花火のカメラから大写しの位置へ移る時間（ミリ秒） */
+  const RES_IN = 1200;
+  /* 結果の間、地面の写真を暗くする倍率（nightFrame。遠くの町の端が目立たないように） */
   const RES_GK = 0.45;
+  /* 結果のカメラの高さの下限（m。塔が低いと十数mになり、町の建物の中に入ったので、建物より上に） */
+  const RES_ZMIN = 80;
   /* ---------- 11/14 36fix 結果の画面：塔とスカイツリーを、札の無い所に収める ----------
-     まとめ役「引く途中も引き終わりも、自分の塔が左の担ぎ手の札の裏や真横に来て隠れた」（36shots/res/2段_pc480）。
-     札（左の担ぎ手の札 #done・高さ比べの札 #hcmp・右上のボタン #btnrow）の四角を毎こま読み、札の無い所（resFree）を決め、
-     カメラの位置ごとに、二つの真ん中がその中ほどに来る向き・二つの足もとがその下の端に来る見下ろし方を決める（resAim）。
-     入りきらない位置（二つの間が開きすぎる・てっぺんが上に出る）なら、二つの真ん中から外へ、ちょうど入る所まで遠ざける（resFit） */
+     まとめ役「自分の塔が左の担ぎ手の札の裏や真横に来て隠れた」。
+     札（左の担ぎ手の札 #done・高さ比べの札 #hcmp・右上のボタン #btnrow）の四角を読み、札の無い所（resFree）を決め、
+     カメラの位置ごとに、二つの真ん中がその中ほどに来る向き・二つの足もとがその下の端に来る見下ろし方を決める（resAim） */
   const RES_M = 14, RES_PAD = 30;
-  /* spanPx を渡したとき（1段目）：二つの横の幅（px）が入る四角のうち、いちばん背の高いもの（塔を大写しにするので高さを取る）。渡さないとき（引き終わり）：二つをいちばん大きく見せられるもの */
+  /* 二つの横の幅 spanPx（px）が入る四角のうち、いちばん背の高いもの（塔を大写しにするので高さを取る）。入るものが無ければ、いちばん幅の広いもの */
   function resFree(spanPx) {
     const W = innerWidth, Hs = innerHeight, rs = [];
     for (const id of ['done', 'hcmp', 'btnrow']) { const r = $(id).getBoundingClientRect(); if (r.width > 0 && r.height > 0) rs.push([r.left - RES_M, r.top - RES_M, r.right + RES_M, r.bottom + RES_M]); }
-    /* 札の縁の座標から作れる四角を全部試し、札に重ならない四角のうち、二つをいちばん大きく見せられるもの（横は二つの間の約2.7倍がいる）を選ぶ。
+    /* 札の縁の座標から作れる四角を全部試し、札に重ならない四角から選ぶ。
        （前は「札の間の縦の帯」か「下の札より上の横の帯」の二つだけで、800×600 などの横4:縦3の窓では、塔が左の札の裏に入った） */
     const xs = [RES_M, W - RES_M, ...rs.flatMap(r => [r[0], r[2]])].filter(v => v >= 0 && v <= W).sort((a, b) => a - b);
     const ys = [RES_M + 24, Hs - RES_M, ...rs.flatMap(r => [r[1], r[3]])].filter(v => v >= RES_M + 24 && v <= Hs).sort((a, b) => a - b);
@@ -8394,14 +8385,14 @@ function start(DATA, isAsakusa) {
     for (let i = 0; i < xs.length; i++) for (let j = i + 1; j < xs.length; j++) for (let k = 0; k < ys.length; k++) for (let l = k + 1; l < ys.length; l++) {
       const b = [xs[i], ys[k], xs[j], ys[l]];
       if (rs.some(r => r[0] < b[2] && b[0] < r[2] && r[1] < b[3] && b[1] < r[3])) continue;
-      const sc = spanPx ? (b[2] - b[0] - 2 * RES_PAD >= spanPx ? (b[3] - b[1]) * 10000 + (b[2] - b[0]) : -1 + (b[2] - b[0]) / 1e5) : Math.min((b[2] - b[0] - 2 * RES_PAD) / 2.7, b[3] - b[1]);
+      const sc = b[2] - b[0] - 2 * RES_PAD >= spanPx ? (b[3] - b[1]) * 10000 + (b[2] - b[0]) : -1 + (b[2] - b[0]) / 1e5;
       if (sc > bs) { bs = sc; best = b; }
     }
     if (!best) best = [RES_M, RES_M + 24, W - RES_M, Hs - RES_M];
     return { x0: best[0], x1: best[2], y0: best[1] + 6, y1: best[3] - 10, cards: rs };
   }
   /* カメラ (cx, cy, cz) から、二つが札の無い所 F に入る向きと見下ろし方。ok：入りきるか */
-  /* clipT：塔のてっぺんが札の無い所の上へ出てもよい（1段目と引く途中。まとめ役「1段目が大写しになっていない」：てっぺんを入れようとして遠ざけ、塔が細い線になっていた） */
+  /* clipT：塔のてっぺんが札の無い所の上へ出てもよい（まとめ役「1段目が大写しになっていない」：てっぺんを入れようとして遠ざけ、塔が細い線になっていた） */
   function resAim(cx, cy, cz, H, F, clipT) {
     const W = innerWidth, Hs = innerHeight, th = Math.tan(camera.fov * Math.PI / 360), tw = th * camera.aspect;
     const aT = Math.atan2(S.y - cy, S.x - cx), aK = Math.atan2(SKY.y - cy, SKY.x - cx), rT = Math.hypot(S.x - cx, S.y - cy), rK = Math.hypot(SKY.x - cx, SKY.y - cy), rT0 = rT, rK0 = rK;
@@ -8416,7 +8407,7 @@ function start(DATA, isAsakusa) {
     const syv = (h, Fd) => Hs / 2 - Math.tan(Math.atan((h - cz) / Math.max(1, Fd)) - p) / th * Hs / 2;
     const xT = sx(aT, yaw), xK = sx(aK, yaw);
     let ok = FT > 1 && FK > 1 && Math.min(xT, xK) >= F.x0 + RES_PAD && Math.max(xT, xK) <= F.x1 - RES_PAD && (clipT || syv(H, FT) >= F.y0) && syv(SKY.h, FK) >= F.y0;
-    /* 札の四角とも、じかに比べる（塔は幅±8m、スカイツリーは±35m の四角。引く途中で、札の無い所を1段目と引き終わりの間でなめらかに移すと、スカイツリーの足もとが高さ比べの札にかかった） */
+    /* 札の四角とも、じかに比べる（塔は幅±8m、スカイツリーは±35m の四角。札の無い所の中に入っていても、横に寄った物の足もとが札の角にかかることがある） */
     if (ok && F.cards) {
       /* 画面の上の位置は、見下ろしの傾きまで入れて正しく写す（横に寄った物の足もとは、傾きのぶん外へずれる。前は1px かかるこまが出た）。幅は塔±8m・スカイツリー±35m */
       const cp = Math.cos(p), sp = Math.sin(p);
@@ -8428,14 +8419,6 @@ function start(DATA, isAsakusa) {
     /* 見る所は、二つの真ん中までの距離の所（霧の遠さは、カメラから見る所までの距離で決まるので、二つがかすまないように） */
     const dm = Math.max(200, Math.hypot((S.x + SKY.x) / 2 - cx, (S.y + SKY.y) / 2 - cy));
     return { ok, look: V(cx + Math.cos(yaw) * dm, cy + Math.sin(yaw) * dm, cz + dm * Math.tan(p)) };
-  }
-  /* (cx, cy) で入りきらなければ、真ん中 (mx, my) から外へ、ちょうど入る所まで遠ざける */
-  function resFit(cx, cy, cz, H, F, mx, my, clipT) {
-    let A = resAim(cx, cy, cz, H, F, clipT); if (A.ok) return { x: cx, y: cy, look: A.look };
-    let lo = 1, hi = 8; const at = s => resAim(mx + (cx - mx) * s, my + (cy - my) * s, cz, H, F, clipT);
-    if (!at(hi).ok) { A = at(hi); return { x: mx + (cx - mx) * hi, y: my + (cy - my) * hi, look: A.look }; }
-    for (let k = 0; k < 16; k++) { const s = (lo + hi) / 2; if (at(s).ok) hi = s; else lo = s; }
-    A = at(hi); return { x: mx + (cx - mx) * hi, y: my + (cy - my) * hi, look: A.look };
   }
   function skySide() { const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect); return Math.min(0.35, hh * 0.9); }
   function skyMid(cx, cy, x, y) { const am = Math.atan2(y - cy, x - cx), as = Math.atan2(SKY.y - cy, SKY.x - cx); let d = as - am; d = Math.atan2(Math.sin(d), Math.cos(d)); return am + d / 2; }
@@ -10003,21 +9986,19 @@ function start(DATA, isAsakusa) {
       }
       /* 3分版の結果（result）：積んだ塔がてっぺんまで入るところまで引いて、塔のまわりをゆっくり回る */
       const resCam = S.done && S.done.phase === 'result';
-      /* 高さ比べ（10/31 直し）：前は自分の塔を手前にはっきり見せ、その奥にスカイツリーを見ていた（遠近で比べは正確にならず、右下の札が受け持つ作り）。
-         11/14 36fix で、二つをほぼ同じ距離から見る形に替えた（下の説明）。結果を出してすぐ（0.6秒）は塔のまわりを回り、そのあとゆっくり移る */
-      /* 11/14 36fix 本人が選んだ案1：前は塔を手前（塔の高さの2.3倍の所）、スカイツリーを約1.3km 奥に見ていたので、塔が約480m でも画面の上ではスカイツリーより高く見え、
-         札の「あと157m」と食い違った。塔とスカイツリーを結ぶ線の垂直二等分線の上にカメラを置き、二つをほぼ同じ距離から横に並べて見る
-         （見た目の高さの比が、本当の高さの比とほぼ同じになる）。距離は、二つが横の画角の RES_W 倍に収まり、高い方が縦にも収まる所。
-         塔が左、スカイツリーが右に来る側から見る。高さは高い方の RES_Z 倍、見る所は二つの真ん中の高い方の RES_L 倍の高さ */
-      /* 11/14 36fix 本人「それでいい、2段にして」：案1だけだと自分の塔が左の細い線になり、最後のご褒美として物足りなかった（36shots/res/pc480）。
-         1段目（RES_HOLD ミリ秒）：前と同じく、自分の塔を手前に大きく、奥にスカイツリー（塔から H×2.3m、二つが画面の左右に並ぶまで横へ回り込んだ所。見せ場）。
-         2段目（RES_MOVE ミリ秒）：そこから、二つをほぼ同じ距離で横に並べる所（案1）へ、すーっと引いて止まる。
-         引く途中は、カメラの位置を1段目と2段目の間でなめらかに（smoothstep）動かし、見る向きはいつも塔とスカイツリーの間の向きにする（どちらも画面から外れない）。
-         どちらも高さ190m 以上（町の建物より高い）なので、建物の中は通らない */
+      /* 高さ比べ（10/31〜）：自分の塔を手前にはっきり見せ、その奥にスカイツリーを見る（遠近で比べは正確にならないので、正確な比べは右下の高さ比べの札が受け持つ）。
+         11/14 36fix では、二つを同じ距離で横に並べる所へ引く2段目も作ったが、本人「最後のめっちゃ引くところいらないかもね」で、この画（1段目）で止める形に戻した。
+         位置は前と同じ：塔から H×2.3m 離れ、スカイツリーと反対の側から少しずつ横へ回り込み、二つが画面の左右に並んで入る所。
+         36fix で足したこと：
+         ・札（左の担ぎ手の札・右下の高さ比べの札・右上のボタン）に重ならないように、二つの横の幅が入るいちばん背の高い札の無い帯（resFree）の中ほどへ、向きで寄せ、
+           足もとをその帯の下の端に置く（resAim。塔のてっぺんは画面の上で切れてもよい）。それでも札にかかる窓の大きさ（800×600 など）では、
+           結果の始めに一度だけ、塔から遠ざける倍率を決める（resPlan.k。窓の大きさが変わったら決め直す）。
+         ・高さは RES_ZMIN m 以上（塔が低いと十数mになり、町の建物の中に入った）。
+         ・花火のカメラの位置から RES_IN ミリ秒でなめらかにこの位置へ移り、そのあと止まる（遅れて追うと塔が札の裏を通ったので、カメラはこの位置にそのまま付く。
+           見る所だけ、はじめの0.6秒で花火のときの所から移す） */
       if (resCam && raimonB) {
-        const H = stackHeight() + LIFT, hm = Math.max(H, SKY.h), dx = SKY.x - S.x, dy = SKY.y - S.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
-        const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), vh = camera.fov * Math.PI / 360, ang = (x, y, cx, cy) => Math.atan2(y - cy, x - cx);
-        /* 1段目（前の作り） */
+        const H = stackHeight() + LIFT, dx = SKY.x - S.x, dy = SKY.y - S.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+        const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), ang = (x, y, cx, cy) => Math.atan2(y - cy, x - cx);
         let ox = uy, oy = -ux; if (oy > 0) { ox = -ox; oy = -oy; }
         const d1 = Math.max(70, H * 2.3); let c1x = S.x, c1y = S.y;
         for (let a = 0.04; a <= 1.4; a += 0.02) {
@@ -10025,36 +10006,23 @@ function start(DATA, isAsakusa) {
           const sp = ang(SKY.x, SKY.y, c1x, c1y) - ang(S.x, S.y, c1x, c1y);
           if (Math.abs(Math.atan2(Math.sin(sp), Math.cos(sp))) >= hh * 0.9) break;
         }
-        /* 2段目（案1）：向き n は、カメラが真ん中から n の向きへ D。見る向きは −n、右手は (−n.y, n.x)。塔（真ん中から −u の向き）が左に来る n を選ぶ */
-        /* 2段目の位置は、まず画面いっぱいに近い距離に置き、札の無い所に入るまで resFit が遠ざける（入る中でいちばん大きく見える所で止まる） */
-        const D = (L / 2) / Math.tan(hh * 0.95), mx = (S.x + SKY.x) / 2, my = (S.y + SKY.y) / 2;
-        let nx = -uy, ny = ux; if ((-ux) * (-ny) + (-uy) * nx > 0) { nx = -nx; ny = -ny; }
-        /* 0段目（RES_IN）：花火のカメラの位置から1段目へ。前は0.6秒ほど塔のまわりを回ってから遅れて追っていたので、塔が札の裏を通った。
-           ここも札の無い所に入れながら、なめらかに1段目へ移る（カメラはこの位置にそのまま付いていく） */
         const D0 = S.done; if (!D0.res0) D0.res0 = { x: camPos.x, y: -camPos.z, z: camPos.y, look: camLook.clone() };
-        const el = performance.now() - D0.t0, sm = x => { const c = Math.max(0, Math.min(1, x)); return c * c * (3 - 2 * c); };
-        const p0 = sm(el / RES_IN), p = sm((el - RES_IN - RES_HOLD) / RES_MOVE), z1 = H * 0.3 + d1 * 0.12;
-        const ax = D0.res0.x + (c1x - D0.res0.x) * p0, ay = D0.res0.y + (c1y - D0.res0.y) * p0, az = D0.res0.z + (z1 - D0.res0.z) * p0;
-        /* 引き終わりの高さは、高い方の RES_Z 倍（11/14 36fix：0.3→0.18。低い所から見ると、手前の3Dの町の端と平らな航空写真の境目が目立ちにくい） */
-        const z2 = hm * RES_Z, FB = resFree();
-        /* 引き終わりの位置：見る向きは二つを結ぶ線に直角（−n）のまま、カメラを横（u の向き）へ s m ずらして、塔が札の無い所の左の端、スカイツリーが右の端に来る所。
-           こうすると二つはカメラから同じ奥行きになり、見た目の高さの比が本当の比と同じになる（向きを回して寄せると、奥行きが違って1割ずれた）。
-           てっぺんが上に出るなら、少しずつ遠ざける */
-        const tw = Math.tan(vh) * camera.aspect, tL = (FB.x0 + RES_PAD + 3 - innerWidth / 2) / (innerWidth / 2) * tw, tR = (FB.x1 - RES_PAD - 3 - innerWidth / 2) / (innerWidth / 2) * tw;
-        let D2 = L / Math.max(0.05, tR - tL), e2x = 0, e2y = 0;
-        for (let k = 0; k < 40; k++) { const s = L / 2 - tR * D2; e2x = mx + nx * D2 + ux * s; e2y = my + ny * D2 + uy * s; if (resAim(e2x, e2y, z2, H, FB).ok) break; D2 *= 1.04; }
-        const cx = ax + (e2x - ax) * p, cy = ay + (e2y - ay) * p;
-        const cz = az + (z2 - az) * p;
-        /* 11/14 36fix：札の無い所（resFree）に二つが入る向き・見下ろし方にし、入りきらなければ外へ遠ざける（resFit）。
-           引く途中で二つの間が開きすぎて画面から外れること（スマホの縦）も、札の裏に入ること（PC）も、これで防ぐ。引き終わりは垂直二等分線の上なので、同じ距離で比べられる */
-        /* 1段目と引く途中は、塔のてっぺんが上で切れてもよい（大写しのまま、札の無い真ん中の帯へ向きで寄せる）。引き終わりの位置 e2 は、てっぺんまで入る所で決めてある。
-           札の無い所は、1段目は二つの横の幅が入るいちばん背の高い帯（F1。PC なら左の札と右下の札の間の、上から下まで）、引き終わりは FB。引く間はその間をなめらかに移す */
-        const sep1 = Math.abs(Math.atan2(Math.sin(ang(SKY.x, SKY.y, c1x, c1y) - ang(S.x, S.y, c1x, c1y)), Math.cos(ang(SKY.x, SKY.y, c1x, c1y) - ang(S.x, S.y, c1x, c1y))));
-        const F1 = resFree(2 * Math.tan(sep1 / 2) / tw * innerWidth / 2 + 10), FF = { cards: FB.cards }; for (const k of ['x0', 'x1', 'y0', 'y1']) FF[k] = F1[k] + (FB[k] - F1[k]) * p;
-        const fit = resFit(cx, cy, cz, H, FF, mx, my, true);
-        back.copy(V(fit.x, fit.y, cz)); look.copy(fit.look);
-        /* 結果の間はカメラがこの位置にそのまま付く（遅れて追うと札にかかるこまが出た）ので、見る所だけは、はじめの0.6秒で花火のときの所からなめらかに移す */
-        if (el < 600) look.copy(D0.res0.look.clone().lerp(fit.look, sm(el / 600)));
+        const el = performance.now() - D0.t0, sm = x => { const c = Math.max(0, Math.min(1, x)); return c * c * (3 - 2 * c); }, p0 = sm(el / RES_IN);
+        const key = innerWidth + 'x' + innerHeight + ',' + H.toFixed(1);
+        if (!D0.resPlan || D0.resPlan.key !== key) {
+          const z1 = Math.max(RES_ZMIN, H * 0.3 + d1 * 0.12), tw = Math.tan(camera.fov * Math.PI / 360) * camera.aspect;
+          const sep1 = Math.abs(Math.atan2(Math.sin(ang(SKY.x, SKY.y, c1x, c1y) - ang(S.x, S.y, c1x, c1y)), Math.cos(ang(SKY.x, SKY.y, c1x, c1y) - ang(S.x, S.y, c1x, c1y))));
+          const F1 = resFree(2 * Math.tan(sep1 / 2) / tw * innerWidth / 2 + 10), fits = k => resAim(S.x + (c1x - S.x) * k, S.y + (c1y - S.y) * k, z1, H, F1, true).ok;
+          let k = 1;
+          /* 遠ざける倍率は、入る所が見つかるまで 3・6・12・24倍と広げて探す（11/14 36fix：引く2段目をやめたので、この画だけで二つが入りきらないといけない。
+             前の上限3倍では、800×600 で塔が低い（約5m）とき、スカイツリーのてっぺんが画面の上へ出て、右上のボタンにかかった） */
+          if (!fits(1)) { let lo = 1, hi = 3; while (hi < 24 && !fits(hi)) { lo = hi; hi *= 2; } if (fits(hi)) for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; } k = hi; }
+          D0.resPlan = { key, z1, F1, k, x: S.x + (c1x - S.x) * k, y: S.y + (c1y - S.y) * k };
+        }
+        const PL = D0.resPlan, ax = D0.res0.x + (PL.x - D0.res0.x) * p0, ay = D0.res0.y + (PL.y - D0.res0.y) * p0, az = D0.res0.z + (PL.z1 - D0.res0.z) * p0;
+        const A = resAim(ax, ay, az, H, PL.F1, true);
+        back.copy(V(ax, ay, az)); look.copy(A.look);
+        if (el < 600) look.copy(D0.res0.look.clone().lerp(A.look, sm(el / 600)));
       } else if (resCam) {
         const H = stackHeight() + LIFT, D2 = Math.max(28, H * 1.45 + 12) * (isSm() ? 1.5 : 1);
         back.copy(V(S.x + Math.cos(ca) * D2 * 0.9, S.y + Math.sin(ca) * D2 * 0.9, H * 0.4 + D2 * 0.25)); look.copy(V(S.x, S.y, H * 0.56));
@@ -10100,34 +10068,83 @@ function start(DATA, isAsakusa) {
                また、塔の陰に纏が入る置き場所は、まず避ける（スマホの2回目の受け渡しで、纏が塔の陰でほとんど見えなかった。N7-2） */
             const towerR = Math.max(S.dim.L, S.dim.W) * 0.5 + 0.8, towerH = stackHeight() + LIFT, mH = 4.6 * MT_K * 0.8;
             const hidden = (x, y, z, mx, my) => { const vx = mx - x, vy = my - y, L2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((S.x - x) * vx + (S.y - y) * vy) / L2)), px = x + vx * t, py = y + vy * t, h = z + (mH - z) * t; return Math.hypot(px - S.x, py - S.y) < towerR && h > 2 && h < towerH; };
+            /* 11/14 36fix（バグ探し3回目 R3）：見通しを1本の線だけで調べていたので、カメラと神輿の間の横にずれた低い建物が、画面の左下の半分を黒く覆った。
+               画面の下半分〜中ほどの12か所（横 −0.7・0・0.7 × 縦4段）から光線を出し、神輿の手前の奥行きまでに建物に当たる光線の数（viewHits）を数える。
+               これで置き場所を「通る・通らない」で切ると、道の両側に建物が並ぶ所ではどこも通らず（PC の1回目の受け渡しで、どの候補も2〜4本）、
+               上から見下ろす次善の画になって、かえって屋根が大きく写った。なので切らずに、当たる本数のいちばん少ない置き場所を選ぶ */
+            const viewHits = (x, y, z, lz) => {
+              let fx = S.x - x, fy = S.y - y, fz = lz - z; const fl = Math.hypot(fx, fy, fz); fx /= fl; fy /= fl; fz /= fl;
+              const rl = Math.hypot(fy, fx) || 1, rx = fy / rl, ry = -fx / rl, ux = ry * fz, uy = -rx * fz, uz = rx * fy - ry * fx;
+              const th = Math.tan(camera.fov * Math.PI / 360), tw = th * camera.aspect, depth = Math.hypot(S.x - x, S.y - y) - wide / 2 - 1; let hits = 0;
+              for (const u of [-0.7, 0, 0.7]) for (const v of [-0.85, -0.5, -0.15, 0.3]) {
+                let dx = fx + rx * u * tw + ux * v * th, dy = fy + ry * u * tw + uy * v * th, dz = fz + uz * v * th; const dl = Math.hypot(dx, dy, dz); dx /= dl; dy /= dl; dz /= dl;
+                const hd = Math.hypot(dx, dy) || 1e-6;
+                for (let t = 2; t * hd < depth; t += 2) { const pz = z + dz * t; if (pz < 0) break; if (bldAt(x + dx * t, y + dy * t, pz, skip)) { hits++; break; } }
+              }
+              return hits;
+            };
+            /* 使えない置き場所は −1、使えるなら手前の建物に当たる光線の数 */
             const clear = (x, y, z, needMt) => {
-              if (!seg(S.x, S.y, 3, x, y, z, wide / 2 + 0.5)) return false;
+              if (!seg(S.x, S.y, 3, x, y, z, wide / 2 + 0.5)) return -1;
               for (const [mx, my] of mts) {
-                if (!seg(mx, my, mH, x, y, z, 1.5)) return false; if (needMt && hidden(x, y, z, mx, my)) return false;
+                if (!seg(mx, my, mH, x, y, z, 1.5)) return -1; if (needMt && hidden(x, y, z, mx, my)) return -1;
                 /* 纏がカメラと神輿の間の見通しの上（横に3.5m 以内）に立つと、竿と房が画面のまん中をふさぐ（スマホの2回目の受け渡し） */
                 const vx = S.x - x, vy = S.y - y, L2 = vx * vx + vy * vy || 1, t = ((mx - x) * vx + (my - y) * vy) / L2;
-                if (t > 0.05 && t < 0.95 && Math.abs((mx - x) * vy - (my - y) * vx) / Math.sqrt(L2) < 3.5) return false;
+                if (t > 0.05 && t < 0.95 && Math.abs((mx - x) * vy - (my - y) * vx) / Math.sqrt(L2) < 3.5) return -1;
               }
-              for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (bldAt(x + dx * HOC.PAD, y + dy * HOC.PAD, z - 1.5, skip)) return false;
+              for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (bldAt(x + dx * HOC.PAD, y + dy * HOC.PAD, z - 1.5, skip)) return -1;
               const arc = hoArc(back, x, y, z, wide);
               for (let t = 0.05; t < 0.999; t += 0.05) {
                 const P = arc(t);
-                if (bldAt(P.x, P.y, P.z, skip)) return false;
-                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (bldAt(P.x + dx * HOC.ARCPAD, P.y + dy * HOC.ARCPAD, P.z, skip)) return false;
-                if (!seg(S.x, S.y, 3, P.x, P.y, P.z, wide / 2 + 0.5)) return false;
+                if (bldAt(P.x, P.y, P.z, skip)) return -1;
+                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (bldAt(P.x + dx * HOC.ARCPAD, P.y + dy * HOC.ARCPAD, P.z, skip)) return -1;
+                if (!seg(S.x, S.y, 3, P.x, P.y, P.z, wide / 2 + 0.5)) return -1;
               }
-              return true;
+              return viewHits(x, y, z, HOC.LZ);
             };
-            let pick = null;
+            let pick = null, best = 1e9;
             /* 11/11 34fix：纏と町会の人まで横の画角に入る距離（Rf）。高さは距離の HOC.ZK 倍（前は 0.12 倍）。11/14 36fix：纏は担ぎ手の列の外に立つので、その離れ（matoiLat）まで入れる */
             const side = Math.max(HOC.SIDE, (S.dim ? matoiLat() - S.dim.W / 2 : 0) + 1.5);
             const hh = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect), Rf = (wide / 2 + side) / Math.tan(hh) * 1.1, Rv = (4.6 * MT_K - HOC.LZ) / Math.tan(camera.fov * Math.PI / 360) * 1.15, R0 = Math.max(HOC.R + wide * 0.6, Rf, Rv);
-            /* まず纏が塔の陰に入らない所、無ければ纏の陰は気にしない所 */
+            /* 点：手前の建物に当たる光線の数。纏が塔の陰に入る所は＋1、少し高く（HOC.UPK 倍）上がって屋根を越える所は＋0.5（同じなら、前からの低い目線を取る）。
+               いちばん点の低い所を選ぶ（同じ点なら、先に試した所） */
             for (const needMt of [true, false]) {
-              for (const R of [R0, R0 * 0.8, R0 * 1.25, HOC.R + wide * 0.6]) { for (const sd of [1, -1]) for (const A of [HOC.A, HOC.A * 0.6, HOC.A * 1.3]) { const a = f + sd * A, x = S.x + Math.cos(a) * R, y = S.y + Math.sin(a) * R, z = HOC.Z + R * HOC.ZK; if (!pick && clear(x, y, z, needMt)) pick = { x, y, z }; } if (pick) break; }
-              if (pick) break;
+              for (const R of [R0, R0 * 0.8, R0 * 1.25, HOC.R + wide * 0.6]) for (const sd of [1, -1]) for (const A of [HOC.A, HOC.A * 0.6, HOC.A * 1.3]) for (const zk of [1, HOC.UPK]) {
+                const a = f + sd * A, x = S.x + Math.cos(a) * R, y = S.y + Math.sin(a) * R, z = (HOC.Z + R * HOC.ZK) * zk;
+                const h = clear(x, y, z, needMt); if (h < 0) continue;
+                const sc = h + (needMt ? 0 : 1) + (zk > 1 ? 0.5 : 0);
+                if (sc < best) { best = sc; pick = { x, y, z, h }; }
+              }
+              if (pick && pick.h < 2) break;
             }
-            HO.cam = pick ? { t: HO.stopT, pos: V(pick.x, pick.y, pick.z), look: V(S.x, S.y, HOC.LZ) } : { t: HO.stopT, none: true };
+            let lookZ = HOC.LZ;
+            /* 11/14 36fix（バグ探し3回目 R2）：狭い2回目の受け渡しでは斜め前のどの置き場所も通らず、神輿のすぐ後ろの近い画のまま（スマホでは塔の箱が画面の上半分を覆い、纏も見えない）だった。
+               斜め前が無理なとき（か、斜め前でも手前の建物に光線が3本以上当たるとき）は、次善として、真後ろ（と左右へ少し回った所）から高く上がって見下ろす画も比べる
+               （纏と、増えた担ぎ手の輪が見える）。神輿・纏への見通しと、上がる途中の弧が建物の中を通らないことを調べ、手前の建物に当たる光線が斜め前より少ないときだけ使う */
+            if (!pick || pick.h >= 3) {
+              let hp = null;
+              for (const [zi, z] of [HOC.HIGH_Z, HOC.HIGH_Z * 1.4, HOC.HIGH_Z * 1.9].entries()) {
+                for (const da of [0, 0.35, -0.35, 0.7, -0.7]) for (const R of [wide / 2 + 16, wide / 2 + 24, wide / 2 + 34, wide / 2 + 48]) {
+                  const a = f + Math.PI + da, x = S.x + Math.cos(a) * R, y = S.y + Math.sin(a) * R;
+                  if (bldAt(x, y, z, skip) || !seg(S.x, S.y, 3, x, y, z, wide / 2 + 0.5) || mts.some(([mx, my]) => !seg(mx, my, mH, x, y, z, 1.5))) continue;
+                  const arc = hoArc(back, x, y, z, wide); let okA = true;
+                  for (let t = 0.05; t < 0.999 && okA; t += 0.05) { const P = arc(t); if (bldAt(P.x, P.y, P.z, skip)) okA = false; }
+                  if (!okA) continue;
+                  /* スマホの縦は横の画角が狭く、近い所からでは纏が画面の端で切れた。纏が横の画角の 0.85 倍より外に出る所は、光線3.5本ぶん悪く数える
+                     （同じ3本なら、纏が入る方を取る。スマホの2回目の受け渡しで、纏が切れる近い所を選んでいた） */
+                  /* 塔の陰に纏が入る所も同じに数える（真上に近いほど、塔が神輿のまわりに覆いかぶさる。57m から見下ろしたとき、纏が塔に隠れた） */
+                  const am = Math.atan2(S.y - y, S.x - x), mOut = mts.some(([mx, my]) => { const d = Math.atan2(my - y, mx - x) - am; return Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) > hh * 0.85 || hidden(x, y, z, mx, my); });
+                  /* 1段高くするごとに0.75本ぶん悪く数える（どこも纏が切れるなら、真上に近い 57m より 30m の方が纏と人の輪が見えた） */
+                  const h = viewHits(x, y, z, 1.5) + (mOut ? 3.5 : 0) + zi * 0.75;
+                  if (!hp || h < hp.h) hp = { x, y, z, h, high: true };
+                }
+                /* 1本までなら、それより高くは上がらない（高い所ほど纏が小さく、塔の陰にもなりやすい。陰は上の mOut で数える）。
+                   3本で止めると、800×600 の2回目の受け渡しで、手前の建物が画面の右下4分の1を覆った */
+                if (hp && hp.h < 2) break;
+              }
+              if (hp && (!pick || hp.h < pick.h)) { pick = hp; lookZ = 1.5; }
+            }
+            HO.cam = pick ? { t: HO.stopT, pos: V(pick.x, pick.y, pick.z), look: V(S.x, S.y, lookZ), high: !!pick.high, h: pick.h } : { t: HO.stopT, none: true };
           }
           /* 真後ろから斜め前へは、神輿のまわりを回る弧（hoArc）で移る（まっすぐ移ると、神輿の横の纏・塔・建物の中を通った） */
           if (!HO.cam.none) {
@@ -10175,10 +10192,10 @@ function start(DATA, isAsakusa) {
         } else { camPos.copy(S.intro.from.pos).lerp(back, e); camLook.copy(S.intro.from.look).lerp(look, e); }
       } else {
         if (camSnap) { camPos.copy(back); camLook.copy(look); camSnap = false; }
-        /* 11/14 36fix：結果の2段目（引く間・引き終わり）は、引き方そのものをなめらかにしてあるので、遅れて追わずにそのまま付いていく
-           （遅れて追うと、カメラの位置と見る所が別々に遅れ、スマホの縦でスカイツリーが一瞬画面の端から出た） */
-        const resPull = resCam && raimonB;
-        const k = resPull ? 1 : 1 - Math.pow(slow ? 0.25 : 0.02, Math.min(0.5, (t - tPrev) / 1000));
+        /* 11/14 36fix：結果の画面は、花火のカメラから大写しの位置へ移る道すじそのものをなめらかにしてあるので、遅れて追わずにそのまま付いていく
+           （遅れて追うと、カメラの位置と見る所が別々に遅れ、塔が札の裏を通った） */
+        const resFix = resCam && raimonB;
+        const k = resFix ? 1 : 1 - Math.pow(slow ? 0.25 : 0.02, Math.min(0.5, (t - tPrev) / 1000));
         camPos.lerp(back, k); camLook.lerp(look, k);
       }
       camera.position.copy(camPos); camera.lookAt(camLook);
@@ -10250,6 +10267,8 @@ function start(DATA, isAsakusa) {
     /* 11/11 大物（32fix）：建物の番号・担げる数・担げる数に届いたか・担いだか・浮きかけて落ちた回数、乗せた高さの合計 */
     /* 11/13 35fix：町会の波（受け渡しごとの、左右で待っていた人数・波の人数・見えた人数）と、今の状態 */
     cw: () => ({ log: CW.log, on: !!CW.st, got: CW.got, n: CW.n, far: (CH.far || []).length, cam: !!CW.camT, list: JN.list.length }),
+    /* 受け渡しのカメラの選んだ置き場所（斜め前・高い所・真後ろのまま none） */
+    hoCam: () => HO.cam ? (HO.cam.none ? { none: true } : { high: HO.cam.high, h: HO.cam.h, d: +Math.hypot(HO.cam.pos.x - S.x, -HO.cam.pos.z - S.y).toFixed(1), z: +HO.cam.pos.y.toFixed(1) }) : null,
     bigs: () => ({ add: +BIG.add.toFixed(1), list: bigList().map(B => ({ id: B.b.id.slice(5, 13), leg: B.leg, need: B.need, ready: B.ready, taken: B.taken, bumps: B.bumps, x: +B.b.d.cx.toFixed(1), y: +B.b.d.cy.toFixed(1), h: +B.b.h.toFixed(1), halo: !!(B.halo && B.halo.visible) })) }),
     /* 11/11 34fix：最後の境内で加わった人数と、今その中か */
     fin: () => ({ n: FIN.n, on: finOn() }),

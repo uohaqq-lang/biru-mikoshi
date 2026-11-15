@@ -7613,7 +7613,8 @@ function start(DATA, isAsakusa) {
     const k = 0.045 * Math.min(1, 900 / innerHeight) * (innerWidth < 600 ? 0.8 : 1);
     /* 題字の画面の間は、札を一つも出さない（字は題字と「触ってはじめる」だけ） */
     /* 11/14 36fix：着いた後（お祓い・魂振り・花火・結果。S.done）は、3分版の札（「ゴール：浅草神社でお祓い」）を出さない（担ぎ手の札・高さ比べの札に重なっていた） */
-    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && !HB.on && ((mode === 'pick' && !RUN3) || (!!sp.userData.always && !(RUN3 && S.done))); }
+    /* 11/15 RUN3 では「ゴール：浅草神社でお祓い」の札も出さない。遠くにあるうちは画面の上の端に来て、上の帯（「西の町まで あと○m」）や「これ以上積めない」の字の裏からはみ出していた（スライドの写真で見つけた）。行き先と距離は上の帯で分かる */
+    for (const sp of tags) { const z = sp.userData.flag ? 0.75 : sp.userData.mark ? 0.6 : 0.55; sp.scale.set(k * sp.userData.aspect * z, k * z, 1); sp.visible = !TS && !HB.on && ((mode === 'pick' && !RUN3) || (!!sp.userData.always && !(RUN3 && (S.done || sp.userData.goal)))); }
     /* つかえたときの札とボタン（上のまん中）に重なる札（「ゴール：浅草神社でお祓い」など）は、その間だけ隠す。
        前はボタンの間に札が半分隠れて挟まり、ごちゃついて見えた（直す係 第2回・2-3） */
     if (mode !== 'carry' || !document.body.classList.contains('stuck')) return;
@@ -7656,7 +7657,7 @@ function start(DATA, isAsakusa) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(gl.r - 0.5, gl.r, 48), new THREE.MeshBasicMaterial({ color: 0xe0b02a, transparent: true, opacity: 0.75, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.copy(V(gl.x, gl.y, 0.06)); scene.add(ring);
     gl.flag = f;   // 夜の版で旗を明るくするのに使う
-    const tg = nameTag('ゴール：' + gl.name + 'でお祓い', '#c8322a'); tg.position.copy(V(gl.x, gl.y, 8)); scene.add(tg); tags.push(tg); tg.userData.always = true;
+    const tg = nameTag('ゴール：' + gl.name + 'でお祓い', '#c8322a'); tg.position.copy(V(gl.x, gl.y, 8)); scene.add(tg); tags.push(tg); tg.userData.always = true; tg.userData.goal = true;
   }
   // 覚えておく（このブラウザだけ）
   const KEY = 'mikoshi_oharai_v1';

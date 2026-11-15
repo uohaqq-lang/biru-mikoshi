@@ -8086,7 +8086,8 @@ function start(DATA, isAsakusa) {
     CH.poles.length = 0;
     SND.handover();
     /* 11/07 報酬：ここで止まり（HO.stopT）、一本締めの最後の1打で新しく担げる建物が浮き、動けるようになったら勢い（HO.boostT） */
-    $('legCall').textContent = `${LEGS[k].name}へ受け渡し`; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
+    /* 11/15 本人「受け渡すという表現は合っていないかも」→案A：帯は町の名前だけ */
+    $('legCall').textContent = LEGS[k].name; $('legCall').classList.add('on'); HO.callT = now; HO.stopT = now; HO.boostT = now + HO_STOP;
     HO.sashiT = now + HO_RISE; HO.cfDone = false; setTimeout(() => { if (!S.done) SND.cheer(); }, HO_RISE);
     matoiShow(now); tierRaise(crew0 + sp.length + (CW_N[k] || 0), now);
     S.infoSig = null; navPop();

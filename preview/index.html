@@ -5693,8 +5693,9 @@ function start(DATA, isAsakusa) {
      11/14 37fix（バグ探し5回目 V4）：20秒おきでは、3区で上限を出たり入ったりするたびに出て、通しで6回（3区だけで4回）になった。
        同じ区の中は CAP_GAP（40秒）空け、1つの区で CAP_LEG 回まで（道なりの通しで、2区2回・3区2回の約4回）。
        受け渡しの帯が出る手前（道順の残り CAP_HO_D m 未満）では待ち、帯と町会の波の後に回す（スマホで、出て2秒で「北の町へ受け渡し」の帯に置き換わった）。
-       受け渡しをまたいで待った分は、そのときまだ上限にいれば出す（町会の人が加わって上限が上がっていれば、もう「積めない」ではないので出さない） */
-  const CAP_MSG = 'これ以上積めない！ 人を集めよう', CAP_GAP = 40000, CAP_SHOW = 3000, CAP_LEG = 2, CAP_HO_D = 35, CAPM = { done: false, pend: 0, pendLeg: 0, armed: true, lastT: -1e9, lastLeg: -1, n: 0, legN: [0, 0, 0], log: [], reach: [] };
+       受け渡しをまたいで待った分は、そのときまだ上限にいれば出す（町会の人が加わって上限が上がっていれば、もう「積めない」ではないので出さない）
+     11/15 本人「積めない人を集めようが多い気がする。もうちょい減らしたい」：1つの区で1回まで（CAP_LEG 2→1。道なりの通しで2区1回・3区1回） */
+  const CAP_MSG = 'これ以上積めない！ 人を集めよう', CAP_GAP = 40000, CAP_SHOW = 3000, CAP_LEG = 1, CAP_HO_D = 35, CAPM = { done: false, pend: 0, pendLeg: 0, armed: true, lastT: -1e9, lastLeg: -1, n: 0, legN: [0, 0, 0], log: [], reach: [] };
   function capMsgStep(now) {
     if (!raimonB || !RUN3 || !S.b || S.intro || S.done) return;
     const full = capFull();

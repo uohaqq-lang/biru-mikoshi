@@ -20,6 +20,8 @@
   ・音源ファイルは使わない。乱数は種を固定したハッシュで、書き出すたびに同じ音になる。
   ・10/29 入り太鼓（iri）を足した：題字の「はじめる」を押した所から、太鼓と鉦だけで4小節（約8秒）。打ち終えると自分で選ぶ画面（idle）に移る。
     大きさは書き出しで測って最初の8秒が −15.6 LUFS（選ぶ画面は −19.1、担ぐ場面は −18.3）。始まりの合図なので、ほかより少し大きい。
+  ・11/04 太鼓だけ（setDrumOnly）を足した：1回目は雷門の正面から出て、門をくぐるまで担ぐ曲を締太鼓と大胴だけで鳴らし、くぐった拍の頭で笛・鉦などが入って本調子になる。
+    場面は増やさず、担ぐ場面の層の大きさを切り替えるだけ（作り直す前は bgm_a1_雷門で本調子にする前.js）。
 */
 window.MIKOSHI_BGM = window.MIKOSHI_BGM || {};
 window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
@@ -342,6 +344,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const shimeA = PAN(-0.3), shimeB = PAN(0.3), kanePan = PAN(0.35);
   shimeA.connect(B.shime); shimeB.connect(B.shime); kanePan.connect(B.kane);
   B.shime.connect(drumLP); B.kane.connect(drumLP);
+  /*
+    11/04 節目の連打とドン（roll・don）の入口（acc）。本人「雷門潜った時に大きくなるのと、目標が達成されるごとに何かしらの音が鳴ると思うんだけど、BGMにかき消されてる」：
+    前は連打も曲の締太鼓・大胴と同じ層のつまみ（B.shime・B.od）を通っていたので、曲を下げると連打も一緒に下がった。
+    節目の音は層のつまみを通らずに、つまみの後ろ（締太鼓は drumLP、大胴は odLP）へ入れる。大きさは担ぐ場面の層の大きさの ACC_G 倍（ゲームが duck で曲を下げても、こちらは下がらない）
+  */
+  const ACC_G = 1.25;
+  const accShime = G(MIX.carry.shime * ACC_G), accA = PAN(-0.3), accB = PAN(0.3);
+  accA.connect(accShime); accB.connect(accShime); accShime.connect(drumLP);
   drumLP.connect(sum);
   send(drumLP, revIn, 0.2);
   /*
@@ -373,6 +383,9 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     odSat.oversample = '2x';
   }
   B.od.connect(odLP); odLP.connect(odDip); odDip.connect(odHP);
+  /* 11/04 節目のドン（acc）の入口：層のつまみ B.od の後ろへ入れる（上の accShime と同じ理由） */
+  const accOd = G(MIX.carry.od * ACC_G);
+  accOd.connect(odLP);
   /*
     大胴を 130Hz で上下に分け（足すと元に戻る分け方：Q 0.707 のフィルターを2つ重ねたもの同士）、下（胴鳴り）だけに odDuck をかける。
     担ぐ場面では拍の頭ごとに、ゲームの足音が鳴る所の下を引いて、足音の通り道を空ける（duckLow）。
@@ -668,13 +681,14 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
     s.start(t);
   }
   /* side＝1 は2人目（右、少し高い）。強い・普通の打ち（0.5 以上）は「テン」、弱い打ちは「ツク」 */
-  function shimeHit(t, vel, side) {
+  /* acc：節目の音の入口（accA・accB・accOd）へ出す（11/04） */
+  function shimeHit(t, vel, side, acc) {
     if (vel < 0.01) return;
-    playBuf(t, (vel >= 0.5 ? DR.shime : DR.tsuku)[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), side ? shimeB : shimeA);
+    playBuf(t, (vel >= 0.5 ? DR.shime : DR.tsuku)[side ? 1 : 0][Math.floor(hrand(nC++, 21) * 3)], Math.min(1.2, vel), acc ? (side ? accB : accA) : (side ? shimeB : shimeA));
   }
-  function odaiko(t, vel, kind) {
+  function odaiko(t, vel, kind, acc) {
     if (vel < 0.01) return;
-    playBuf(t, (kind === 'ko' ? DR.ko : DR.don)[Math.floor(hrand(nC++, 22) * 3)], vel, B.od);
+    playBuf(t, (kind === 'ko' ? DR.ko : DR.don)[Math.floor(hrand(nC++, 22) * 3)], vel, acc ? accOd : B.od);
   }
   function kaneHit(t, vel, open) {
     if (vel < 0.01) return;
@@ -983,10 +997,16 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
   const S = {
     scene: 'idle', x: 0.5, bpm: BPM.idle, bpmT: BPM.idle, dlyBpm: BPM.idle,
     n: 0, next: null, q: [], qx: [], started: false, applied: false, stopAt: Infinity, sceneT: 0,
-    fb: -1, cyc: 0, lead: 0, leadTotal: 1, resumeTo: 0, ib: -1, bb: -1, fueNeed: false, ir: -1, iriDone: true
+    fb: -1, cyc: 0, lead: 0, leadTotal: 1, resumeTo: 0, ib: -1, bb: -1, fueNeed: false, ir: -1, iriDone: true,
+    drum: false, qd: []
   };
 
+  /* 11/04 太鼓だけ（drum）：1回目の出発（雷門の正面）から門をくぐるまでは、担ぐ曲（carry）を締太鼓と大胴だけで静かに鳴らし、
+     門をくぐった所の拍の頭で、笛・鉦・はじく音・低音・パッドを入れて本調子にする（ゲームが setDrumOnly で呼ぶ）。
+     曲の進み（段・笛の旋律）は止めずに音量だけ0にしておくので、入った所から曲の途中のまま続く */
+  const DRUM_MUTE = { pad: 1, pluck: 1, bell: 1, bass: 1, kane: 1, fue: 1, sho: 1, air: 1 };
   function layerGain(sc, name, x) {
+    if (sc === 'carry' && S.drum && DRUM_MUTE[name]) return 0;
     let g = MIX[sc][name];
     if (sc === 'carry') {
       if (name === 'bass') g *= 0.55 + 0.45 * x;
@@ -1081,6 +1101,11 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       /* つかえたときは、指定の時刻そのもので止める（16分の頭まで待つと、ぶつかった「ドン」に曲が重なる） */
       if (e.name === 'stuck' && e.name !== S.scene) applyScene('stuck', Math.max(e.t, ctx.currentTime), s);
       else if (e.name !== S.scene || !S.applied) applyScene(e.name, t, s);
+    }
+    /* 太鼓だけ⇔本調子：指定の時刻（ゲームが拍の頭を選んで渡す）の16分で切り替える。本調子へは一気に（0.03秒）、太鼓だけへはゆっくり */
+    while (S.qd.length && S.qd[0].t <= t + 1e-6) {
+      const e = S.qd.shift();
+      if (e.on !== S.drum) { S.drum = e.on; if (S.scene === 'carry' && S.applied) setLayers(t, e.on ? 0.3 : 0.03); }
     }
     while (S.qx.length && S.qx[0].t <= t + 1e-6) {
       const e = S.qx.shift();
@@ -1431,16 +1456,45 @@ window.MIKOSHI_BGM['a1'] = function create(ctx, dest) {
       if (!(t >= 0)) t = ctx.currentTime;
       n = Math.max(4, Math.min(24, n | 0));
       const d = 7.5 / S.bpm;
-      odaiko(t, 0.9, 'don');
-      for (let i = 0; i < n; i++) shimeHit(t + i * d, 0.55 + 0.45 * i / (n - 1), i % 2);
-      odaiko(t + n * d, 1, 'don');
+      /* 11/04 節目の音の入口（acc）から鳴らす。曲を duck で下げても、連打は下がらない */
+      odaiko(t, 0.9, 'don', true);
+      for (let i = 0; i < n; i++) shimeHit(t + i * d, 0.55 + 0.45 * i / (n - 1), i % 2, true);
+      odaiko(t + n * d, 1, 'don', true);
+      return t + n * d;
     },
 
-    /* 大太鼓の「ドン」を1打（11/03 ゲームが、担げる建物がいっせいに浮いた瞬間に呼ぶ）。曲の中の大太鼓と同じ音の素 */
+    /* 大太鼓の「ドン」を1打（11/03 ゲームが、担げる建物がいっせいに浮いた瞬間に呼ぶ）。曲の中の大太鼓と同じ音の素。11/04 から節目の音の入口（acc）から */
     don(t, vel) {
       if (!(t >= 0)) t = ctx.currentTime;
-      odaiko(t, vel > 0 ? vel : 1, 'don');
+      odaiko(t, vel > 0 ? vel : 1, 'don', true);
     },
+
+    /*
+      曲を一時的に下げる（11/04 ゲームが、雷門をくぐった瞬間と名所の高さを抜いた瞬間に呼ぶ。放送の「ダッキング」）。
+      t から層のつまみ（B）を、今の場面の大きさの k 倍へ約0.05秒で下げ（時定数0.015秒）、t＋holdSec まで保ってから、時定数 relTau 秒で戻す（3倍の時間でほぼ戻る）。
+      節目の音（roll・don）は層のつまみを通らないので下がらない。途中で場面や太鼓だけ／本調子が替わったら、そちらの大きさへ移る（setLayers が上書きする）
+    */
+    duck(t, k, holdSec, relTau) {
+      if (!(t >= 0)) t = ctx.currentTime;
+      for (const name of LAYERS) {
+        const g = B[name].gain, full = layerGain(S.scene, name, S.x);
+        hold(g, t);
+        g.setTargetAtTime(full * k, t, 0.015);
+        g.setTargetAtTime(full, t + holdSec, relTau);
+      }
+    },
+
+    /* 太鼓だけ（on）か本調子か（11/04）。t を渡さない・今より前なら、すぐ切り替える（担ぎ始める前に決めておく用）。先の時刻なら、その16分で切り替える */
+    setDrumOnly(on, t) {
+      on = !!on;
+      if (!(t >= 0) || t <= ctx.currentTime + 0.01 || S.next === null) {
+        S.qd = [];
+        if (on !== S.drum) { S.drum = on; if (S.scene === 'carry' && S.applied) setLayers(ctx.currentTime, on ? 0.3 : 0.03); }
+        return;
+      }
+      insertSorted(S.qd, { on: on, t: t });
+    },
+    drumOnly() { return S.drum; },
 
     /* 覚えている16分の時刻の写し（確かめ用） */
     steps() { return hist.slice(); },

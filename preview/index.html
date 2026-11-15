@@ -9281,6 +9281,23 @@ function start(DATA, isAsakusa) {
     }));
     dome.renderOrder = -100; dome.frustumCulled = false; dome.raycast = () => {}; scene.add(dome);
     NT.dome = dome;
+    /* 11/15 本人「ゲームの空もスライドみたいに星があってもいいかな」→ 丸天井の内側に小さな星を少しだけ。瞬かせない（動くとぴこぴこに見える）。
+       数は浅草の夜空らしく少なめ。地平線の近く（仰角7°未満）には置かない。並びは毎回同じ（決まった乱数）。
+       足し算で重ねる不透明の点にして、丸天井のすぐ後・町より前に描く（町の建物の上には出ない）。明るさは夜の濃さで決め、夜明けで消える（nightFrame） */
+    {
+      let sd = 20261115; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+      const N = 230, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+      for (let i = 0; i < N; i++) {
+        const el = Math.asin(0.12 + 0.86 * rnd()), az = rnd() * Math.PI * 2, r = 0.96;
+        pos[i * 3] = r * Math.cos(el) * Math.cos(az); pos[i * 3 + 1] = r * Math.sin(el); pos[i * 3 + 2] = r * Math.cos(el) * Math.sin(az);
+        const b = 0.35 + 0.65 * Math.pow(rnd(), 2.2);
+        col[i * 3] = b * 0.95; col[i * 3 + 1] = b * 0.92; col[i * 3 + 2] = b * 0.82;
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const m = new THREE.PointsMaterial({ size: 2.2 * renderer.getPixelRatio(), sizeAttenuation: false, vertexColors: true, color: 0xffffff, blending: THREE.AdditiveBlending, transparent: false, depthWrite: false, depthTest: false, fog: false });
+      const st = new THREE.Points(g, m); st.renderOrder = -99; st.frustumCulled = false; st.raycast = () => {};
+      dome.add(st); NT.stars = st;
+    }
     // ---- 提灯の明かりの絵（中心が白っぽく、橙から赤へにじむ） ----
     const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d');
     const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -9509,6 +9526,8 @@ function start(DATA, isAsakusa) {
       NT.dome.position.copy(camera.position); NT.dome.scale.setScalar(camera.far * 0.85);
       const u = NT.dome.material.uniforms; u.uZen.value.copy(P.zen); u.uHor.value.copy(P.hor); u.uGlowK.value = P.glow;
       scene.background.copy(P.hor); scene.fog.color.copy(P.hor);
+      /* 星：夜の濃さ k が 0.8 から 1 の間で明るくなる（夜明けが始まると消える） */
+      if (NT.stars) { const sb = Math.max(0, Math.min(1, (k - 0.8) / 0.2)); NT.stars.material.color.setScalar(sb); NT.stars.visible = sb > 0.01; }
     }
     hemi.color.copy(P.hs); hemi.groundColor.copy(P.hg); hemi.intensity = P.hi;
     sun.color.copy(P.sc); sun.intensity = P.si;

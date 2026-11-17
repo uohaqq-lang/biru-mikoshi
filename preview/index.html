@@ -8023,20 +8023,45 @@ function start(DATA, isAsakusa) {
     return v;
   }
   function matoiClear() { for (const m of MT.list) { scene.remove(m.g); m.g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } MT.list.length = 0; }
+  /* 11/17 本人「纏ゲームも4本にしようか」（応募動画の第37稿で纏を4本にしたのに合わせる）：受け渡しのたびに纏を4本立てる。
+     置き方：神輿の左右（担ぎ手の棒の列のすぐ外＝matoiLat）に、前後へ MT_GAP m ずつずらして2本ずつ。
+     立てられるのは、道の上で、まわり MT_CLR m（房が開いたときの広がり）に建物が無く、担ぎ棒の列にかからず、ほかの纏から MT_SEP m 以上離れた所だけ。
+     狭い通りで横に2本ずつ立てられないときは、担ぎ棒の列の後ろ（無ければ前）の、神輿の幅より外の所に立てる。
+     神輿の進む先（前の、神輿の幅＋2.4m より内側）には立てない（前は、どこにも立てられないとき神輿の前の真ん中に1本立てていた） */
+  const MT_N = 4, MT_GAP = 3.4, MT_SEP = 6.5, MT_CLR = 2.6;
   function matoiShow(now) {
     matoiClear();
     if (!S.dim) return;
     const o = S.head + S.rot, c = Math.cos(o), sn = Math.sin(o), at = (u, v) => [S.x + u * c - v * sn, S.y + u * sn + v * c];
     /* 11/14 36fix：担ぎ手が多いと担ぎ棒の列が神輿の横 W/2＋2.4m より外まで並び、纏の竿が棒の格子を突き抜けて立った。
        纏は、いま担ぎ手が立っている棒の列（matoiLat）のすぐ外に立てる（建物にかかる所は使わない） */
-    const lat = matoiLat();
-    const okAt = ([x, y]) => onRoad(x, y) && !crewBlocked(x, y);
-    let spots = [1, -1].map(sd => at(0, sd * lat)).filter(okAt);
-    /* 11/14 36fix：狭い通り（2回目の受け渡し）では左右とも道の外で、纏が神輿の真後ろ＝後ろのカメラのすぐ前に立ち、竿と房が画面のまん中をふさいだ。
-       左右が駄目なら、少し内側・前寄り・後ろ寄りの左右を順に試し、それも駄目なら神輿の前に立てる（後ろには立てない） */
-    if (!spots.length) for (const [u, k] of [[0, 0.75], [S.dim.L / 2 + 1, 1], [S.dim.L / 2 + 1, 0.75], [-S.dim.L / 2 - 1, 1]]) { spots = [1, -1].map(sd => at(u, sd * lat * k)).filter(okAt); if (spots.length) break; }
-    if (!spots.length) spots = [at(S.dim.L / 2 + 3, 0)];
-    for (let k = 0; k < spots.length; k++) matoiOne(spots[k][0], spots[k][1], k);
+    const lat = matoiLat(), L2 = S.dim.L / 2, skipB = bb => bb === S.b || flatState.get(bb) === 1;
+    /* 房の広がり（半径 MT_CLR m）の8方向と足元に、低い所（2m）・高い所（8m）とも建物が無いこと */
+    const clearOf = (x, y, r) => { if (bldAt(x, y, 2, skipB)) return false; for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; if (bldAt(px, py, 2, skipB) || bldAt(px, py, 8, skipB)) return false; } return true; };
+    const pts = [], side = [0, 0], W2 = S.dim.W / 2, vmin = W2 + 2.4, uPole = L2 + 2.6;
+    /* 立てられる所を1m おきに探し、点の小さい順に選ぶ。
+       点：真横（前後のずれ |u| が MT_GAP に近く、横が lat に近い）ほど小さい。狭い通りで横に立てられないときは棒の列の後ろへ。棒の列より前は最後。
+       立てない所：担ぎ棒の列の中（|u| < uPole かつ横が lat−0.6 より内）、神輿の進む先（前で、横が vmin より内）、道の外、まわり MT_CLR m に建物 */
+    const cand = [];
+    for (let u = -L2 - 14; u <= L2 + 10 + 1e-6; u += 1) for (let av = vmin; av <= lat * 1.6 + 1e-6; av += 1) for (const sd of [1, -1]) {
+      if (Math.abs(u) < uPole && av < lat - 0.6) continue;
+      const p = at(u, sd * av);
+      if (!onRoad(p[0], p[1]) || crewBlocked(p[0], p[1]) || !clearOf(p[0], p[1], MT_CLR)) continue;
+      /* 棒の列より前（u ≥ uPole）は、受け渡しのカメラ（神輿の斜め前）と神輿の間に入り、纏が手前に大きく写って神輿と人だかりを隠した（11/17 北の町）。ほかに無いときだけ */
+      const out = Math.abs(u) >= uPole && av < lat - 0.6, ahead = u >= uPole;
+      cand.push({ p, sd, sc: Math.abs(Math.abs(u) - MT_GAP) * 0.6 + Math.abs(av - lat) + (out ? 4 : 0) + (ahead ? 50 : 0) });
+    }
+    cand.sort((a, b) => a.sc - b.sc);
+    /* 1巡目：左右それぞれ2本まで。2巡目：足りなければ、立てられる側に3本目・4本目 */
+    for (const lim of [2, MT_N]) for (const q of cand) {
+      if (pts.length >= MT_N) break;
+      const si = q.sd > 0 ? 0 : 1;
+      if (side[si] >= lim || pts.some(o => Math.hypot(o[0] - q.p[0], o[1] - q.p[1]) < MT_SEP)) continue;
+      pts.push(q.p); side[si]++;
+    }
+    /* 11/14 36fix：狭い通りで左右とも道の外のときは、少し内側の左右・後ろ寄りの左右を試す（神輿の真後ろ＝後ろのカメラのすぐ前や、神輿の前には立てない） */
+    if (!pts.length) for (const [u, k] of [[0, 0.75], [-L2 - 1, 1], [-L2 - 1, 0.75]]) for (const sd of [1, -1]) { const p = at(u, sd * lat * k); if (onRoad(p[0], p[1]) && !crewBlocked(p[0], p[1]) && !pts.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < MT_SEP)) pts.push(p); }
+    for (let k = 0; k < pts.length; k++) matoiOne(pts[k][0], pts[k][1], k);
     MT.t0 = now;
   }
   function matoiOne(x, y, k) {
@@ -8065,8 +8090,8 @@ function start(DATA, isAsakusa) {
     const w = e < 400 ? 4 * e / 400 : e < HO_RISE ? 4 + 7 * Math.min(1, (e - 400) / 900) : Math.max(3, 11 - (e - HO_RISE) / 200);
     const sp = Math.min(1.05, w * 0.1), ks = e > end ? Math.max(0.01, 1 - (e - end) / 500) : 1;
     for (const m of MT.list) {
-      /* 2本目は逆回り。拍子に合わせて少し持ち上げる（0.36秒ごと） */
-      m.r.rotation.y += (m.k ? -1 : 1) * w * 0.016;
+      /* 1本おきに逆回り（11/17 4本にしたので、2・4本目が逆回り）。拍子に合わせて少し持ち上げる（0.36秒ごと） */
+      m.r.rotation.y += (m.k % 2 ? -1 : 1) * w * 0.016;
       m.r.position.y = 0.18 * Math.max(0, Math.sin(e / 360 * Math.PI + m.k * 0.6));
       m.r.rotation.z = 0.06 * Math.sin(e / 520 + m.k);
       for (const h of m.strips) h.rotation.z = sp;
@@ -10150,7 +10175,8 @@ function start(DATA, isAsakusa) {
                反対の側に纏が無い側にはカメラを置かない（どちらにも無ければ寄せない） */
             const mloc = MT.list.map(m => { const dx = m.g.position.x - S.x, dy = -m.g.position.z - S.y; return { u: dx * Math.cos(f) + dy * Math.sin(f), v: -dx * Math.sin(f) + dy * Math.cos(f) }; });
             const at = (sd, k) => {
-              const far = k ? mloc.filter(q => q.v * sd < -0.5).sort((p, q) => Math.abs(q.v) - Math.abs(p.v))[0] : null;
+              /* 11/17 纏が片側に2本並ぶので、横の離れが同じなら神輿の真横に近い方（前後のずれ |u| が小さい方） */
+              const far = k ? mloc.filter(q => q.v * sd < -0.5).sort((p, q) => (Math.abs(q.v) - Math.abs(p.v)) || (Math.abs(p.u) - Math.abs(q.u)))[0] : null;
               if (k && !far) return null;
               const tu = far ? lu + (far.u - lu) * k : lu, tv = far ? far.v * k : 0;
               const lx = S.x + Math.cos(f) * tu - Math.sin(f) * tv, ly = S.y + Math.sin(f) * tu + Math.cos(f) * tv, a = f + sd * HOC.A;

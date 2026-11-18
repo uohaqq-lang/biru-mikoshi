@@ -10214,14 +10214,14 @@ function start(DATA, isAsakusa) {
             if (narrow) for (const an of HOC.ANS) C = C.concat([near(1, an), near(-1, an)].filter(Boolean));
             /* 点：土台の足元を通る線は 100。スマホの縦は、反対の側の纏を狙うと画面の端で切れた（11/18 北の町）ので、同じ側の纏も候補にして下の seen で比べる */
             /* 11/18 2回目の直し：同じ側を先にすると、西の町では手前のビルが神輿と人だかりを隠した。
-               スマホの縦は、画面の横の画角に入り、土台の足元に隠れない纏の本数が多い所を選ぶ（同じなら手前の建物の数、それも同じなら前からの反対の側） */
+               スマホの縦は、画面の横の画角に入り、土台の足元に隠れない纏の本数が多い所を選ぶ（3本まで数える。遠いほど纏が小さくなるので距離 R/12 を足す。あとは手前の建物の数） */
             const seen = q => { if (!narrow) return 0; const vx = q.lx - q.x, vy = q.ly - q.y, vl = Math.hypot(vx, vy); let n = 0;
               for (const m of mloc) { const wx = S.x + Math.cos(f) * m.u - Math.sin(f) * m.v, wy = S.y + Math.sin(f) * m.u + Math.cos(f) * m.v, dx = wx - q.x, dy = wy - q.y, dl = Math.hypot(dx, dy);
                 const ang = Math.acos(Math.max(-1, Math.min(1, (dx * vx + dy * vy) / (dl * vl)))), pad = Math.atan(1.2 * MT_K / dl);
                 if (ang + pad < hh && !bodyBlock({ x: q.x, y: q.y, tg: [wx, wy] })) n++; }
               return n; };
             /* 手前の建物は、纏の真ん中への線と、神輿への線の両方で数える（西の町で、纏は見えても手前のビルが神輿と人だかりを隠した） */
-            const sc = q => (bodyBlock(q) ? 100 : 0) - 10 * seen(q) + hits(q) + (narrow ? hits({ x: q.x, y: q.y, z: q.z, lx: S.x, ly: S.y }) : 0) + (q.near ? 0.5 : 0);
+            const sc = q => (bodyBlock(q) ? 100 : 0) - 10 * Math.min(3, seen(q)) + hits(q) + (narrow ? hits({ x: q.x, y: q.y, z: q.z, lx: S.x, ly: S.y }) + q.R / 12 : 0) + (q.near ? 0.5 : 0);
             const P = C.reduce((a, b) => sc(b) < sc(a) ? b : a);
             HO.cam = { t: HO.stopT, pos: V(P.x, P.y, P.z), look: V(P.lx, P.ly, HOC.LZ), sd: P.sd, d: +P.R.toFixed(1), near: !!P.near, dbg: C.map(q => [q.sd, q.near ? q.an : 0, sc(q), seen(q), +q.R.toFixed(1)]), mloc: mloc.map(q => [+q.u.toFixed(1), +q.v.toFixed(1)]), narrow };
           }

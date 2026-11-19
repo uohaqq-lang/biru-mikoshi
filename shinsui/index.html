@@ -1,0 +1,2511 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>浸水体験（試作）</title>
+<style>
+:root{
+  --panel: rgba(24, 36, 48, .74);
+  --panel-strong: rgba(24, 36, 48, .9);
+  --text: #f3f6f8;
+  --sub: #b4c3cf;
+  --water: #8fd0ee;
+  --accent: #3f8fcf;
+}
+html,body{
+  margin:0;height:100%;overflow:hidden;background:#c6d1d9;color:var(--text);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Meiryo",sans-serif;
+  -webkit-text-size-adjust:100%;-webkit-user-select:none;user-select:none;
+}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hide{display:none!important}
+button{font-family:inherit;-webkit-tap-highlight-color:transparent;cursor:pointer}
+
+/* ---------- 地図 ---------- */
+#mapLabels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.mlab{
+  position:absolute;left:0;top:0;font-size:12px;line-height:1.3;color:#24323e;white-space:nowrap;
+  background:rgba(255,255,255,.82);padding:1px 6px;border-radius:6px;
+}
+.mlab.city{font-size:14px;font-weight:700;background:none;color:#3b4a56;text-shadow:0 0 3px #fff,0 0 3px #fff}
+.mlab.river{font-size:18px;font-weight:700;background:none;color:#1b5f9e;letter-spacing:.2em;text-shadow:0 0 3px #fff,0 0 4px #fff}
+.mlab.breach{background:#c8323b;color:#fff;font-weight:700;font-size:13px;padding:3px 8px}
+#pickInfo .far{font-size:13px;color:var(--water);margin-top:2px}
+#legend{
+  position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 84px);width:172px;box-sizing:border-box;
+  background:rgba(255,255,255,.9);color:#24323e;border-radius:10px;padding:7px 9px 6px;pointer-events:none;
+  box-shadow:0 2px 8px rgba(0,0,0,.12);
+}
+#legend .lt{font-size:11.5px;font-weight:700;margin-bottom:3px}
+#legend .lg{font-size:11.5px;display:flex;align-items:center;gap:6px;line-height:1.55}
+#legend .lg i{display:inline-block;width:16px;height:11px;border-radius:2px;border:1px solid rgba(0,0,0,.18)}
+#legend .ls{font-size:9px;line-height:1.35;color:#5a6873;margin-top:3px}
+#toast{
+  position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);background:var(--panel-strong);
+  border-radius:10px;padding:10px 16px;font-size:15px;pointer-events:none;
+}
+#floorAsk{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 34px);
+  width:min(92vw,380px);box-sizing:border-box;background:var(--panel-strong);border-radius:14px;padding:14px 16px;
+  box-shadow:0 6px 20px rgba(0,0,0,.25);text-align:center;
+}
+#floorAsk .q{font-size:16px;font-weight:700}
+#floorAsk .row2{display:flex;align-items:center;justify-content:center;gap:18px;margin:12px 0}
+#floorAsk .row2 button{width:56px;height:56px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:28px;line-height:1}
+#floorAsk .row2 button:disabled{opacity:.35}
+#floorVal{font-size:30px;font-weight:700;min-width:96px;font-variant-numeric:tabular-nums}
+#floorGo{width:100%;height:48px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
+#mapTop{
+  position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 12px);
+  background:var(--panel);border-radius:12px;padding:9px 14px;pointer-events:none;
+}
+#mapTop .t{font-size:17px;font-weight:700}
+#mapTop .s{font-size:13px;color:var(--sub);margin-top:2px}
+#zoom{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 12px);display:flex;flex-direction:column;gap:8px}
+#zoom button{width:44px;height:44px;border-radius:10px;border:0;background:var(--panel);color:#fff;font-size:24px;line-height:1}
+#pick{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 34px);
+  width:min(92vw,380px);box-sizing:border-box;background:var(--panel-strong);border-radius:14px;padding:12px 14px;
+  display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.25);
+}
+#pickInfo{flex:1 1 auto;font-size:15px;min-width:0}
+#pickGo{flex:0 0 auto;height:46px;padding:0 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
+#credit{
+  position:fixed;left:0;right:0;bottom:0;padding:4px 8px calc(env(safe-area-inset-bottom) + 4px);
+  font-size:10px;line-height:1.4;color:#33414c;background:rgba(255,255,255,.72);
+}
+#credit a{color:inherit}
+
+/* ---------- 居間 ---------- */
+#hud{
+  position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 12px) 12px 0;pointer-events:none;
+}
+#hudRow{display:flex;justify-content:space-between;gap:10px}
+.box{background:var(--panel);border-radius:12px;padding:7px 13px 8px;min-width:0}
+.lab{font-size:12px;color:var(--sub)}
+.val{font-size:26px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+.val small{font-size:15px;font-weight:600;margin-left:2px}
+#rainSub{font-size:12px;color:var(--water);min-height:1.2em;white-space:nowrap}
+#depthBox{text-align:right}
+#depthBox .val{color:var(--water)}
+#meter{position:relative;height:8px;margin-top:10px;border-radius:4px;background:rgba(24,36,48,.45);overflow:visible}
+#meterFill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;background:var(--water)}
+.tick{position:absolute;top:-3px;width:2px;height:14px;margin-left:-1px;background:rgba(255,255,255,.55);border-radius:1px}
+.tick.on{background:#fff}
+
+#hint{
+  position:fixed;left:50%;top:52%;transform:translate(-50%,-50%);pointer-events:none;
+  background:var(--panel-strong);border-radius:12px;padding:12px 18px;font-size:17px;white-space:nowrap;
+  transition:opacity .5s;
+}
+#hint .hand{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--water);margin-right:14px;vertical-align:1px;animation:rub 1.1s ease-in-out infinite}
+@keyframes rub{0%,100%{transform:translateX(-7px)}50%{transform:translateX(7px)}}
+
+#msgs{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 92px);
+  width:min(92vw,520px);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;
+}
+.msg{
+  background:var(--panel-strong);border-radius:10px;padding:9px 16px;font-size:16px;line-height:1.5;
+  text-align:center;white-space:pre-line;opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s;
+}
+.msg.show{opacity:1;transform:none}
+#stop{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 26px);
+  height:46px;padding:0 22px;border:0;border-radius:23px;background:rgba(255,255,255,.92);color:#1d2d3a;
+  font-size:15px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.25);transition:opacity .4s;
+}
+#note{
+  position:fixed;right:10px;bottom:calc(env(safe-area-inset-bottom) + 10px);
+  font-size:11px;color:#fff;background:rgba(24,36,48,.5);padding:2px 7px;border-radius:6px;pointer-events:none;
+}
+#under{
+  position:fixed;inset:0;opacity:0;pointer-events:none;transition:opacity .5s;
+  background:radial-gradient(ellipse at 50% 30%, rgba(120,110,80,.62), rgba(70,62,42,.86));
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+}
+
+/* ---------- 結果 ---------- */
+#result{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;
+  background:rgba(14,22,30,.55);opacity:0;pointer-events:none;transition:opacity .6s;
+}
+#result.show{opacity:1;pointer-events:auto}
+/* 結果のときは、後ろの数字や一言を隠す */
+body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.res #alert{visibility:hidden}
+.card{
+  background:#1d2933;border-radius:16px;padding:18px 18px 12px;width:min(94vw,400px);box-sizing:border-box;
+  box-shadow:0 10px 34px rgba(0,0,0,.45);max-height:calc(100vh - 24px);overflow:auto;
+}
+.lead{font-size:18px;font-weight:700;line-height:1.45;color:#fff}
+.rain{font-size:13px;color:var(--sub);margin-top:4px}
+.kv{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.kv:first-of-type{margin-top:8px;border-top:1px solid rgba(255,255,255,.1)}
+.kv .k{font-size:14px;color:#c5d2dc;flex:1 1 auto;min-width:0}
+.kv .v{font-size:30px;font-weight:700;color:#fff;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.kv .v small{font-size:15px;font-weight:600;margin-left:2px}
+.kv .v .u{display:block;font-size:12px;font-weight:400;color:var(--sub);margin-top:1px}
+.note2{font-size:12px;color:var(--sub);margin-top:8px}
+.warn{
+  margin-top:12px;background:#2c3a47;border-left:5px solid var(--water);border-radius:8px;
+  padding:10px 12px;font-size:15px;font-weight:700;line-height:1.5;color:#fff;
+}
+.btns{display:flex;gap:10px;margin-top:12px}
+.btns button{flex:1;height:46px;border:0;border-radius:10px;font-size:15px;font-weight:700}
+#again{background:var(--accent);color:#fff}
+#rePick{background:rgba(255,255,255,.14);color:#fff}
+.src{margin-top:8px;font-size:12px;color:var(--sub)}
+.src summary{cursor:pointer;padding:4px 0;list-style:none}
+.src summary::-webkit-details-marker{display:none}
+.src summary::before{content:"＋ "}
+.src[open] summary::before{content:"− "}
+.src div{font-size:10.5px;line-height:1.55;padding-top:4px}
+
+/* 荒川の知らせ（この作品の中の目安。本物の速報の見た目にはしない） */
+#alert{
+  position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 124px);
+  display:flex;align-items:center;gap:10px;background:#22303c;border-left:6px solid var(--water);
+  border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.25);
+  opacity:0;transform:translateY(-8px);transition:opacity .4s,transform .4s;pointer-events:none;
+}
+#alert.show{opacity:1;transform:none}
+#alert.breach{border-left-color:#c8323b;background:#2b2328}
+#alert .at{flex:1 1 auto;font-size:16px;font-weight:700;color:#fff;line-height:1.4}
+#alert .tag{flex:0 0 auto;font-size:11px;color:#c5d2dc;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:1px 7px}
+
+@media (max-width:420px){
+  /* 出典の帯が3行になるので、下の欄を上にずらす */
+  #pick,#floorAsk{bottom:calc(env(safe-area-inset-bottom) + 66px)}
+  .val{font-size:22px}
+  .msg{font-size:15px}
+  #hint{font-size:16px}
+}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<!-- 地図の画面 -->
+<div id="mapUI">
+  <div id="mapLabels"></div>
+  <div id="legend"></div>
+  <div id="toast" class="hide"></div>
+  <div id="mapTop"><div class="t">家をえらぶ</div><div class="s">地図を寄せて、建物をタップ</div></div>
+  <div id="zoom"><button id="zIn" type="button" aria-label="寄せる">＋</button><button id="zOut" type="button" aria-label="引く">−</button></div>
+  <div id="pick" class="hide"><div id="pickInfo"></div><button id="pickGo" type="button">この家にする</button></div>
+  <div id="floorAsk" class="hide">
+    <div class="q">何階に住んでいますか</div>
+    <div class="row2"><button id="fDown" type="button" aria-label="1つ下の階">−</button><span id="floorVal">1階</span><button id="fUp" type="button" aria-label="1つ上の階">＋</button></div>
+    <button id="floorGo" type="button">この階にする</button>
+  </div>
+  <div id="credit">建物・浸水深：国土交通省 PLATEAU <a href="https://www.geospatial.jp/ckan/dataset/plateau-11223-warabi-shi-2024" target="_blank" rel="noopener">蕨市（2024年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11224-toda-shi-2022" target="_blank" rel="noopener">戸田市（2022年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11203-kawaguchi-shi-2024" target="_blank" rel="noopener">川口市（2024年度）</a>を加工して作成　川・道路・鉄道・駅名：<a href="https://maps.gsi.go.jp/development/vt.html" target="_blank" rel="noopener">国土地理院 ベクトルタイル</a>を加工して作成</div>
+</div>
+
+<!-- 居間の画面 -->
+<div id="roomUI" class="hide">
+  <div id="under"></div>
+  <div id="hud">
+    <div id="hudRow">
+      <div class="box">
+        <div class="lab">3日間の雨</div>
+        <div class="val"><span id="rainVal">0</span><small>mm</small></div>
+        <div id="rainSub"></div>
+      </div>
+      <div class="box" id="depthBox">
+        <div class="lab" id="depthLab">この家の水の深さ</div>
+        <div class="val"><span id="depthVal">0.00</span><small>m</small></div>
+      </div>
+    </div>
+    <div id="meter"><div id="meterFill"></div></div>
+  </div>
+  <div id="hint"><span class="hand"></span>画面をこすって、雨を降らせる</div>
+  <div id="alert"><span class="at"></span><span class="tag">想定</span></div>
+  <div id="msgs"></div>
+  <button id="stop" type="button" class="hide">ここまでにする</button>
+  <div id="note">目安</div>
+</div>
+
+<!-- 結果 -->
+<div id="result" aria-hidden="true">
+  <div class="card">
+    <div id="resRows"></div>
+    <div class="warn" id="resWarn">上の階に逃げても、何日も取り残されます。早めに浸水する場所の外へ</div>
+    <div class="btns"><button id="again" type="button">もう一度</button><button id="rePick" type="button">家を選びなおす</button></div>
+    <details class="src"><summary>出典</summary><div id="resSrc"></div></details>
+  </div>
+</div>
+
+<script src="three.min.js"></script>
+<script src="buildings_3cities.js"></script>
+<script src="map_layers.js"></script>
+<script>
+"use strict";
+
+/* =====================================================================
+   調整しやすい値（ここにまとめる）
+   ===================================================================== */
+const CONFIG = {
+  /* 地面から1階の床までの高さ（m）。仮 */
+  floorHeight: 0.45,
+
+  /* 床からの高さ（m）。家具の形もこの値で作る。一般的な目安（仮） */
+  heights: {
+    ceiling: 2.40,
+    outlet: 0.25,
+    tableTop: 0.35,
+    tableFloat: 0.12,
+    sofaSeat: 0.40,
+    sofaBack: 0.80,
+    tvStand: 0.40,
+    tvTop: 1.10,
+    sinkCounter: 0.85,
+    fridge: 1.80,
+    clock: 1.95
+  },
+
+  /* こすり方。画面の短い辺1つ分こすると mmPerScreen mm 増える。
+     1秒に増える量は maxMmPerSec まで（632/20 なら、最速で20秒）。
+     ふつうにこすると1秒に画面2〜3つ分くらいなので、だいたい25〜30秒で632mmに届く。 */
+  rub: {
+    mmPerScreen: 8.5,
+    maxMmPerSec: 632 / 20
+  },
+
+  /* 水位が雨の量に追いつく速さ（m/秒） */
+  waterSpeed: 0.4,
+
+  /* 最後に水が引く場面の秒数 */
+  drainSec: 3.2,
+
+  /* 飲み水の目安（首相官邸「災害への備え」：1人1日3リットル） */
+  waterPerDayL: 3,
+
+  /* 壁の時計：雨が0mmのときの時刻（分）と、632mmで進む時間（3日間） */
+  clockStartMinutes: 300,
+  clockHoursAtMax: 72
+};
+
+/* 荒川流域の3日間の雨の量の目盛り（国交省の図の注記。調べ_浸水体験の案.md 結論1）。
+   417mmで戸田・川口、467mmで蕨に水が来る（国の図の「関係市区町」）。 */
+const RAIN_STEPS = [
+  { mm: 299, label: "10年に1回", text: "10年に1回の雨の量" },
+  { mm: 380, label: "30年に1回", text: "30年に1回の雨の量" },
+  { mm: 417, label: "50年に1回", text: "50年に1回の雨の量。\n戸田と川口に水が来た" },
+  { mm: 467, label: "100年に1回", text: "100年に1回の雨の量。\n蕨に水が来た" },
+  { mm: 516, label: "200年に1回", text: "200年に1回の雨の量" },
+  { mm: 632, label: "想定最大", text: "想定される最大の雨の量" }
+];
+const MM_ZERO = 467, MM_L1 = 516, MM_MAX = 632;
+
+/* 沈んだときの一言。at は「床からの高さ（m）」。仮の文。 */
+const H = CONFIG.heights;
+/* 地面から、いる部屋の床までの高さ（m）。1階は CONFIG.floorHeight。上の階は enterRoom で決める */
+let FH = CONFIG.floorHeight;
+/* 立った人の目の高さ（床から、m） */
+const EYE = 1.5;
+const RISING_LINES = [
+  { at: 0.5, text: "ひざまで水が来た" },
+  { at: 0.95, text: "腰まで水が来た" },
+  { at: EYE - 0.05, text: "立っていても顔まで水が来た" },
+  { at: H.tableFloat, text: "ローテーブルが浮いた" },
+  { at: H.outlet, text: "コンセントが水につかった。電気はもう使えない" },
+  { at: H.sofaSeat, text: "ソファの座面が沈んだ" },
+  { at: H.sofaBack, text: "ソファが見えなくなった" },
+  { at: H.sinkCounter, text: "台所の流し台が沈んだ" },
+  { at: H.tvTop, text: "テレビが沈んだ" },
+  { at: H.fridge, text: "冷蔵庫が沈んだ" },
+  { at: H.clock, text: "時計が止まった" },
+  { at: H.ceiling, text: "天井まで水が来た" }
+];
+const LINE_ROAD = "家の前の道が水につかった";
+/* 荒川の知らせ（この作品の中の目安）。国の図では380mmまで3市は浸からず、417mmで戸田・川口、467mmで蕨に水が来る。
+   そこで、299mm（10年に1回）で水位が上がり、380mm（30年に1回）で危険な水位を超え、417mmの手前（405mm）で堤防が切れ、
+   自分の市に水が来る少し前（浸かり始めの8mm手前）に「水がこちらに向かっている」を出す */
+function riverAlerts(b) {
+  const z0 = mmZeroOf(b);
+  return [
+    { mm: 299, text: "荒川の水位が上がっている" },
+    { mm: 380, text: "荒川が氾濫の危険がある水位を超えた" },
+    { mm: 405, text: "荒川の堤防が切れた（決壊）", breach: true },
+    { mm: z0 - 8, text: "水がこちらに向かっている" }
+  ];
+}
+let alertTimer = 0;
+function showAlert(a) {
+  const box = document.getElementById("alert");
+  box.querySelector(".at").textContent = a.text;
+  box.classList.toggle("breach", !!a.breach);
+  box.classList.add("show");
+  clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => box.classList.remove("show"), a.breach ? 6500 : 5000);
+  if (a.breach) { G.flash = 1; playBreachSound(); }
+}
+const LINE_FLOOR = "床の上に水が上がってきた";
+/* 水が部屋まで来ない階で出す一言。at は「地面からの深さ（m）」。null は enterRoom で決める */
+const OUTSIDE_LINES = [
+  { at: CONFIG.floorHeight, text: "1階の入口が水につかった" },
+  { at: 0.5, text: "外に出られなくなった" },
+  { at: CONFIG.floorHeight + CONFIG.heights.outlet, text: "停電した。まわりの家の明かりも消えた" },
+  { at: 0.75, text: "生け垣が見えなくなった" },
+  { at: 1.3, text: "塀が沈んだ" },
+  { at: 1.5, text: "車が見えなくなった" },
+  { at: 2.0, text: "向かいの家の1階の窓が沈んだ" },
+  { at: 2.9, text: "向かいの家の1階が沈んだ" },
+  { at: null, text: "この建物の1階が水の中に沈んだ" }
+];
+
+/* =====================================================================
+   建物のデータ（buildings_3cities.js：蕨市・戸田市・川口市の荒川寄り）
+   ===================================================================== */
+const W = window.WARABI;
+/* 市ごとの名前・年度・目録・浸かり始める雨の量（国の図：417mmで戸田・川口、467mmで蕨） */
+const CITIES = W.cities;
+const BLD = [];
+const CITY_BOUNDS = CITIES.map(() => ({ minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }));
+{
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const r of W.b) {
+    const pts = [];
+    let x = r[7], y = r[8];
+    pts.push(x, y);
+    for (let i = 9; i < r.length; i += 2) { x += r[i]; y += r[i + 1]; pts.push(x, y); }
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      if (pts[i] < x0) x0 = pts[i]; if (pts[i] > x1) x1 = pts[i];
+      if (pts[i + 1] < y0) y0 = pts[i + 1]; if (pts[i + 1] > y1) y1 = pts[i + 1];
+    }
+    BLD.push({
+      l1: r[0] < 0 ? null : r[0] / 100, l2: r[1] / 100, durH: r[2], storeys: r[3], usage: W.usage[r[4]],
+      h: r[5] / 10, city: r[6], pts, x0, y0, x1, y1
+    });
+    if (x0 < minX) minX = x0; if (y0 < minY) minY = y0; if (x1 > maxX) maxX = x1; if (y1 > maxY) maxY = y1;
+    const cb = CITY_BOUNDS[r[6]];
+    if (x0 < cb.minX) cb.minX = x0; if (y0 < cb.minY) cb.minY = y0; if (x1 > cb.maxX) cb.maxX = x1; if (y1 > cb.maxY) cb.maxY = y1;
+  }
+  BLD.bounds = { minX, minY, maxX, maxY };
+}
+/* その建物の市で、浸かり始める雨の量 */
+const mmZeroOf = b => (b && CITIES[b.city] && CITIES[b.city].mmZero) || MM_ZERO;
+
+/* 雨の量から、その家の深さ（地面から、m）。市の浸かり始め（蕨467mm・戸田と川口417mm）で0、516mmでL1、632mmでL2、間は直線。
+   L1が0か無ければ、浸かり始めから632mmまでを直線で */
+function depthForRain(mm, b) {
+  const z0 = mmZeroOf(b);
+  if (!b || mm <= z0) return 0;
+  const m = Math.min(mm, MM_MAX);
+  if (b.l1 && b.l1 > 0) {
+    if (m <= MM_L1) return b.l1 * (m - z0) / (MM_L1 - z0);
+    return b.l1 + (b.l2 - b.l1) * (m - MM_L1) / (MM_MAX - MM_L1);
+  }
+  return b.l2 * (m - z0) / (MM_MAX - z0);
+}
+function stepAt(mm) {
+  let s = null;
+  for (const r of RAIN_STEPS) if (mm >= r.mm) s = r;
+  return s;
+}
+
+/* =====================================================================
+   地図（3D）。建物は本当の高さで立てる。川・道路・鉄道・駅名は国土地理院のベクトルタイル（map_layers.js）
+   ===================================================================== */
+const ML = window.MAPL;
+const viewCanvas = document.getElementById("view");
+let selected = -1;
+let mapNeedsRender = true;
+window.__mapFrames = 0;
+
+/* ズーム20のピクセルから m へ（緯度35.815度での縮尺） */
+const KM = 40075016.686 * Math.cos(35.815 * Math.PI / 180) / Math.pow(2, 28);
+function lonLatToPx(lon, lat) {
+  const n = 256 * Math.pow(2, W.z);
+  const s = Math.sin(lat * Math.PI / 180);
+  return [(lon + 180) / 360 * n - W.ox, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n - W.oy];
+}
+
+/* 浸水ナビで、蕨が一番深くなる破堤点（荒川左岸 26.8k と 27.2k。navi_points.jsonl の BPLat・BPLon） */
+const BREACH = [
+  { name: "荒川左岸 26.8k", lon: 139.667656, lat: 35.802188 },
+  { name: "荒川左岸 27.2k", lon: 139.662656, lat: 35.802396 }
+].map(b => {
+  const p = lonLatToPx(b.lon, b.lat);
+  return Object.assign(b, { px: p[0], py: p[1] });
+});
+
+/* 3Dの座標：x が東、z が南（m）。蕨の町と破堤点の間を原点にする */
+const MCX = (BLD.bounds.minX + BLD.bounds.maxX) / 2;
+const MCY = (BLD.bounds.minY + Math.max(BLD.bounds.maxY, BREACH[0].py)) / 2;
+const mX = px => (px - MCX) * KM;
+const mZ = py => (py - MCY) * KM;
+
+const mapScene = new THREE.Scene();
+mapScene.background = new THREE.Color(0xdfe6ea);
+const mapCam = new THREE.PerspectiveCamera(40, 1, 5, 60000);
+/* 屋根がハザードマップの色のまま見えるよう、明かりの合計を1くらいにする */
+mapScene.add(new THREE.HemisphereLight(0xffffff, 0x8f989c, 0.6));
+{
+  const s = new THREE.DirectionalLight(0xffffff, 0.4);
+  s.position.set(-0.6, 1, 0.45);
+  mapScene.add(s);
+}
+
+/* 地面 */
+{
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), new THREE.MeshBasicMaterial({ color: 0xcfd7d2 }));
+  g.rotation.x = -Math.PI / 2;
+  mapScene.add(g);
+}
+
+/* 水域（川・池）。外側の輪と穴をまとめて三角形に分ける */
+{
+  const pos = [];
+  for (const poly of ML.water) {
+    const toV = r => { const a = []; for (let i = 0; i < r.length; i += 2) a.push(new THREE.Vector2(mX(r[i]), mZ(r[i + 1]))); return a; };
+    const outer = toV(poly[0]);
+    const holes = poly.slice(1).map(toV);
+    let tris;
+    try { tris = THREE.ShapeUtils.triangulateShape(outer, holes); } catch (e) { continue; }
+    const all = outer.concat(...holes);
+    for (const t of tris) for (const k of t) pos.push(all[k].x, 0.4, all[k].y);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x6ea7d8, side: THREE.DoubleSide }));
+  mapScene.add(m);
+}
+
+/* 道路（主なもの）と鉄道は線で */
+function lineMesh(list, y, color, opacity) {
+  const pos = [];
+  for (const r of list) {
+    for (let i = 0; i + 3 < r.length; i += 2) pos.push(mX(r[i]), y, mZ(r[i + 1]), mX(r[i + 2]), y, mZ(r[i + 3]));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
+}
+mapScene.add(lineMesh(ML.roads, 0.8, 0xffffff, 0.95));
+mapScene.add(lineMesh(ML.rail, 1.2, 0x55606a, 1));
+
+/* 建物：8万棟を、600m四方の区画ごとに1つの形にまとめる（法線は描くときに面から求める）。
+   区画ごとに「壁と屋根」と「屋根だけ」の2つを作り、カメラから遠い区画は屋根だけを描いて軽くする。
+   画面の外の区画は three が描かない。 */
+const CHUNK_M = 600;
+const bldChunks = [];
+
+/* 屋根の三角形：凸なら扇形に分け（速い）、へこみがあれば three の分割を使う */
+function roofTriangles(xs, zs, n) {
+  let sign = 0, convex = true;
+  for (let k = 0; k < n && convex; k++) {
+    const a = k, b = (k + 1) % n, c = (k + 2) % n;
+    const cr = (xs[b] - xs[a]) * (zs[c] - zs[b]) - (zs[b] - zs[a]) * (xs[c] - xs[b]);
+    if (Math.abs(cr) < 1e-9) continue;
+    const s = cr > 0 ? 1 : -1;
+    if (sign === 0) sign = s; else if (s !== sign) convex = false;
+  }
+  if (convex) {
+    const t = [];
+    for (let k = 1; k < n - 1; k++) t.push([0, k, k + 1]);
+    return t;
+  }
+  const contour = [];
+  for (let k = 0; k < n; k++) contour.push(new THREE.Vector2(xs[k], zs[k]));
+  try { return THREE.ShapeUtils.triangulateShape(contour, []); } catch (e) { return []; }
+}
+
+/* list の建物を1つの形にする。roofOnly なら屋根だけ。faceB には、面の番号→建物の番号を入れる */
+function buildingGeometry(list, lift, colorOf, roofOnly) {
+  let nv = 0, nt = 0;
+  for (const i of list) {
+    const n = BLD[i].pts.length / 2;
+    nv += roofOnly ? n : 2 * n;
+    nt += roofOnly ? n - 2 : 3 * n - 2;
+  }
+  const pos = new Float32Array(nv * 3);
+  const col = colorOf ? new Float32Array(nv * 3) : null;
+  const idx = nv > 65535 ? new Uint32Array(nt * 3) : new Uint16Array(nt * 3);
+  const faceB = new Uint32Array(nt);
+  let v = 0, f = 0;
+  const xs = [], zs = [];
+  for (const i of list) {
+    const b = BLD[i];
+    const p = b.pts, n = p.length / 2, h = b.h + lift;
+    const base = v;
+    for (let k = 0; k < n; k++) { xs[k] = mX(p[2 * k]); zs[k] = mZ(p[2 * k + 1]); }
+    const top = roofOnly ? base : base + n;
+    for (let k = 0; k < n; k++) {
+      if (!roofOnly) { pos[(base + k) * 3] = xs[k]; pos[(base + k) * 3 + 1] = 0; pos[(base + k) * 3 + 2] = zs[k]; }
+      pos[(top + k) * 3] = xs[k]; pos[(top + k) * 3 + 1] = h; pos[(top + k) * 3 + 2] = zs[k];
+    }
+    const cnt = roofOnly ? n : 2 * n;
+    if (col) {
+      const c = colorOf(i);
+      for (let k = 0; k < cnt; k++) { col[(base + k) * 3] = c.r; col[(base + k) * 3 + 1] = c.g; col[(base + k) * 3 + 2] = c.b; }
+    }
+    if (!roofOnly) {
+      for (let k = 0; k < n; k++) {
+        const k2 = (k + 1) % n;
+        idx[f * 3] = base + k; idx[f * 3 + 1] = base + k2; idx[f * 3 + 2] = base + n + k2; faceB[f++] = i;
+        idx[f * 3] = base + k; idx[f * 3 + 1] = base + n + k2; idx[f * 3 + 2] = base + n + k; faceB[f++] = i;
+      }
+    }
+    for (const t of roofTriangles(xs, zs, n)) {
+      if (f >= nt) break;
+      idx[f * 3] = top + t[0]; idx[f * 3 + 1] = top + t[1]; idx[f * 3 + 2] = top + t[2]; faceB[f++] = i;
+    }
+    v += cnt;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  if (col) g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setIndex(new THREE.BufferAttribute(idx.subarray(0, f * 3), 1));
+  g.computeBoundingSphere();
+  g.userData.faceB = faceB;
+  return g;
+}
+
+/* 浸水深の色：国土交通省「水害ハザードマップ作成の手引き」（平成28年4月）3.4.1 の標準の6段階（図3-3）。
+   区切りは 0.5m・3m・5m・10m・20m。蕨の建物にある段階だけ凡例に出す。 */
+const DEPTH_CLASSES = [
+  { max: 0.5, label: "0.5m未満", rgb: [247, 245, 169] },
+  { max: 3, label: "0.5〜3m", rgb: [255, 216, 192] },
+  { max: 5, label: "3〜5m", rgb: [255, 183, 183] },
+  { max: 10, label: "5〜10m", rgb: [255, 145, 145] },
+  { max: 20, label: "10〜20m", rgb: [242, 133, 201] },
+  { max: Infinity, label: "20m以上", rgb: [220, 122, 220] }
+];
+const DRY_COLOR = new THREE.Color(0xc3ccd4);
+function depthClass(d) {
+  if (!(d > 0)) return -1;
+  return DEPTH_CLASSES.findIndex(c => d < c.max);
+}
+/* 住まいとして選べる用途 */
+const HOME_USAGES = ["住宅", "共同住宅", "店舗等併用住宅", "店舗等併用共同住宅", "作業所併用住宅"];
+const FLAT_USAGES = ["共同住宅", "店舗等併用共同住宅"];
+const isHome = i => HOME_USAGES.includes(BLD[i].usage);
+const FADE_TO = new THREE.Color(0xeceef0);
+function buildingColor(i) {
+  const k = depthClass(BLD[i].l2);
+  const c = k < 0 ? DRY_COLOR.clone() : new THREE.Color(DEPTH_CLASSES[k].rgb[0] / 255, DEPTH_CLASSES[k].rgb[1] / 255, DEPTH_CLASSES[k].rgb[2] / 255);
+  /* 住まい以外は少し薄くする（選べないことが分かる程度） */
+  if (!isHome(i)) c.lerp(FADE_TO, 0.55);
+  return c;
+}
+/* 地図の建物の形は、地図を出すときに作る（アドレスで居間から開いたときは作らずに済む） */
+function ensureMapBuildings() {
+  if (bldChunks.length) return;
+  const bmat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, side: THREE.DoubleSide });
+  /* 屋根だけの区画は壁の影が無く白っぽく見えるので、少し暗くして、近くの立体と色の濃さをそろえる */
+  const roofMat = new THREE.MeshLambertMaterial({ color: 0xc4c4c4, vertexColors: true, flatShading: true, side: THREE.DoubleSide });
+  const groups = new Map();
+  BLD.forEach((b, i) => {
+    const k = Math.floor(mX((b.x0 + b.x1) / 2) / CHUNK_M) + "," + Math.floor(mZ((b.y0 + b.y1) / 2) / CHUNK_M);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(i);
+  });
+  for (const list of groups.values()) {
+    const full = new THREE.Mesh(buildingGeometry(list, 0, buildingColor, false), bmat);
+    const roof = new THREE.Mesh(buildingGeometry(list, 0, buildingColor, true), roofMat);
+    roof.visible = false;
+    mapScene.add(full, roof);
+    bldChunks.push({ full, roof, c: full.geometry.boundingSphere.center.clone() });
+  }
+}
+{
+  /* 凡例（蕨の建物にある段階だけ） */
+  const used = new Set(BLD.map(b => depthClass(b.l2)));
+  const rows = DEPTH_CLASSES.map((c, k) => used.has(k)
+    ? '<div class="lg"><i style="background:rgb(' + c.rgb.join(",") + ')"></i>' + c.label + '</div>' : "").join("");
+  document.getElementById("legend").innerHTML = '<div class="lt">想定最大の雨で浸かる深さ</div>' + rows +
+    '<div class="ls">出典：国土交通省 PLATEAU 蕨市・戸田市・川口市の荒川の浸水想定を加工</div>';
+}
+
+/* 選んだ家：色を付けて重ね、上に細い柱を立てて遠くからも分かるようにする */
+const pickGroup = new THREE.Group();
+mapScene.add(pickGroup);
+const pickMat = new THREE.MeshLambertMaterial({ color: 0x1f7ae0, emissive: 0x0d3f80, flatShading: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const pinMat = new THREE.MeshBasicMaterial({ color: 0x1f7ae0, transparent: true, opacity: 0.75 });
+
+/* 堤防が切れる想定の場所の印 */
+const breachMat = new THREE.MeshBasicMaterial({ color: 0xd2353f });
+for (const b of BREACH) {
+  const x = mX(b.px), z = mZ(b.py);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10), breachMat);
+  pole.position.set(x, 55, z);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(16, 16, 12), breachMat);
+  head.position.set(x, 118, z);
+  mapScene.add(pole, head);
+}
+
+/* 地図の文字（画面の上に重ねる） */
+const mapLabelsEl = document.getElementById("mapLabels");
+const mapLabels = [];
+function addLabel(text, x, y, z, cls) {
+  const d = document.createElement("div");
+  d.className = "mlab" + (cls ? " " + cls : "");
+  d.textContent = text;
+  mapLabelsEl.appendChild(d);
+  mapLabels.push({ el: d, v: new THREE.Vector3(x, y, z) });
+}
+{
+  const bx = (mX(BREACH[0].px) + mX(BREACH[1].px)) / 2, bz = (mZ(BREACH[0].py) + mZ(BREACH[1].py)) / 2;
+  addLabel("ここで堤防が切れる想定", bx, 150, bz, "breach");
+  /* 「荒川」は、破堤点から東へ約1km・南側の水面の、岸と岸のまん中あたりに置く */
+  const rx = bx + 1000;
+  let zmin = Infinity, zmax = -Infinity;
+  for (const poly of ML.water) {
+    const r = poly[0];
+    for (let i = 0; i < r.length; i += 2) {
+      const x = mX(r[i]), z = mZ(r[i + 1]);
+      if (Math.abs(x - rx) < 250 && z > bz + 150 && z < bz + 1500) { zmin = Math.min(zmin, z); zmax = Math.max(zmax, z); }
+    }
+  }
+  if (zmin < Infinity) addLabel("荒川", rx, 20, (zmin + zmax) / 2 + 30, "river");
+  const want = ["蕨駅", "西川口駅", "戸田公園駅", "戸田駅", "北戸田駅", "蕨市", "戸田市"];
+  for (const l of ML.labels) {
+    if (want.includes(l[0])) addLabel(l[0], mX(l[1]), 10, mZ(l[2]), l[0].endsWith("市") ? "city" : "");
+  }
+}
+const _pv = new THREE.Vector3();
+function updateLabels() {
+  const w = innerWidth, h = innerHeight;
+  for (const l of mapLabels) {
+    _pv.copy(l.v).project(mapCam);
+    if (_pv.z > 1 || _pv.x < -1.2 || _pv.x > 1.2 || _pv.y < -1.2 || _pv.y > 1.2) { l.el.style.display = "none"; continue; }
+    l.el.style.display = "";
+    /* 画面の端で切れないよう、左右だけ内側に寄せる */
+    const half = (l.w || (l.w = l.el.offsetWidth)) / 2;
+    const sx = Math.max(half + 6, Math.min(w - half - 6, (_pv.x + 1) / 2 * w));
+    l.el.style.transform = "translate(" + (sx - half).toFixed(1) + "px," + ((1 - _pv.y) / 2 * h).toFixed(1) + "px) translate(0,-100%)";
+  }
+}
+
+/* 当たり判定の升目（ズーム20のピクセルで400＝約50m）。立体に当たらなかったときの予備 */
+const GRID = 400;
+const grid = new Map();
+BLD.forEach((b, i) => {
+  for (let gx = Math.floor(b.x0 / GRID); gx <= Math.floor(b.x1 / GRID); gx++) {
+    for (let gy = Math.floor(b.y0 / GRID); gy <= Math.floor(b.y1 / GRID); gy++) {
+      const k = gx + "," + gy;
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(i);
+    }
+  }
+});
+function inPoly(px, py, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+    const xi = pts[i], yi = pts[i + 1], xj = pts[j], yj = pts[j + 1];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function hitBuilding(px, py) {
+  const list = grid.get(Math.floor(px / GRID) + "," + Math.floor(py / GRID)) || [];
+  for (const i of list) {
+    const b = BLD[i];
+    if (px < b.x0 || px > b.x1 || py < b.y0 || py > b.y1) continue;
+    if (inPoly(px, py, b.pts)) return i;
+  }
+  return -1;
+}
+
+/* 選んだ家から、堤防が切れる想定の場所（近い方）までの直線距離（m） */
+function distToBreach(i) {
+  const b = BLD[i];
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  let d = Infinity;
+  for (const p of BREACH) d = Math.min(d, Math.hypot(cx - p.px, cy - p.py) * KM);
+  return d;
+}
+
+let toastTimer = 0;
+function showToast(text) {
+  const t = document.getElementById("toast");
+  t.textContent = text;
+  t.classList.remove("hide");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add("hide"), 1800);
+}
+function selectBuilding(i) {
+  selected = i;
+  document.getElementById("floorAsk").classList.add("hide");
+  while (pickGroup.children.length) {
+    const c = pickGroup.children.pop();
+    if (c.geometry) c.geometry.dispose();
+  }
+  const pick = document.getElementById("pick");
+  mapNeedsRender = true;
+  if (i < 0) { pick.classList.add("hide"); return; }
+  const b = BLD[i];
+  pickGroup.add(new THREE.Mesh(buildingGeometry([i], 0.4, null, false), pickMat));
+  const cx = mX((b.x0 + b.x1) / 2), cz = mZ((b.y0 + b.y1) / 2);
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 70, 8), pinMat);
+  pin.position.set(cx, b.h + 35, cz);
+  pickGroup.add(pin);
+  document.getElementById("pickInfo").innerHTML =
+    '<div>' + CITIES[b.city].name + "の" + b.usage + (b.storeys ? "・" + b.storeys + "階建て" : "") + '</div>' +
+    '<div class="far">荒川から約' + (distToBreach(i) / 1000).toFixed(1) + 'km</div>';
+  pick.classList.remove("hide");
+}
+
+/* カメラ：見る点（地面）・距離・向き。寄るほど斜めに、引くほど上から */
+const mapCtl = { tx: 0, tz: 0, dist: 6000, yaw: 0 };
+const DIST_MIN = 120, DIST_MAX = 16000;
+function mapPitch() {
+  const t = Math.log(mapCtl.dist / DIST_MIN) / Math.log(DIST_MAX / DIST_MIN);
+  return 0.6 + 0.45 * Math.max(0, Math.min(1, t));
+}
+function placeMapCam() {
+  const p = mapPitch();
+  mapCam.position.set(
+    mapCtl.tx + mapCtl.dist * Math.cos(p) * Math.sin(mapCtl.yaw),
+    mapCtl.dist * Math.sin(p),
+    mapCtl.tz + mapCtl.dist * Math.cos(p) * Math.cos(mapCtl.yaw));
+  mapCam.lookAt(mapCtl.tx, 0, mapCtl.tz);
+  mapCam.updateMatrixWorld();
+  mapNeedsRender = true;
+}
+const _ray = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
+const _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _hit = new THREE.Vector3();
+function groundAt(sx, sy) {
+  _ndc.set(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1);
+  _ray.setFromCamera(_ndc, mapCam);
+  return _ray.ray.intersectPlane(_plane, _hit) ? _hit.clone() : null;
+}
+function mapZoomAt(sx, sy, f) {
+  const a = groundAt(sx, sy);
+  mapCtl.dist = Math.max(DIST_MIN, Math.min(DIST_MAX, mapCtl.dist * f));
+  placeMapCam();
+  const b = groundAt(sx, sy);
+  if (a && b) { mapCtl.tx += a.x - b.x; mapCtl.tz += a.z - b.z; placeMapCam(); }
+}
+function mapPan(dx, dy) {
+  const a = groundAt(innerWidth / 2, innerHeight / 2);
+  const b = groundAt(innerWidth / 2 + dx, innerHeight / 2 + dy);
+  if (a && b) { mapCtl.tx -= b.x - a.x; mapCtl.tz -= b.z - a.z; placeMapCam(); }
+}
+function mapResize() {
+  /* 地図は建物が多いので、画素の細かさを1.5倍までにして軽くする */
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.setSize(innerWidth, innerHeight, false);
+  mapCam.aspect = innerWidth / innerHeight;
+  mapCam.updateProjectionMatrix();
+  placeMapCam();
+}
+/* 最初の見え方：町が少なく見えないよう、寄せて始める。
+   奥に蕨の町のまん中、手前に荒川と破堤点。左右は、破堤点の少し西から川口の西川口あたりまで（縦長の画面は狭くする） */
+function mapFit() {
+  const portrait = innerWidth < innerHeight;
+  const bx = Math.min(...BREACH.map(b => mX(b.px)));
+  const wz = mZ((CITY_BOUNDS[0].minY + CITY_BOUNDS[0].maxY) / 2);
+  const x0 = bx - (portrait ? 100 : 400), x1 = bx + (portrait ? 2700 : 4200);
+  const z0 = wz - (portrait ? 0 : 300), z1 = mZ(BREACH[0].py) + (portrait ? 250 : 650);
+  mapCtl.tx = (x0 + x1) / 2;
+  mapCtl.tz = (z0 + z1) / 2;
+  mapCtl.yaw = 0;
+  const a = innerWidth / innerHeight;
+  const vf = mapCam.fov * Math.PI / 180;
+  const hf = 2 * Math.atan(Math.tan(vf / 2) * a);
+  mapCtl.dist = 3000;
+  for (let k = 0; k < 6; k++) {
+    const p = mapPitch();
+    const dw = (x1 - x0) / 2 / Math.tan(hf / 2);
+    const dd = ((z1 - z0) * Math.sin(p) + 400) / 2 / Math.tan(vf / 2);
+    mapCtl.dist = Math.min(DIST_MAX, Math.max(dw, dd) * 1.08);
+  }
+  placeMapCam();
+}
+/* 見ている点までの距離より遠い区画は、屋根だけにする */
+function updateBuildingLod() {
+  const far = mapCtl.dist * 1.35 + 300;
+  for (const c of bldChunks) {
+    const near = c.c.distanceTo(mapCam.position) < far;
+    c.full.visible = near;
+    c.roof.visible = !near;
+  }
+}
+function renderMap() {
+  updateBuildingLod();
+  renderer.render(mapScene, mapCam);
+  updateLabels();
+  window.__mapFrames++;
+}
+function pickAt(sx, sy) {
+  _ndc.set(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1);
+  _ray.setFromCamera(_ndc, mapCam);
+  /* 当たりは、壁と屋根のある形で調べる（遠くで屋根だけを描いている区画も同じ） */
+  const hits = _ray.intersectObjects(bldChunks.map(c => c.full), false);
+  if (hits.length) return hits[0].object.geometry.userData.faceB[hits[0].faceIndex];
+  const g = groundAt(sx, sy);
+  if (!g) return -1;
+  return hitBuilding(g.x / KM + MCX, g.z / KM + MCY);
+}
+
+/* 地図の操作：1本指（マウス）で動かす、2本指でつまむ・回す、ホイールで寄る、タップで選ぶ。
+   マウスの右ボタンで動かすと回る */
+{
+  const ptrs = new Map();
+  let tap = null, two = null;
+  viewCanvas.addEventListener("contextmenu", e => { if (G.phase === "map") e.preventDefault(); });
+  viewCanvas.addEventListener("pointerdown", e => {
+    if (G.phase !== "map") return;
+    try { viewCanvas.setPointerCapture(e.pointerId); } catch (err) { /* 何もしない */ }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button });
+    if (ptrs.size === 1) tap = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+    else { tap = null; two = null; }
+  });
+  viewCanvas.addEventListener("pointermove", e => {
+    if (G.phase !== "map") return;
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 1) {
+      if (tap) tap.moved += Math.abs(dx) + Math.abs(dy);
+      if (p.btn === 2 || e.shiftKey) { mapCtl.yaw += dx * 0.006; placeMapCam(); }
+      else mapPan(dx, dy);
+    } else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      if (two) {
+        mapPan(mx - two.mx, my - two.my);
+        let da = ang - two.ang;
+        if (da > Math.PI) da -= 2 * Math.PI;
+        if (da < -Math.PI) da += 2 * Math.PI;
+        mapCtl.yaw += da;
+        mapZoomAt(mx, my, two.d / d);
+      }
+      two = { d, ang, mx, my };
+    }
+  });
+  const up = e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) two = null;
+    if (G.phase === "map" && tap && ptrs.size === 0 && tap.moved < 10 && performance.now() - tap.t < 600) {
+      const hit = pickAt(e.clientX, e.clientY);
+      if (hit >= 0 && !isHome(hit)) showToast("住まいを選んでください");
+      else selectBuilding(hit);
+    }
+    if (ptrs.size === 0) tap = null;
+  };
+  viewCanvas.addEventListener("pointerup", up);
+  viewCanvas.addEventListener("pointercancel", up);
+  viewCanvas.addEventListener("wheel", e => {
+    if (G.phase !== "map") return;
+    e.preventDefault();
+    mapZoomAt(e.clientX, e.clientY, Math.exp(e.deltaY * 0.0015));
+  }, { passive: false });
+  document.getElementById("zIn").addEventListener("click", () => mapZoomAt(innerWidth / 2, innerHeight / 2, 0.5));
+  document.getElementById("zOut").addEventListener("click", () => mapZoomAt(innerWidth / 2, innerHeight / 2, 2));
+}
+
+/* =====================================================================
+   3D の部屋
+   ===================================================================== */
+const canvas = document.getElementById("view");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xc6d1d9);
+scene.fog = new THREE.Fog(0xc6d1d9, 14, 90);
+const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 80);
+
+/* 明かり */
+const hemi = new THREE.HemisphereLight(0xffffff, 0xa9a296, 0.72);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 0.55);
+sun.position.set(3.5, 7, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
+sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 20;
+sun.shadow.bias = -0.0015;
+scene.add(sun);
+const roomLight = new THREE.PointLight(0xfff7ea, 0.38, 9, 1.5);
+roomLight.position.set(0, H.ceiling - 0.25, 0);
+scene.add(roomLight);
+
+/* 部屋の大きさ（m）。床の上の面が y=0 */
+const RW = 4.6, RD = 4.0, WT = 0.12;
+const XL = -RW / 2, XR = RW / 2, ZB = -RD / 2, ZF = RD / 2;
+const CH = H.ceiling;
+
+function mat(color, opt) { return new THREE.MeshLambertMaterial(Object.assign({ color }, opt || {})); }
+function box(w, h, d, m, x, y, z, shadow) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  mesh.position.set(x, y, z);
+  if (shadow !== false) { mesh.castShadow = true; mesh.receiveShadow = true; }
+  return mesh;
+}
+/* 角の丸い箱。中心が原点 */
+function rbox(w, h, d, r, m) {
+  const b = Math.min(r * 0.5, w / 4, h / 4, d / 4);
+  const iw = w - 2 * b, ih = h - 2 * b, rc = Math.min(r * 0.5, iw / 2 - 1e-3, ih / 2 - 1e-3);
+  const s = new THREE.Shape();
+  const x0 = -iw / 2, y0 = -ih / 2;
+  s.moveTo(x0 + rc, y0);
+  s.lineTo(x0 + iw - rc, y0);
+  s.quadraticCurveTo(x0 + iw, y0, x0 + iw, y0 + rc);
+  s.lineTo(x0 + iw, y0 + ih - rc);
+  s.quadraticCurveTo(x0 + iw, y0 + ih, x0 + iw - rc, y0 + ih);
+  s.lineTo(x0 + rc, y0 + ih);
+  s.quadraticCurveTo(x0, y0 + ih, x0, y0 + ih - rc);
+  s.lineTo(x0, y0 + rc);
+  s.quadraticCurveTo(x0, y0, x0 + rc, y0);
+  const g = new THREE.ExtrudeGeometry(s, {
+    depth: Math.max(1e-3, d - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b,
+    bevelSegments: 3, curveSegments: 4
+  });
+  g.center();
+  const mesh = new THREE.Mesh(g, m);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  return mesh;
+}
+
+/* 木の床の模様（板ごとに色を少し変え、木目と継ぎ目を描く） */
+function canvasTex(w, h, draw, rx, ry) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rx, ry);
+  t.anisotropy = 4;
+  return t;
+}
+const woodTex = canvasTex(1024, 1024, (g, w, h) => {
+  const n = 8, pw = w / n;
+  let seed = 7;
+  const r = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let i = 0; i < n; i++) {
+    const v = 0.88 + r() * 0.16;
+    g.fillStyle = "rgb(" + Math.round(178 * v) + "," + Math.round(148 * v) + "," + Math.round(118 * v) + ")";
+    g.fillRect(i * pw, 0, pw, h);
+    /* 木目 */
+    for (let k = 0; k < 22; k++) {
+      const x = i * pw + 3 + r() * (pw - 6), a = 0.04 + r() * 0.08;
+      g.strokeStyle = "rgba(95,68,45," + a.toFixed(3) + ")";
+      g.lineWidth = 0.6 + r() * 1.4;
+      g.beginPath();
+      g.moveTo(x, 0);
+      g.bezierCurveTo(x + (r() - 0.5) * 10, h * 0.33, x + (r() - 0.5) * 10, h * 0.66, x + (r() - 0.5) * 4, h);
+      g.stroke();
+    }
+    /* 節 */
+    if (r() < 0.6) {
+      const kx = i * pw + pw * (0.3 + r() * 0.4), ky = r() * h;
+      g.fillStyle = "rgba(100,70,45,.25)";
+      g.beginPath(); g.ellipse(kx, ky, 3 + r() * 3, 8 + r() * 6, 0, 0, Math.PI * 2); g.fill();
+    }
+    /* 板の継ぎ目 */
+    g.fillStyle = "rgba(70,50,35,.45)";
+    g.fillRect(i * pw, 0, 2, h);
+    const cut = r() * h;
+    g.fillRect(i * pw, cut, pw, 2);
+  }
+}, 2.3, 2);
+const tileTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#d8dcdc"; g.fillRect(0, 0, w, h);
+  g.strokeStyle = "rgba(120,128,130,.45)"; g.lineWidth = 2;
+  for (let i = 0; i <= 4; i++) {
+    g.beginPath(); g.moveTo(i * w / 4, 0); g.lineTo(i * w / 4, h); g.stroke();
+    g.beginPath(); g.moveTo(0, i * h / 4); g.lineTo(w, i * h / 4); g.stroke();
+  }
+}, 1.9, 1.1);
+/* 壁紙（細かい織り目） */
+const wallTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#f4f4f2"; g.fillRect(0, 0, w, h);
+  let seed = 3;
+  const r = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let i = 0; i < 5000; i++) {
+    const v = r() < 0.5 ? 0 : 255;
+    g.fillStyle = "rgba(" + v + "," + v + "," + v + "," + (0.025 + r() * 0.05).toFixed(3) + ")";
+    g.fillRect(r() * w, r() * h, 1 + r() * 3, 1);
+  }
+}, 4, 2);
+/* 布（ソファ・ラグ・カーテン） */
+const fabricTex = canvasTex(128, 128, (g, w, h) => {
+  g.fillStyle = "#ededed"; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 2) { g.fillStyle = "rgba(0,0,0,.05)"; g.fillRect(0, y, w, 1); }
+  for (let x = 0; x < w; x += 2) { g.fillStyle = "rgba(255,255,255,.06)"; g.fillRect(x, 0, 1, h); }
+}, 6, 6);
+const rugTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#e6e6e6"; g.fillRect(0, 0, w, h);
+  g.strokeStyle = "rgba(0,0,0,.12)"; g.lineWidth = 6;
+  g.strokeRect(14, 14, w - 28, h - 28);
+  g.strokeStyle = "rgba(0,0,0,.06)"; g.lineWidth = 2;
+  for (let i = 30; i < w - 30; i += 10) { g.beginPath(); g.moveTo(i, 30); g.lineTo(i, h - 30); g.stroke(); }
+}, 1, 1);
+
+const M = {
+  wall: mat(0xeceff0, { map: wallTex }),
+  wallSide: mat(0xe4e8eb, { map: wallTex }),
+  ceiling: mat(0xf4f5f6, { emissive: 0x8e9194, map: wallTex }),
+  cut: mat(0x9aa3a8),
+  base: mat(0x8b7764),
+  found: mat(0xa7acae),
+  frame: mat(0x9ea6ab),
+  curtain: new THREE.MeshLambertMaterial({ color: 0xa3b6c4, map: fabricTex, side: THREE.DoubleSide }),
+  sofa: mat(0x8fa6a1, { map: fabricTex }),
+  cushion: mat(0xc9d3cf, { map: fabricTex }),
+  cushion2: mat(0xb6a7b6),
+  wood: mat(0xc3a47f),
+  woodDark: mat(0x7a6350),
+  stand: mat(0xd5d9db),
+  tvBody: mat(0x2a2f34),
+  white: mat(0xf2f4f5),
+  counter: mat(0xe6eaeb),
+  steel: mat(0xb9c1c6),
+  fridge: mat(0xe9eef1),
+  ground: mat(0x9ba78f),
+  fence: mat(0xb7bbbb),
+  neighbor: mat(0xcdd5da),
+  leaf: mat(0x8aa585),
+  dark: mat(0x40474d)
+};
+
+const room = new THREE.Group();
+scene.add(room);
+
+/* 外の地面と、まわり。上の階のときは、まとめて下げる（outside.position.y） */
+const outside = new THREE.Group();
+scene.add(outside);
+const FH1 = CONFIG.floorHeight;
+const G0 = -FH1;
+const STREET = { roadZ0: -8.2, roadZ1: -12.6, houseZ: -14.2 };
+
+/* ---------- 外の質感（キャンバスで描く。色は材質の色で付けるので、灰色で描く） ---------- */
+function rnd(seed) {
+  let s = seed >>> 0;
+  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+}
+/* 細かいざらつき */
+function speckle(g, w, h, n, a0, a1, seed) {
+  const r = rnd(seed);
+  for (let i = 0; i < n; i++) {
+    const v = Math.floor(r() * 255);
+    g.fillStyle = "rgba(" + v + "," + v + "," + v + "," + (a0 + r() * (a1 - a0)).toFixed(3) + ")";
+    g.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2);
+  }
+}
+/* 外壁のサイディング（横の筋） */
+const sidingBase = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#e9e9e9"; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 32) {
+    g.fillStyle = "rgba(0,0,0,.16)"; g.fillRect(0, y + 29, w, 3);
+    g.fillStyle = "rgba(255,255,255,.55)"; g.fillRect(0, y, w, 2);
+  }
+  g.fillStyle = "rgba(0,0,0,.08)";
+  for (let y = 0; y < h; y += 64) g.fillRect((y * 37) % w, y, 2, 64);
+  speckle(g, w, h, 2500, 0.02, 0.07, 11);
+}, 1, 1);
+/* 外壁のタイル（3階建ての建物） */
+const tileWallBase = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#c9c9c9"; g.fillRect(0, 0, w, h);
+  const r = rnd(5);
+  for (let y = 0; y < h; y += 16) {
+    for (let x = 0; x < w; x += 48) {
+      const v = 214 + Math.floor(r() * 26);
+      g.fillStyle = "rgb(" + v + "," + v + "," + v + ")";
+      g.fillRect(x + 1, y + 1, 46, 14);
+    }
+  }
+  speckle(g, w, h, 1500, 0.02, 0.06, 7);
+}, 1, 1);
+/* 屋根の瓦（横の段） */
+const roofBase = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#bdbdbd"; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 20) {
+    g.fillStyle = "rgba(0,0,0,.22)"; g.fillRect(0, y + 16, w, 4);
+    g.fillStyle = "rgba(0,0,0,.08)";
+    for (let x = ((y / 20) % 2) * 24; x < w; x += 48) g.fillRect(x, y, 2, 18);
+  }
+  speckle(g, w, h, 2000, 0.03, 0.08, 3);
+}, 1, 1);
+/* ブロック塀 */
+const blockTex = canvasTex(256, 128, (g, w, h) => {
+  g.fillStyle = "#cfcfcf"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "rgba(0,0,0,.18)";
+  for (let y = 0; y < h; y += 32) {
+    g.fillRect(0, y, w, 2);
+    for (let x = ((y / 32) % 2) * 32; x < w; x += 64) g.fillRect(x, y, 2, 32);
+  }
+  speckle(g, w, h, 2500, 0.03, 0.1, 9);
+}, 8, 1.3);
+/* アスファルト */
+const asphaltTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#8a8a8a"; g.fillRect(0, 0, w, h);
+  speckle(g, w, h, 9000, 0.05, 0.22, 21);
+}, 14, 1.2);
+/* 芝と土 */
+const grassTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#9aa58c"; g.fillRect(0, 0, w, h);
+  const r = rnd(31);
+  for (let i = 0; i < 4000; i++) {
+    const v = r();
+    g.fillStyle = v < 0.5 ? "rgba(70,95,60,.18)" : "rgba(190,200,170,.15)";
+    g.fillRect(r() * w, r() * h, 1, 2 + r() * 3);
+  }
+}, 30, 30);
+/* 生け垣の葉 */
+const leafTex = canvasTex(256, 128, (g, w, h) => {
+  g.fillStyle = "#7f9c78"; g.fillRect(0, 0, w, h);
+  const r = rnd(41);
+  for (let i = 0; i < 1400; i++) {
+    const v = r();
+    g.fillStyle = v < 0.5 ? "rgba(40,70,40,.35)" : "rgba(170,200,150,.35)";
+    g.beginPath(); g.ellipse(r() * w, r() * h, 2 + r() * 3, 1.5 + r() * 2, r() * 3, 0, Math.PI * 2); g.fill();
+  }
+}, 3, 1);
+/* 側溝のふた（グレーチング） */
+const grateTex = canvasTex(128, 32, (g, w, h) => {
+  g.fillStyle = "#9a9a9a"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "rgba(30,30,30,.7)";
+  for (let x = 2; x < w; x += 6) g.fillRect(x, 4, 3, h - 8);
+}, 40, 1);
+/* マンホール */
+const manholeTex = canvasTex(128, 128, (g, w, h) => {
+  g.fillStyle = "#6c6c6c"; g.beginPath(); g.arc(64, 64, 63, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "rgba(30,30,30,.6)"; g.lineWidth = 3;
+  for (let r0 = 14; r0 < 60; r0 += 12) { g.beginPath(); g.arc(64, 64, r0, 0, Math.PI * 2); g.stroke(); }
+  for (let a = 0; a < 8; a++) { g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + 60 * Math.cos(a * Math.PI / 4), 64 + 60 * Math.sin(a * Math.PI / 4)); g.stroke(); }
+}, 1, 1);
+manholeTex.wrapS = manholeTex.wrapT = THREE.ClampToEdgeWrapping;
+
+/* 外壁・屋根の材質（同じ質感を、色と大きさを変えて使う） */
+function texMat(base, color, rx, ry, extra) {
+  const t = base.clone();
+  t.needsUpdate = true;
+  t.repeat.set(rx, ry);
+  return new THREE.MeshLambertMaterial(Object.assign({ color, map: t }, extra || {}));
+}
+
+/* 停電で消える明かり（向かいの家の窓・自動販売機） */
+const litWinMat = new THREE.MeshLambertMaterial({ color: 0x77808a, emissive: 0xffe2b4, emissiveIntensity: 0.55 });
+const darkWinMat = new THREE.MeshLambertMaterial({ color: 0x55636f });
+const OUT_LIGHTS = [litWinMat];
+
+/* ---------- 地面・道 ---------- */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: 0xffffff, map: grassTex }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(0, G0, 0);
+ground.receiveShadow = true;
+outside.add(ground);
+{
+  const rw = STREET.roadZ0 - STREET.roadZ1;
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(60, rw), new THREE.MeshLambertMaterial({ color: 0xa4a8ab, map: asphaltTex }));
+  road.rotation.x = -Math.PI / 2;
+  road.position.set(0, G0 + 0.005, (STREET.roadZ0 + STREET.roadZ1) / 2);
+  road.receiveShadow = true;
+  outside.add(road);
+  /* 道の両はしの白線 */
+  for (const z of [STREET.roadZ0 - 0.45, STREET.roadZ1 + 0.45]) {
+    const ln = new THREE.Mesh(new THREE.PlaneGeometry(60, 0.12), mat(0xe4e6e6));
+    ln.rotation.x = -Math.PI / 2;
+    ln.position.set(0, G0 + 0.01, z);
+    outside.add(ln);
+  }
+  /* 側溝（道の両はし） */
+  for (const z of [STREET.roadZ0 - 0.15, STREET.roadZ1 + 0.15]) {
+    const gr = new THREE.Mesh(new THREE.PlaneGeometry(60, 0.3), new THREE.MeshLambertMaterial({ color: 0xffffff, map: grateTex }));
+    gr.rotation.x = -Math.PI / 2;
+    gr.position.set(0, G0 + 0.012, z);
+    outside.add(gr);
+  }
+  /* マンホール */
+  for (const x of [-5.5, 7.5]) {
+    const mh = new THREE.Mesh(new THREE.CircleGeometry(0.32, 24), new THREE.MeshLambertMaterial({ color: 0xffffff, map: manholeTex, transparent: true }));
+    mh.rotation.x = -Math.PI / 2;
+    mh.position.set(x, G0 + 0.013, (STREET.roadZ0 + STREET.roadZ1) / 2 + 0.3);
+    outside.add(mh);
+  }
+}
+
+/* ---------- 家の前の塀と生け垣 ---------- */
+{
+  const fm = texMat(blockTex, 0xd8dad8, 8, 1);
+  outside.add(box(30, 1.2, 0.15, fm, 0, G0 + 0.6, -7.7));
+  outside.add(box(30, 0.06, 0.22, mat(0xbfc2c1), 0, G0 + 1.23, -7.7));
+}
+/* 塀の手前の生け垣（球だと何か分からなかったので、低く四角に刈りこんだ形にした） */
+for (const [x0, x1] of [[-6, -2.2], [-1.4, 1.2], [2.0, 6]]) {
+  const hm = texMat(leafTex, 0xffffff, (x1 - x0) / 1.5, 0.6);
+  const hb = rbox(x1 - x0, 0.75, 0.55, 0.12, hm);
+  hb.position.set((x0 + x1) / 2, G0 + 0.375, -7.2);
+  outside.add(hb);
+}
+/* 庭の植木鉢 */
+for (const [x, z] of [[-1.8, -6.6], [-1.3, -6.75], [1.6, -6.7]]) {
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.3, 14), mat(0x9a6b55));
+  pot.position.set(x, G0 + 0.15, z);
+  pot.castShadow = true;
+  const lf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), new THREE.MeshLambertMaterial({ color: 0x6f9468, flatShading: true }));
+  lf.position.set(x, G0 + 0.42, z);
+  outside.add(pot, lf);
+}
+
+/* ---------- 電柱と電線 ---------- */
+{
+  const poleMat = mat(0xb7bab8);
+  const poles = [[-13, -8.55], [-3.2, -8.55], [6.6, -8.55], [16.4, -8.55]];
+  const tops = [];
+  for (const [x, z] of poles) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 9, 12), poleMat);
+    p.position.set(x, G0 + 4.5, z);
+    p.castShadow = true;
+    outside.add(p);
+    outside.add(box(1.5, 0.09, 0.09, mat(0x8f9391), x, G0 + 8.3, z));
+    for (const dx of [-0.6, 0, 0.6]) {
+      const ins = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.12, 8), mat(0x7a8a96));
+      ins.position.set(x + dx, G0 + 8.42, z);
+      outside.add(ins);
+    }
+    /* 変圧器（1本おき） */
+    if (x === -3.2) {
+      const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 14), mat(0x9ea3a3));
+      tr.position.set(x, G0 + 6.9, z + 0.3);
+      outside.add(tr);
+    }
+    tops.push([x, z]);
+  }
+  /* 電線：電柱の間を、少したるませてつなぐ */
+  const wireMat = new THREE.LineBasicMaterial({ color: 0x2b3036 });
+  for (const dx of [-0.6, 0, 0.6]) {
+    for (const yo of [8.48, 7.5]) {
+      if (yo === 7.5 && dx !== 0) continue;
+      const pts = [];
+      for (let i = 0; i < tops.length - 1; i++) {
+        const [xa, za] = tops[i], [xb, zb] = tops[i + 1];
+        for (let k = 0; k <= 12; k++) {
+          const t = k / 12;
+          pts.push(new THREE.Vector3(xa + (xb - xa) * t + dx, G0 + yo - 0.45 * 4 * t * (1 - t), za + (zb - za) * t));
+        }
+      }
+      outside.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), wireMat));
+    }
+  }
+}
+
+/* ---------- 車（道に止まっている） ---------- */
+function makeCar(color) {
+  const car = new THREE.Group();
+  const paint = new THREE.MeshPhongMaterial({ color, shininess: 60, specular: 0x666666 });
+  const body = rbox(4.2, 0.62, 1.72, 0.18, paint);
+  body.position.y = 0.55;
+  const cab = rbox(2.3, 0.62, 1.58, 0.2, paint);
+  cab.position.set(-0.25, 1.12, 0);
+  const glass = new THREE.MeshPhongMaterial({ color: 0x25313b, shininess: 90, specular: 0x999999 });
+  const gl = rbox(2.2, 0.48, 1.6, 0.16, glass);
+  gl.position.set(-0.25, 1.14, 0);
+  car.add(body, cab, gl);
+  const tireMat = mat(0x24282b), hubMat = mat(0xb9bec2);
+  for (const [x, z] of [[-1.35, 0.78], [1.35, 0.78], [-1.35, -0.78], [1.35, -0.78]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.22, 18), tireMat);
+    w.rotation.x = Math.PI / 2;
+    w.position.set(x, 0.33, z);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.23, 12), hubMat);
+    hub.rotation.x = Math.PI / 2;
+    hub.position.set(x, 0.33, z);
+    car.add(w, hub);
+  }
+  for (const s of [-1, 1]) {
+    car.add(box(0.06, 0.12, 0.32, mat(0xf0f1ec), 2.1, 0.66, s * 0.6, false));
+    car.add(box(0.06, 0.12, 0.3, mat(0xb03a3a), -2.1, 0.7, s * 0.62, false));
+    car.add(box(0.12, 0.08, 0.06, paint, 0.6, 1.0, s * 0.88, false));
+  }
+  car.add(box(0.05, 0.16, 1.5, mat(0x3b4045), 2.12, 0.42, 0, false));
+  car.add(box(0.05, 0.16, 1.5, mat(0x3b4045), -2.12, 0.42, 0, false));
+  car.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return car;
+}
+{
+  const c1 = makeCar(0x5f84a8);
+  c1.position.set(1.0, G0, -11.6);
+  outside.add(c1);
+  const c2 = makeCar(0xd9dcde);
+  c2.position.set(-10.5, G0, -11.7);
+  c2.rotation.y = Math.PI;
+  outside.add(c2);
+}
+
+/* ---------- 家 ---------- */
+/* 寄棟の屋根（四方に傾く）。w×d は軒の出を含めた大きさ */
+function hipRoofGeometry(w, d, rise) {
+  const hw = w / 2, hd = d / 2, rl = Math.max(0, hw - hd);
+  const v = [
+    -hw, 0, hd, hw, 0, hd, hw, 0, -hd, -hw, 0, -hd,
+    -rl, rise, 0, rl, rise, 0
+  ];
+  const idx = [0, 1, 5, 0, 5, 4, 2, 3, 4, 2, 4, 5, 3, 0, 4, 1, 2, 5, 0, 3, 2, 0, 2, 1];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
+  g.setIndex(idx);
+  const uv = [0, 0, w / 2, 0, w / 2, d / 2, 0, d / 2, w / 4 - rl / 2, rise, w / 4 + rl / 2, rise];
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv.map(x => x / 2), 2));
+  g.computeVertexNormals();
+  return g;
+}
+/* 切妻の屋根（前と後ろに傾く）：2枚の板 */
+function gableRoof(g, cx, cz, top, w, d, oh, rise, rm) {
+  const half = d / 2, ang = Math.atan2(rise, half);
+  const drop = rise * oh / half;
+  const len = Math.hypot(half + oh, rise + drop);
+  for (const s of [-1, 1]) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 2 * oh, 0.12, len), rm);
+    slab.rotation.x = s * ang;
+    slab.position.set(cx, top + (rise - drop) / 2 + 0.06, cz + s * (half + oh) / 2);
+    slab.castShadow = true;
+    g.add(slab);
+  }
+}/* 1棟：opt = { x0, x1, z0（道に向く正面）, depth, floors, color, roof（"hip"・"gable"・"flat"）, roofColor, clad（"siding"・"tile"）,
+   door（玄関のx。無ければ null）, balcony（2階のベランダ）, lit（明かりのついた窓の番号の集まり） } */
+function streetHouse(o) {
+  const g = new THREE.Group();
+  const w = o.x1 - o.x0, fh = 2.9, h = o.floors * fh, cx = (o.x0 + o.x1) / 2, cz = o.z0 - o.depth / 2;
+  const wm = texMat(o.clad === "tile" ? tileWallBase : sidingBase, o.color, w / (o.clad === "tile" ? 1.4 : 1.8), h / (o.clad === "tile" ? 1.4 : 1.8));
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, o.depth), wm);
+  body.position.set(cx, G0 + h / 2, cz);
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  /* 基礎 */
+  g.add(box(w + 0.04, 0.45, o.depth + 0.04, mat(0xa8acad), cx, G0 + 0.22, cz, false));
+  /* 階の境の幕板 */
+  for (let f = 1; f < o.floors; f++) g.add(box(w + 0.06, 0.14, o.depth + 0.06, mat(0xa9afb3), cx, G0 + f * fh, cz, false));
+  /* 屋根 */
+  const oh = 0.45;
+  if (o.roof === "flat") {
+    g.add(box(w + 0.12, 0.3, o.depth + 0.12, mat(0xb2b7ba), cx, G0 + h + 0.15, cz));
+    g.add(box(w + 0.14, 0.06, o.depth + 0.14, mat(0x8f9599), cx, G0 + h + 0.33, cz, false));
+  } else {
+    const rm = texMat(roofBase, o.roofColor, (w + 2 * oh) / 3, (o.depth + 2 * oh) / 3, { side: THREE.DoubleSide });
+    const rise = (o.depth / 2) * 0.5;
+    if (o.roof === "hip") {
+      const r = new THREE.Mesh(hipRoofGeometry(w + 2 * oh, o.depth + 2 * oh, rise + oh * 0.5), rm);
+      r.position.set(cx, G0 + h - oh * 0.25, cz);
+      r.castShadow = true;
+      g.add(r);
+    } else {
+      gableRoof(g, cx, cz, G0 + h, w, o.depth, oh, rise, rm);
+      /* 妻側の三角の壁 */
+      const tri = new THREE.Shape();
+      tri.moveTo(-o.depth / 2, 0); tri.lineTo(o.depth / 2, 0); tri.lineTo(0, rise); tri.lineTo(-o.depth / 2, 0);
+      const tg = new THREE.ExtrudeGeometry(tri, { depth: w - 0.02, bevelEnabled: false });
+      const tm = new THREE.Mesh(tg, mat(o.color));
+      tm.rotation.y = Math.PI / 2;
+      tm.position.set(o.x0 + 0.01, G0 + h, cz);
+      g.add(tm);
+    }
+    /* 雨どい（軒先の横どいと、角の縦どい） */
+    const gm = mat(0x8c9196);
+    const gut = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, w + 2 * oh, 8), gm);
+    gut.rotation.z = Math.PI / 2;
+    gut.position.set(cx, G0 + h - 0.05, o.z0 + oh - 0.02);
+    g.add(gut);
+    const dp = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, h, 8), gm);
+    dp.position.set(o.x1 - 0.12, G0 + h / 2, o.z0 + 0.12);
+    g.add(dp);
+  }
+  /* 窓：枠・ガラス・まん中の召し合わせ・下の水切り */
+  const frameMat = mat(0x7b8086);
+  let wi = 0;
+  for (let f = 0; f < o.floors; f++) {
+    const n = Math.max(1, Math.floor(w / 2.4));
+    for (let k = 0; k < n; k++) {
+      const x = o.x0 + (k + 0.5) * w / n;
+      if (f === 0 && o.door !== null && Math.abs(x - o.door) < 1.1) continue;
+      const y = G0 + f * fh + 1.45;
+      const lit = o.lit && o.lit.includes(wi);
+      wi++;
+      g.add(box(1.34, 1.16, 0.08, frameMat, x, y, o.z0 + 0.03, false));
+      g.add(box(1.22, 1.04, 0.06, lit ? litWinMat : darkWinMat, x, y, o.z0 + 0.05, false));
+      g.add(box(0.04, 1.04, 0.07, frameMat, x, y, o.z0 + 0.07, false));
+      g.add(box(1.42, 0.05, 0.14, mat(0x9aa0a5), x, y - 0.6, o.z0 + 0.07, false));
+      /* 1階の窓には雨戸の戸袋 */
+      if (f === 0) g.add(box(0.3, 1.2, 0.16, mat(0xb4b9bd), x + 0.84, y, o.z0 + 0.08, false));
+    }
+  }
+  /* 玄関：ドア・取っ手・ひさし・踏み段 */
+  if (o.door !== null) {
+    g.add(box(1.06, 2.12, 0.08, frameMat, o.door, G0 + 0.45 + 1.0, o.z0 + 0.03, false));
+    g.add(box(0.92, 2.0, 0.06, mat(0x6e5646), o.door, G0 + 0.45 + 1.0, o.z0 + 0.06, false));
+    g.add(box(0.04, 0.3, 0.05, mat(0xc0c4c6), o.door + 0.32, G0 + 0.45 + 1.0, o.z0 + 0.11, false));
+    g.add(box(1.5, 0.08, 0.7, mat(0x9ea4a8), o.door, G0 + 2.68, o.z0 + 0.35, false));
+    g.add(box(1.4, 0.22, 0.7, mat(0xb9bcbc), o.door, G0 + 0.11, o.z0 + 0.35, false));
+    g.add(box(1.2, 0.2, 0.5, mat(0xc4c7c7), o.door, G0 + 0.32, o.z0 + 0.25, false));
+  }
+  /* 2階のベランダ（床・手すり壁・エアコンの室外機） */
+  if (o.balcony) {
+    const bw = Math.min(w - 0.6, 4.2), bx = cx;
+    const by = G0 + fh;
+    g.add(box(bw, 0.16, 1.0, mat(0xb7bcbf), bx, by, o.z0 + 0.5));
+    g.add(box(bw, 1.0, 0.08, mat(0xc9cdcf), bx, by + 0.58, o.z0 + 0.97));
+    g.add(box(bw, 0.05, 0.12, mat(0x8e9499), bx, by + 1.1, o.z0 + 0.97, false));
+    g.add(box(0.75, 0.55, 0.3, mat(0xe3e5e5), bx + bw / 2 - 0.55, by + 0.36, o.z0 + 0.3));
+    const fan = new THREE.Mesh(new THREE.CircleGeometry(0.19, 20), mat(0x6c7277));
+    fan.position.set(bx + bw / 2 - 0.62, by + 0.36, o.z0 + 0.455);
+    g.add(fan);
+  }
+  outside.add(g);
+}
+/* 道の向かい：2階建て（切妻）・3階建て（タイル張り）・2階建て（寄棟）。向かいの家の前には低い塀と植木 */
+streetHouse({ x0: -7.4, x1: -1.6, z0: STREET.houseZ, depth: 7, floors: 2, color: 0xe3e5e3, roof: "gable", roofColor: 0x5f6b76, clad: "siding", door: -2.8, balcony: true, lit: [1] });
+streetHouse({ x0: -0.6, x1: 5.4, z0: STREET.houseZ - 0.5, depth: 8, floors: 3, color: 0xcfd3d4, roof: "flat", clad: "tile", door: 0.6, lit: [3] });
+streetHouse({ x0: 6.4, x1: 12.4, z0: STREET.houseZ, depth: 7, floors: 2, color: 0xdfe4df, roof: "hip", roofColor: 0x6e655f, clad: "siding", door: 7.6, balcony: true, lit: [] });
+streetHouse({ x0: -14.4, x1: -8.4, z0: STREET.houseZ, depth: 7, floors: 2, color: 0xd6dbe2, roof: "hip", roofColor: 0x56636e, clad: "siding", door: -9.6, lit: [2] });
+{
+  const fm = texMat(blockTex, 0xd0d3d2, 2.2, 0.6);
+  outside.add(box(4.6, 0.9, 0.12, fm, -4.5, G0 + 0.45, STREET.roadZ1 - 0.5));
+}
+/* 自分の建物の隣（窓の左右の奥に少し見える） */
+streetHouse({ x0: -13, x1: -6.5, z0: -0.5, depth: 7, floors: 3, color: 0xd7dcdf, roof: "flat", clad: "tile", door: null, lit: [] });
+streetHouse({ x0: 6.5, x1: 13, z0: -0.5, depth: 7, floors: 2, color: 0xdfe3e6, roof: "gable", roofColor: 0x5f6b76, clad: "siding", door: null, lit: [] });
+
+/* ---------- 街路樹・自転車・自動販売機 ---------- */
+function tree(x, z, s) {
+  const t = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * s, 0.14 * s, 2.2 * s, 8), mat(0x6b5a4a));
+  trunk.position.y = 1.1 * s;
+  t.add(trunk);
+  const greens = [0x6f8f63, 0x7d9b6e, 0x617f58];
+  const r = rnd(Math.floor(x * 100 + z));
+  for (let i = 0; i < 5; i++) {
+    const c = new THREE.Mesh(new THREE.IcosahedronGeometry((0.7 + r() * 0.4) * s, 1), new THREE.MeshLambertMaterial({ color: greens[i % 3], flatShading: true }));
+    c.position.set((r() - 0.5) * 1.1 * s, (2.4 + r() * 0.9) * s, (r() - 0.5) * 1.1 * s);
+    c.castShadow = true;
+    t.add(c);
+  }
+  t.position.set(x, G0, z);
+  outside.add(t);
+}
+tree(-5.6, -13.3, 1.0);
+tree(13.6, -13.0, 1.2);
+tree(-11.5, -6.9, 0.9);
+/* 自転車（向かいの家の玄関わき） */
+{
+  const b = new THREE.Group();
+  const fm = mat(0x3d5a73);
+  for (const x of [-0.55, 0.55]) {
+    const wh = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.025, 6, 20), mat(0x2a2e31));
+    wh.position.set(x, 0.35, 0);
+    b.add(wh);
+  }
+  const bar = (x0, y0, x1, y1) => {
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, len, 6), fm);
+    m.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0);
+    m.rotation.z = Math.atan2(y1 - y0, x1 - x0) - Math.PI / 2;
+    b.add(m);
+  };
+  bar(-0.55, 0.35, 0, 0.35); bar(0, 0.35, 0.45, 0.8); bar(-0.55, 0.35, -0.2, 0.8); bar(-0.2, 0.8, 0.45, 0.8); bar(0, 0.35, -0.2, 0.8); bar(0.45, 0.8, 0.55, 0.35);
+  b.add(box(0.22, 0.05, 0.1, mat(0x222222), -0.22, 0.86, 0, false));
+  b.add(box(0.04, 0.04, 0.5, fm, 0.47, 0.95, 0, false));
+  b.position.set(-1.0, G0, STREET.houseZ + 0.7);
+  b.rotation.y = 0.15;
+  outside.add(b);
+}
+/* 自動販売機（3階建ての前、道に向く） */
+const vendLitMat = new THREE.MeshLambertMaterial({
+  color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.55,
+  map: canvasTex(128, 256, (g, w, h) => {
+    g.fillStyle = "#f2f4f5"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#e8eef2"; g.fillRect(6, 6, w - 12, 140);
+    const cols = ["#c0392b", "#2c7fb8", "#f1c40f", "#27ae60", "#8e44ad", "#e67e22", "#7f8c8d", "#16a085"];
+    for (let r0 = 0; r0 < 4; r0++) {
+      for (let c = 0; c < 6; c++) {
+        g.fillStyle = cols[(r0 * 6 + c) % cols.length];
+        g.fillRect(12 + c * 18, 14 + r0 * 32, 12, 22);
+        g.fillStyle = "#ffffff"; g.fillRect(12 + c * 18, 38 + r0 * 32, 12, 4);
+      }
+    }
+    g.fillStyle = "#1f2b36"; g.fillRect(6, 160, w - 12, 30);
+    g.fillStyle = "#d6dde2"; g.fillRect(6, 200, w - 12, 46);
+    g.fillStyle = "#3a4650"; g.fillRect(30, 214, w - 60, 18);
+  }, 1, 1)
+});
+OUT_LIGHTS.push(vendLitMat);
+{
+  const side = mat(0xdfe3e6);
+  const mats = [side, side, side, side, vendLitMat, side];
+  const vm = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.83, 0.72), mats);
+  vm.position.set(4.7, G0 + 0.92, STREET.roadZ1 - 0.75);
+  vm.castShadow = true;
+  outside.add(vm);
+}
+
+/* ---------- 雨の波紋（地面や水面に落ちた雨粒） ---------- */
+const RIPPLES = [];
+{
+  const rg = new THREE.RingGeometry(0.82, 1, 20);
+  rg.rotateX(-Math.PI / 2);
+  for (let i = 0; i < 46; i++) {
+    const m = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xe8eef2, transparent: true, opacity: 0, depthWrite: false }));
+    m.visible = false;
+    m.renderOrder = 3;
+    scene.add(m);
+    RIPPLES.push({ m, t: 1, life: 0.7, size: 0.3 });
+  }
+}
+let rippleAcc = 0;
+function updateRipples(dt, rain, waterTopY) {
+  rippleAcc += dt * (4 + 70 * rain);
+  while (rippleAcc > 1) {
+    rippleAcc -= 1;
+    const r = RIPPLES.find(p => p.t >= 1);
+    if (!r) break;
+    /* 家の中には落とさない：庭（窓の前）と、道・向かいの家の前 */
+    let x, z;
+    if (Math.random() < 0.35) { x = -4 + Math.random() * 8; z = -2.6 - Math.random() * 4.2; }
+    else { x = -9 + Math.random() * 18; z = -7.9 - Math.random() * 5.6; }
+    const groundY = G0 + outside.position.y + 0.02;
+    r.m.position.set(x, Math.max(groundY, waterTopY + 0.02), z);
+    r.t = 0;
+    r.life = 0.5 + Math.random() * 0.4;
+    r.size = 0.18 + Math.random() * 0.22;
+    r.m.visible = true;
+  }
+  for (const r of RIPPLES) {
+    if (r.t >= 1) continue;
+    r.t = Math.min(1, r.t + dt / r.life);
+    const s = 0.03 + r.size * r.t;
+    r.m.scale.set(s, 1, s);
+    r.m.material.opacity = 0.55 * (1 - r.t);
+    if (r.t >= 1) r.m.visible = false;
+  }
+}
+/* 上の階のベランダ（1階では出さない。中身は窓を作った後で足す） */
+const balcony = new THREE.Group();
+balcony.visible = false;
+
+/* 床（基礎の上。上の階のときは、下の階の分まで伸ばす） */
+const foundation = box(RW + 2 * WT, FH1, RD + WT, M.found, 0, -FH1 / 2, -WT / 2);
+room.add(foundation);
+function setFloorHeight(h) {
+  FH = h;
+  outside.position.y = -(h - FH1);
+  foundation.scale.y = h / FH1;
+  foundation.position.y = -h / 2;
+  balcony.visible = h > FH1 + 0.5;
+}
+const floorTop = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), mat(0xffffff, { map: woodTex }));
+floorTop.rotation.x = -Math.PI / 2;
+floorTop.position.set(0, 0.001, 0);
+floorTop.receiveShadow = true;
+room.add(floorTop);
+const KX0 = 0.45, KZ1 = -0.9;
+const kitchenFloor = new THREE.Mesh(new THREE.PlaneGeometry(XR - KX0, KZ1 - ZB), mat(0xffffff, { map: tileTex }));
+kitchenFloor.rotation.x = -Math.PI / 2;
+kitchenFloor.position.set((XR + KX0) / 2, 0.003, (KZ1 + ZB) / 2);
+kitchenFloor.receiveShadow = true;
+room.add(kitchenFloor);
+const rug = box(1.5, 0.012, 1.7, mat(0xa6b2bb, { map: rugTex }), -0.55, 0.008, 0.65);
+rug.castShadow = false;
+room.add(rug);
+
+/* 壁と天井（4面とも置く。手前の壁にはドア） */
+const WIN_X0 = -1.9, WIN_X1 = 0.3, WIN_TOP = 1.95;
+room.add(box(WT, CH, RD + WT, M.wallSide, XL - WT / 2, CH / 2, -WT / 2));
+room.add(box(WT, CH, RD + WT, M.wallSide, XR + WT / 2, CH / 2, -WT / 2));
+room.add(box(WIN_X0 - XL + WT, CH, WT, M.wall, (XL - WT + WIN_X0) / 2, CH / 2, ZB - WT / 2));
+room.add(box(XR + WT - WIN_X1, CH, WT, M.wall, (WIN_X1 + XR + WT) / 2, CH / 2, ZB - WT / 2));
+room.add(box(WIN_X1 - WIN_X0, CH - WIN_TOP, WT, M.wall, (WIN_X0 + WIN_X1) / 2, (WIN_TOP + CH) / 2, ZB - WT / 2));
+const ceil = box(RW + 2 * WT, 0.16, RD + WT, M.ceiling, 0, CH + 0.08, -WT / 2);
+ceil.castShadow = false;
+room.add(ceil);
+{
+  const fw = box(RW + 2 * WT, CH, WT, M.wall, 0, CH / 2, ZF + WT / 2);
+  fw.castShadow = false;
+  room.add(fw);
+  room.add(box(0.85, 2.0, 0.03, M.woodDark, -1.2, 1.0, ZF - 0.015, false));
+  room.add(box(0.03, 0.14, 0.05, M.steel, -0.86, 1.0, ZF - 0.045, false));
+  room.add(box(RW, 0.06, 0.012, M.base, 0, 0.03, ZF - 0.006));
+}
+/* 巾木 */
+room.add(box(0.012, 0.06, RD, M.base, XL + 0.006, 0.03, 0));
+room.add(box(0.012, 0.06, RD, M.base, XR - 0.006, 0.03, 0));
+room.add(box(WIN_X0 - XL, 0.06, 0.012, M.base, (XL + WIN_X0) / 2, 0.03, ZB + 0.006));
+room.add(box(XR - WIN_X1, 0.06, 0.012, M.base, (WIN_X1 + XR) / 2, 0.03, ZB + 0.006));
+
+/* 掃き出し窓 */
+const glassMat = new THREE.MeshPhongMaterial({ color: 0xd6e8f2, transparent: true, opacity: 0.22, depthWrite: false, shininess: 90, specular: 0xffffff });
+{
+  const fz = ZB - WT / 2;
+  room.add(box(WIN_X1 - WIN_X0, 0.05, WT + 0.02, M.frame, (WIN_X0 + WIN_X1) / 2, 0.025, fz));
+  room.add(box(WIN_X1 - WIN_X0, 0.05, WT + 0.02, M.frame, (WIN_X0 + WIN_X1) / 2, WIN_TOP - 0.025, fz));
+  room.add(box(0.05, WIN_TOP, WT + 0.02, M.frame, WIN_X0 + 0.025, WIN_TOP / 2, fz));
+  room.add(box(0.05, WIN_TOP, WT + 0.02, M.frame, WIN_X1 - 0.025, WIN_TOP / 2, fz));
+  room.add(box(0.05, WIN_TOP, 0.05, M.frame, (WIN_X0 + WIN_X1) / 2, WIN_TOP / 2, fz + 0.02));
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(WIN_X1 - WIN_X0 - 0.1, WIN_TOP - 0.1), glassMat);
+  glass.position.set((WIN_X0 + WIN_X1) / 2, WIN_TOP / 2, fz);
+  glass.renderOrder = 2;
+  room.add(glass);
+  /* カーテン（ひだのある布） */
+  for (const cx of [WIN_X0 - 0.05, WIN_X1 + 0.05]) {
+    const cg = new THREE.PlaneGeometry(0.44, 2.05, 28, 1);
+    const p = cg.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setZ(i, 0.035 * Math.sin(p.getX(i) * Math.PI * 2 / 0.09));
+    cg.computeVertexNormals();
+    const cm = new THREE.Mesh(cg, M.curtain);
+    cm.position.set(cx, 1.04, ZB + 0.1);
+    cm.castShadow = true;
+    room.add(cm);
+  }
+  room.add(box(WIN_X1 - WIN_X0 + 0.7, 0.04, 0.06, M.frame, (WIN_X0 + WIN_X1) / 2, 2.08, ZB + 0.1));
+}
+/* 上の階の窓の外の手すり（床のあるベランダにすると真下が隠れるので、窓のすぐ外に細い棒の手すりだけ） */
+{
+  const z = ZB - WT - 0.1, x0 = WIN_X0, x1 = WIN_X1;
+  balcony.add(box(x1 - x0, 0.04, 0.04, M.frame, (x0 + x1) / 2, 1.1, z));
+  for (let x = x0 + 0.02; x <= x1; x += 0.7) balcony.add(box(0.02, 1.1, 0.02, M.frame, x, 0.55, z));
+  room.add(balcony);
+}
+
+/* 天井の明かり */
+const lampMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xfff3dc, emissiveIntensity: 0.9 });
+{
+  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.32, 0.08, 32), lampMat);
+  /* 立った目線の画面の上で大きく切れないよう、部屋の奥寄りに付ける */
+  lamp.position.set(-1.3, CH - 0.04, -1.3);
+  room.add(lamp);
+}
+
+/* テレビ台とテレビ（左の壁ぎわ、右を向く） */
+const TV_Z = -0.4, TV_W = 1.1;
+{
+  const sx = XL + 0.22;
+  const st = rbox(0.42, H.tvStand, 1.5, 0.04, M.stand);
+  st.position.set(sx, H.tvStand / 2, TV_Z);
+  room.add(st);
+  room.add(box(0.44, 0.025, 1.52, M.wood, sx, H.tvStand + 0.0125, TV_Z));
+  room.add(box(0.2, 0.03, 0.3, M.tvBody, sx, H.tvStand + 0.04, TV_Z));
+  room.add(box(0.04, 0.08, 0.06, M.tvBody, sx, H.tvStand + 0.08, TV_Z));
+  const tvH = H.tvTop - H.tvStand - 0.08;
+  room.add(box(0.05, tvH, TV_W, M.tvBody, sx, H.tvStand + 0.08 + tvH / 2, TV_Z));
+}
+const tvScreenMat = new THREE.MeshLambertMaterial({ color: 0x1c2328, emissive: 0x2b4a63, emissiveIntensity: 1 });
+{
+  const tvH = H.tvTop - H.tvStand - 0.08;
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(TV_W - 0.05, tvH - 0.05), tvScreenMat);
+  scr.rotation.y = Math.PI / 2;
+  scr.position.set(XL + 0.22 + 0.026, H.tvStand + 0.08 + tvH / 2, TV_Z);
+  room.add(scr);
+}
+
+/* コンセント（左の壁、テレビ台の手前） */
+{
+  const OZ = 0.6;
+  room.add(box(0.012, 0.15, 0.095, M.white, XL + 0.006, H.outlet, OZ, false));
+  room.add(box(0.004, 0.022, 0.006, M.dark, XL + 0.014, H.outlet + 0.03, OZ - 0.012, false));
+  room.add(box(0.004, 0.022, 0.006, M.dark, XL + 0.014, H.outlet + 0.03, OZ + 0.012, false));
+  room.add(box(0.03, 0.04, 0.035, M.white, XL + 0.025, H.outlet - 0.025, OZ, false));
+  const cord = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(XL + 0.04, H.outlet - 0.03, OZ),
+      new THREE.Vector3(XL + 0.08, 0.02, OZ - 0.05),
+      new THREE.Vector3(XL + 0.1, 0.01, 0.45),
+      new THREE.Vector3(XL + 0.12, 0.05, 0.32)
+    ]), 20, 0.008, 6),
+    M.dark
+  );
+  room.add(cord);
+}
+
+/* 壁の時計（テレビの上） */
+const clockHands = {};
+{
+  const g = new THREE.Group();
+  g.position.set(XL + 0.03, H.clock, TV_Z);
+  g.rotation.y = Math.PI / 2;
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.04, 40), M.woodDark);
+  rim.rotation.x = Math.PI / 2;
+  g.add(rim);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(0.14, 40), M.white);
+  face.position.z = 0.021;
+  g.add(face);
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2;
+    const tick = new THREE.Mesh(new THREE.BoxGeometry(0.008, i % 3 ? 0.014 : 0.026, 0.002), M.dark);
+    tick.position.set(Math.sin(a) * 0.12, Math.cos(a) * 0.12, 0.023);
+    tick.rotation.z = -a;
+    g.add(tick);
+  }
+  const hourG = new THREE.BoxGeometry(0.012, 0.075, 0.003); hourG.translate(0, 0.03, 0);
+  const minG = new THREE.BoxGeometry(0.008, 0.11, 0.003); minG.translate(0, 0.045, 0);
+  clockHands.h = new THREE.Mesh(hourG, M.dark); clockHands.h.position.z = 0.025;
+  clockHands.m = new THREE.Mesh(minG, M.dark); clockHands.m.position.z = 0.028;
+  g.add(clockHands.h, clockHands.m);
+  room.add(g);
+}
+
+/* ソファ（右寄り、テレビの方を向く） */
+{
+  const sx0 = 0.5, depth = 0.9, sz = 0.92, width = 1.9;
+  const g = new THREE.Group();
+  const backT = 0.2;
+  const seat = rbox(depth - backT, H.sofaSeat - 0.12, width - 0.3, 0.08, M.sofa);
+  seat.position.set(sx0 + (depth - backT) / 2, 0.12 + (H.sofaSeat - 0.12) / 2, sz);
+  g.add(seat);
+  const back = rbox(backT, H.sofaBack - 0.06, width, 0.08, M.sofa);
+  back.position.set(sx0 + depth - backT / 2, 0.06 + (H.sofaBack - 0.06) / 2, sz);
+  g.add(back);
+  for (const s of [-1, 1]) {
+    const arm = rbox(depth, H.sofaSeat + 0.17, 0.16, 0.07, M.sofa);
+    arm.position.set(sx0 + depth / 2, 0.06 + (H.sofaSeat + 0.17) / 2, sz + s * (width / 2 - 0.08));
+    g.add(arm);
+  }
+  room.add(box(depth - 0.05, 0.06, width - 0.05, M.woodDark, sx0 + depth / 2, 0.03, sz));
+  const c1 = rbox(0.14, 0.36, 0.38, 0.07, M.cushion);
+  c1.position.set(sx0 + depth - backT - 0.08, H.sofaSeat + 0.17, sz - 0.42);
+  c1.rotation.z = 0.12;
+  g.add(c1);
+  const c2 = rbox(0.14, 0.34, 0.36, 0.07, M.cushion2);
+  c2.position.set(sx0 + depth - backT - 0.08, H.sofaSeat + 0.16, sz + 0.45);
+  c2.rotation.z = 0.1;
+  g.add(c2);
+  room.add(g);
+}
+
+/* ローテーブル（水に浮く） */
+const table = new THREE.Group();
+const TABLE_BASE = new THREE.Vector3(-0.55, 0, 0.65);
+{
+  const top = rbox(0.62, 0.035, 1.0, 0.03, M.wood);
+  top.position.y = H.tableTop - 0.0175;
+  table.add(top);
+  for (const [x, z] of [[-0.25, -0.43], [0.25, -0.43], [-0.25, 0.43], [0.25, 0.43]]) {
+    table.add(box(0.04, H.tableTop - 0.035, 0.04, M.wood, x, (H.tableTop - 0.035) / 2, z));
+  }
+  const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 16), mat(0xe7eef3));
+  mug.position.set(0.1, H.tableTop + 0.045, -0.2);
+  mug.castShadow = true;
+  table.add(mug);
+  table.position.copy(TABLE_BASE);
+  room.add(table);
+}
+
+/* 部屋の小物：エアコン、壁のスイッチ、額、観葉植物、テーブルの上のもの */
+{
+  /* エアコン（左の壁の奥、天井の近く） */
+  const ac = rbox(0.24, 0.28, 0.82, 0.06, mat(0xf3f4f3));
+  ac.position.set(XL + 0.13, 2.17, -1.35);
+  room.add(ac);
+  room.add(box(0.02, 0.03, 0.7, mat(0xc9cdcf), XL + 0.255, 2.06, -1.35, false));
+  room.add(box(0.01, 0.025, 0.06, mat(0x6fbf8a), XL + 0.255, 2.22, -1.0, false));
+  /* 壁のスイッチ（左の壁の手前） */
+  room.add(box(0.012, 0.12, 0.075, M.white, XL + 0.006, 1.2, 1.35, false));
+  room.add(box(0.008, 0.05, 0.03, mat(0xdfe2e3), XL + 0.015, 1.22, 1.35, false));
+  /* 額（左の壁、テレビの手前寄り） */
+  room.add(box(0.03, 0.5, 0.4, M.woodDark, XL + 0.015, 1.5, 0.75, false));
+  const pic = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.44), new THREE.MeshLambertMaterial({
+    map: canvasTex(64, 80, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, "#c9d7e2"); gr.addColorStop(0.55, "#e7ecef"); gr.addColorStop(0.56, "#8aa58c"); gr.addColorStop(1, "#6f8a70");
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = "rgba(90,110,125,.5)";
+      g.beginPath(); g.moveTo(8, 46); g.lineTo(26, 28); g.lineTo(42, 46); g.fill();
+    }, 1, 1)
+  }));
+  pic.rotation.y = Math.PI / 2;
+  pic.position.set(XL + 0.032, 1.5, 0.75);
+  room.add(pic);
+  /* 観葉植物（窓の左の角） */
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.32, 16), mat(0xe8e6e1));
+  pot.position.set(XL + 0.25, 0.16, -1.62);
+  pot.castShadow = true;
+  room.add(pot);
+  /* 葉：細長い葉の形を、茎の先から外へ垂れるように並べる */
+  const ls = new THREE.Shape();
+  ls.moveTo(0, 0); ls.quadraticCurveTo(0.055, 0.12, 0, 0.3); ls.quadraticCurveTo(-0.055, 0.12, 0, 0);
+  const leafG = new THREE.ShapeGeometry(ls, 6);
+  const greens = [0x4f7d4c, 0x5f8f58, 0x6a9a62];
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2 + (i % 2) * 0.2;
+    const tilt = 0.5 + (i % 4) * 0.22;
+    const leaf = new THREE.Mesh(leafG, new THREE.MeshLambertMaterial({ color: greens[i % 3], side: THREE.DoubleSide }));
+    const g2 = new THREE.Group();
+    g2.position.set(XL + 0.25, 0.36 + (i % 3) * 0.1, -1.62);
+    g2.rotation.y = a;
+    leaf.rotation.x = -tilt;
+    g2.add(leaf);
+    leaf.castShadow = true;
+    room.add(g2);
+  }
+  /* テーブルの上：リモコンとティッシュの箱 */
+  const remote = box(0.05, 0.02, 0.17, mat(0x2b3034), -0.15, H.tableTop + 0.01, 0.2);
+  table.add(remote);
+  const tissue = rbox(0.24, 0.09, 0.12, 0.02, mat(0xf2f2ee));
+  tissue.position.set(0.1, H.tableTop + 0.045, 0.28);
+  table.add(tissue);
+  /* 窓のクレセント錠 */
+  room.add(box(0.03, 0.06, 0.03, mat(0xc8ccce), (WIN_X0 + WIN_X1) / 2 + 0.04, 1.0, ZB - WT / 2 + 0.05, false));
+}
+
+/* 台所（右の奥）：流し台、上の戸棚、冷蔵庫 */
+{
+  const cx0 = 0.55, cx1 = 1.58, cd = 0.65;
+  const cz = ZB + cd / 2;
+  room.add(box(cx1 - cx0, H.sinkCounter - 0.04, cd, M.counter, (cx0 + cx1) / 2, (H.sinkCounter - 0.04) / 2, cz));
+  room.add(box(cx1 - cx0 + 0.02, 0.04, cd + 0.02, M.steel, (cx0 + cx1) / 2, H.sinkCounter - 0.02, cz));
+  room.add(box(0.5, 0.012, 0.38, mat(0x8e979c), cx0 + 0.36, H.sinkCounter + 0.001, cz + 0.02, false));
+  room.add(box(0.03, 0.25, 0.03, M.steel, cx0 + 0.36, H.sinkCounter + 0.125, ZB + 0.06));
+  room.add(box(0.03, 0.03, 0.16, M.steel, cx0 + 0.36, H.sinkCounter + 0.24, ZB + 0.13));
+  room.add(box((cx1 - cx0) / 2 - 0.01, 0.005, 0.005, M.steel, cx0 + (cx1 - cx0) / 4, H.sinkCounter - 0.12, ZB + cd + 0.002, false));
+  room.add(box((cx1 - cx0) / 2 - 0.01, 0.005, 0.005, M.steel, cx0 + (cx1 - cx0) * 3 / 4, H.sinkCounter - 0.12, ZB + cd + 0.002, false));
+  room.add(box(0.004, H.sinkCounter - 0.1, 0.004, mat(0xc5cbce), (cx0 + cx1) / 2, (H.sinkCounter - 0.04) / 2, ZB + cd + 0.002, false));
+  room.add(box(cx1 - cx0, 0.62, 0.34, M.counter, (cx0 + cx1) / 2, 1.62 + 0.31, ZB + 0.17));
+  room.add(box(0.004, 0.58, 0.004, mat(0xc5cbce), (cx0 + cx1) / 2, 1.93, ZB + 0.342, false));
+
+  const fw = 0.62, fx = XR - fw / 2 - 0.03;
+  const fr = rbox(fw, H.fridge, 0.66, 0.05, M.fridge);
+  fr.position.set(fx, H.fridge / 2, ZB + 0.35);
+  room.add(fr);
+  const doorZ = ZB + 0.35 + 0.331;
+  room.add(box(fw - 0.04, 0.006, 0.006, mat(0xc9d0d4), fx, H.fridge * 0.62, doorZ, false));
+  room.add(box(0.025, 0.28, 0.025, M.steel, fx - fw / 2 + 0.06, H.fridge * 0.62 + 0.2, doorZ + 0.01));
+  room.add(box(0.025, 0.22, 0.025, M.steel, fx - fw / 2 + 0.06, H.fridge * 0.62 - 0.18, doorZ + 0.01));
+  room.add(box(0.07, 0.09, 0.006, mat(0x7fa7c6), fx + 0.12, H.fridge * 0.74, doorZ + 0.003, false));
+  room.add(box(0.1, 0.07, 0.006, mat(0xd7b7a3), fx - 0.02, H.fridge * 0.8, doorZ + 0.003, false));
+}
+
+/* 水が引いた後の泥の跡（壁と床） */
+const stainMat = new THREE.MeshLambertMaterial({ color: 0x6f6046, transparent: true, opacity: 0.26, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+const lineMat = new THREE.MeshLambertMaterial({ color: 0x5e5038, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+const stains = [];
+function addStain(w, x, z, ry) {
+  const p = new THREE.Mesh(new THREE.PlaneGeometry(w, 1), stainMat);
+  p.rotation.y = ry; p.position.set(x, 0.5, z);
+  const l = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.025), lineMat);
+  l.rotation.y = ry; l.position.set(x, 0, z);
+  p.renderOrder = 0; l.renderOrder = 0;
+  room.add(p, l);
+  stains.push({ p, l });
+}
+addStain(RD, XL + 0.004, 0, Math.PI / 2);
+addStain(RD, XR - 0.004, 0, -Math.PI / 2);
+addStain(RW, 0, ZB + 0.004, 0);
+addStain(RW, 0, ZF - 0.02, Math.PI);
+const floorMud = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), new THREE.MeshLambertMaterial({ color: 0x6f5f42, transparent: true, opacity: 0.45, depthWrite: false }));
+floorMud.rotation.x = -Math.PI / 2;
+floorMud.position.y = 0.017;
+room.add(floorMud);
+
+/* 水面 */
+const WATER_SIZE = 46, WATER_SEG = 115;
+const waterGeo = new THREE.PlaneGeometry(WATER_SIZE, WATER_SIZE, WATER_SEG, WATER_SEG);
+waterGeo.rotateX(-Math.PI / 2);
+const waterBase = waterGeo.attributes.position.array.slice();
+/* 水面のゆらぎの光（黒地に明るい筋。emissiveMap として足す） */
+const rippleTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = "#000"; g.fillRect(0, 0, w, h);
+  g.lineCap = "round";
+  for (let i = 0; i < 60; i++) {
+    const x = (i * 97) % w, y = (i * 61 + (i % 7) * 5) % h, len = 10 + (i * 13) % 18;
+    g.strokeStyle = "rgba(255,255,255," + (0.25 + (i % 4) * 0.1).toFixed(2) + ")";
+    g.lineWidth = 1 + (i % 2);
+    g.beginPath();
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + len / 2, y - 3 - (i % 3), x + len, y);
+    g.stroke();
+  }
+}, 12, 12);
+const waterMat = new THREE.MeshPhongMaterial({
+  color: 0x736c4f, specular: 0xb4b2a4, shininess: 45, transparent: true, opacity: 0.8, side: THREE.DoubleSide,
+  emissive: 0x45412f, emissiveMap: rippleTex
+});
+const water = new THREE.Mesh(waterGeo, waterMat);
+water.position.set(0, -FH - 0.05, -8);
+water.renderOrder = 1;
+scene.add(water);
+
+
+/* =====================================================================
+   雨（外の雨すじ、窓の水滴、暗さ、音）
+   ===================================================================== */
+const RAIN_N = 1800;
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainX = new Float32Array(RAIN_N), rainY = new Float32Array(RAIN_N), rainZ = new Float32Array(RAIN_N), rainV = new Float32Array(RAIN_N);
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.LineBasicMaterial({ color: 0xdfe7ee, transparent: true, opacity: 0.55, depthWrite: false });
+const rainLines = new THREE.LineSegments(rainGeo, rainMat);
+rainLines.frustumCulled = false;
+rainLines.renderOrder = 4;
+scene.add(rainLines);
+function spawnDrop(i, anywhere) {
+  for (let k = 0; k < 20; k++) {
+    const x = -12 + Math.random() * 24, z = -22 + Math.random() * 28;
+    /* 家の中には降らせない。カメラのすぐ前も避ける */
+    if (x > -2.7 && x < 2.7 && z > -2.35 && z < 2.25) continue;
+    if (Math.hypot(x - camera.position.x, z - camera.position.z) < 1.6) continue;
+    rainX[i] = x; rainZ[i] = z;
+    break;
+  }
+  rainY[i] = anywhere ? -FH + Math.random() * (FH + 6) : 6 + Math.random();
+  rainV[i] = 8 + Math.random() * 4;
+}
+function updateRain(dt, level01) {
+  const active = Math.floor(RAIN_N * (0.06 + 0.94 * level01));
+  const len = 0.22 + 0.4 * level01, wind = 0.06 + 0.12 * level01;
+  const floorY = Math.max(-FH, G.depth > 0.001 ? G.depth - FH : -FH);
+  for (let i = 0; i < active; i++) {
+    rainY[i] -= rainV[i] * dt * (0.8 + 0.5 * level01);
+    if (rainY[i] < floorY) spawnDrop(i, false);
+    const o = i * 6;
+    rainPos[o] = rainX[i] + wind; rainPos[o + 1] = rainY[i] + len; rainPos[o + 2] = rainZ[i];
+    rainPos[o + 3] = rainX[i]; rainPos[o + 4] = rainY[i]; rainPos[o + 5] = rainZ[i];
+  }
+  rainGeo.setDrawRange(0, active * 2);
+  rainGeo.attributes.position.needsUpdate = true;
+  rainMat.opacity = 0.3 + 0.45 * level01;
+}
+
+/* 窓の内側の水滴 */
+const dropTex = canvasTex(512, 512, (g, w, h) => {
+  g.clearRect(0, 0, w, h);
+  for (let i = 0; i < 170; i++) {
+    const x = (i * 211) % w, y = (i * 137 + (i % 11) * 17) % h, r = 2 + (i * 7) % 6;
+    const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
+    gr.addColorStop(0, "rgba(255,255,255,.85)");
+    gr.addColorStop(0.5, "rgba(200,215,225,.35)");
+    gr.addColorStop(1, "rgba(80,95,110,.55)");
+    g.fillStyle = gr;
+    g.beginPath(); g.ellipse(x, y, r * 0.85, r, 0, 0, Math.PI * 2); g.fill();
+    if (i % 5 === 0) {
+      g.strokeStyle = "rgba(220,230,238,.35)";
+      g.lineWidth = Math.max(1, r * 0.5);
+      g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + 1, y - r - 20 - (i % 4) * 12); g.stroke();
+    }
+  }
+}, 1.6, 1.4);
+const dropMat = new THREE.MeshBasicMaterial({ map: dropTex, transparent: true, opacity: 0, depthWrite: false });
+const windowDrops = new THREE.Mesh(new THREE.PlaneGeometry(WIN_X1 - WIN_X0 - 0.1, WIN_TOP - 0.1), dropMat);
+windowDrops.position.set((WIN_X0 + WIN_X1) / 2, WIN_TOP / 2, ZB - WT / 2 + 0.03);
+windowDrops.renderOrder = 3;
+room.add(windowDrops);
+
+const SKY_LIGHT = new THREE.Color(0xb9c5ce), SKY_DARK = new THREE.Color(0x46505a);
+const BASE = { hemi: hemi.intensity, sun: sun.intensity };
+
+/* 雨の音（作った雑音を、強さに合わせて大きく・明るくする） */
+let audio = null;
+function initAudio() {
+  if (audio) { if (audio.ctx.state === "suspended") audio.ctx.resume(); return; }
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      lp = lp * 0.97 + w * 0.03;
+      d[i] = w * 0.5 + lp * 4;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass"; filter.frequency.value = 900; filter.Q.value = 0.4;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    src.start();
+    audio = { ctx, filter, gain };
+  } catch (e) { audio = null; }
+}
+/* 決壊のときの、低く短い音 */
+function playBreachSound() {
+  if (!audio) return;
+  try {
+    const c = audio.ctx, t0 = c.currentTime;
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = "sine"; o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 1.2);
+    og.gain.setValueAtTime(0.0001, t0); og.gain.exponentialRampToValueAtTime(0.35, t0 + 0.05); og.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
+    o.connect(og); og.connect(c.destination); o.start(t0); o.stop(t0 + 1.5);
+  } catch (e) { /* 何もしない */ }
+}
+function updateAudio(level01) {
+  if (!audio) return;
+  const t = audio.ctx.currentTime;
+  audio.gain.gain.setTargetAtTime(0.3 * Math.pow(level01, 1.3), t, 0.15);
+  audio.filter.frequency.setTargetAtTime(700 + 2800 * level01, t, 0.2);
+}
+
+/* =====================================================================
+   遊びの流れ
+   ===================================================================== */
+const G = {
+  phase: "map", house: -1, mm: 0, depth: 0, maxDepth: 0, pending: 0, intensity: 0, rain: 0.05, wet: 0.08,
+  lastRub: -1e9, stepIdx: -1, fired: new Set(), floatT: 0, endT: 0, drainFrom: 0, drainT: 0,
+  clockStop: null, hold: false,
+  /* 何階か、1つの階の高さ、部屋が沈むか（sink）沈まず窓の外を見るか（window） */
+  floor: 1, perFloor: 3, mode: "sink",
+  /* 荒川の知らせをどこまで出したか、決壊の演出の残り */
+  alertIdx: -1, flash: 0
+};
+
+const el = id => document.getElementById(id);
+const elRain = el("rainVal"), elRainSub = el("rainSub"), elDepth = el("depthVal"), elFill = el("meterFill");
+const elHint = el("hint"), elStop = el("stop"), elMsgs = el("msgs"), elResult = el("result");
+const tickEls = RAIN_STEPS.map(s => {
+  const t = document.createElement("div");
+  t.className = "tick";
+  t.style.left = (s.mm / MM_MAX * 100) + "%";
+  el("meter").appendChild(t);
+  return t;
+});
+
+function showLine(text) {
+  const m = document.createElement("div");
+  m.className = "msg";
+  m.textContent = text.replace(/。(?=[^\n])/g, "。\n");
+  elMsgs.appendChild(m);
+  while (elMsgs.children.length > 2) elMsgs.removeChild(elMsgs.firstChild);
+  void m.offsetWidth;
+  m.classList.add("show");
+  setTimeout(() => {
+    m.classList.remove("show");
+    setTimeout(() => { if (m.parentNode) m.parentNode.removeChild(m); }, 600);
+  }, 3600);
+}
+
+function clockMinutes() {
+  return CONFIG.clockStartMinutes + Math.min(G.mm, MM_MAX) / MM_MAX * CONFIG.clockHoursAtMax * 60;
+}
+
+/* 越えた目盛りと、沈んだ物の一言を集める（同じフレームで重なったら最後の2つだけ） */
+function checkLines(silent) {
+  const out = [];
+  for (let i = G.stepIdx + 1; i < RAIN_STEPS.length; i++) {
+    if (G.mm >= RAIN_STEPS[i].mm) { out.push(RAIN_STEPS[i].text); G.stepIdx = i; } else break;
+  }
+  const level = G.depth - FH;
+  const ra = riverAlerts(BLD[G.house]);
+  for (let i = G.alertIdx + 1; i < ra.length; i++) {
+    if (G.mm >= ra[i].mm) { G.alertIdx = i; if (!silent) showAlert(ra[i]); } else break;
+  }
+  if (!G.fired.has("road") && G.depth > 0.01) { G.fired.add("road"); out.push(LINE_ROAD); }
+  if (G.mode === "window") {
+    /* 部屋まで来ない階：建物のまわりの深さで出す */
+    for (const r of OUTSIDE_LINES) {
+      const at = r.at === null ? FH1 + G.perFloor : r.at;
+      const key = "o" + r.text;
+      if (!G.fired.has(key) && G.depth >= at) { G.fired.add(key); out.push(r.text); }
+    }
+  } else {
+    if (!G.fired.has("floor") && level > 0.005) { G.fired.add("floor"); out.push(LINE_FLOOR); }
+    for (const r of RISING_LINES) {
+      if (!G.fired.has(r.at) && level >= r.at) { G.fired.add(r.at); out.push(r.text); }
+    }
+  }
+  if (G.clockStop === null && level >= H.clock) G.clockStop = clockMinutes();
+  if (!silent) for (const t of out.slice(-2)) showLine(t);
+}
+
+function resetRoom() {
+  Object.assign(G, {
+    mm: 0, depth: 0, maxDepth: 0, pending: 0, intensity: 0, rain: 0.05, wet: 0.08, lastRub: -1e9,
+    stepIdx: -1, fired: new Set(), floatT: 0, endT: 0, clockStop: null, hold: false, alertIdx: -1, flash: 0
+  });
+  table.position.copy(TABLE_BASE);
+  table.rotation.set(0, 0, 0);
+  elMsgs.textContent = "";
+  elResult.classList.remove("show");
+  elResult.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("res");
+  el("alert").classList.remove("show");
+  elHint.style.opacity = 1;
+  for (let i = 0; i < RAIN_N; i++) spawnDrop(i, true);
+}
+
+/* 建物の階数（無ければ高さ÷3m）と、1つの階の高さ（高さ÷階数。取れなければ3m。2.5〜4.5mにおさめる） */
+function floorsOf(b) {
+  return b.storeys > 0 ? b.storeys : Math.max(1, Math.round(b.h / 3));
+}
+function perFloorOf(b) {
+  const n = floorsOf(b);
+  const v = b.h > 0 && n > 0 ? b.h / n : 3;
+  return Math.max(2.5, Math.min(4.5, v));
+}
+function enterRoom(i, floor) {
+  const b = BLD[i];
+  G.house = i;
+  G.floor = floor || 1;
+  G.perFloor = perFloorOf(b);
+  /* 部屋の床の高さ＝1階の床0.45m＋(階−1)×1つの階の高さ */
+  setFloorHeight(FH1 + (G.floor - 1) * G.perFloor);
+  /* 想定最大の雨でも部屋の床まで来ないなら、窓の外を見下ろす形にする */
+  G.mode = b.l2 > FH ? "sink" : "window";
+  G.phase = "room";
+  el("mapUI").classList.add("hide");
+  el("floorAsk").classList.add("hide");
+  el("roomUI").classList.remove("hide");
+  view.yaw = 0;
+  fitCamera();
+  resetRoom();
+}
+function showMap() {
+  ensureMapBuildings();
+  G.phase = "map";
+  document.body.classList.remove("res");
+  updateAudio(0);
+  elResult.classList.remove("show");
+  el("roomUI").classList.add("hide");
+  el("mapUI").classList.remove("hide");
+  mapResize();
+}
+
+function startEnding() {
+  if (G.phase === "room") { G.phase = "ending"; G.endT = 0; }
+}
+function startDrain() {
+  G.phase = "drain";
+  G.drainFrom = G.depth;
+  G.drainT = 0;
+}
+
+function showResult() {
+  G.phase = "result";
+  const b = BLD[G.house];
+  const mm = Math.floor(G.mm);
+  const st = stepAt(G.mm);
+  const stTxt = !st ? "10年に1回より少ない量" : (G.mm >= MM_MAX ? "想定最大" : (mm === st.mm ? st.label : st.label + "をこえる量"));
+  const d = depthForRain(G.mm, b);
+  const days = Math.max(1, Math.ceil(b.durH / 24));
+  const liters = days * CONFIG.waterPerDayL;
+  const kv = (k, v, unit, sub) => '<div class="kv"><span class="k">' + k + '</span><span class="v">' + v + '<small>' + unit + '</small>' + (sub ? '<span class="u">' + sub + '</span>' : '') + '</span></div>';
+  const rows = [];
+  const roomName = G.floor > 1 ? "この部屋（" + G.floor + "階）" : "この部屋";
+  /* sunk：部屋の床から0.5m以上つかる（歩いて逃げにくい深さ）。そこで暮らすことはできないので、飲み水ではなく避難を伝える */
+  let lead, waterRow, daysLabel, sunk = false;
+  if (d <= 0.005) {
+    lead = "この雨の量では、この建物に荒川の水は来ない想定です";
+    waterRow = kv("想定最大（632mm）のとき、建物のまわりの水", b.l2.toFixed(2), "m");
+    daysLabel = "想定最大のとき、水が引くまで";
+  } else if (d <= FH) {
+    lead = roomName + "は無事。<br>でも外に出られません";
+    waterRow = kv("建物のまわりの水", d.toFixed(2), "m");
+    daysLabel = "外に出られない";
+  } else {
+    lead = "この部屋は、床から<span style=\"white-space:nowrap\">" + (d - FH).toFixed(2) + "m</span>まで水につかりました";
+    waterRow = kv("建物のまわりの水", d.toFixed(2), "m");
+    daysLabel = "水が引くまで";
+    sunk = d - FH >= 0.5;
+  }
+  rows.push('<div class="lead">' + lead + '</div>');
+  rows.push('<div class="rain">あなたが降らせた雨　' + mm + 'mm（' + stTxt + '）</div>');
+  rows.push(waterRow);
+  rows.push(kv(daysLabel, "約" + days, "日", G.mm < MM_MAX && d > 0.005 ? "想定最大の雨のとき" : ""));
+  if (!sunk) rows.push(kv("1人に要る飲み水", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本"));
+  if (G.mm < MM_MAX && d > 0.005) rows.push('<div class="note2">想定最大（632mm）なら、建物のまわりは' + b.l2.toFixed(2) + 'm</div>');
+  el("resRows").innerHTML = rows.join("");
+  el("resWarn").textContent = sunk
+    ? "この部屋には残れません。水が来る前に、浸水する場所の外へ逃げてください"
+    : "上の階に逃げても、何日も取り残されます。早めに浸水する場所の外へ";
+  const cityOf = CITIES[b.city] || CITIES[0];
+  el("resSrc").innerHTML = '荒川の堤防が切れた場合の想定です。深さと水が引くまでの時間は、国土交通省 PLATEAU ' + cityOf.name + '（' + cityOf.year + '年度）の荒川の値（516mm・632mm）を加工して作成。ほかの雨の量は、その間をつないだ目安です。荒川の水位や決壊の知らせは、この作品の中の目安です。本当に決壊したときは、国や市の「氾濫発生情報」などで知らされます。飲み水の目安（1人1日' + CONFIG.waterPerDayL + 'L）：<a href="https://www.kantei.go.jp/jp/headline/bousai/sonae.html" target="_blank" rel="noopener" style="color:inherit">首相官邸「災害への備え」</a>。浸水する場所の外への避難：<a href="https://www.city.toda.saitama.jp/soshiki/121/kouikihinan.html" target="_blank" rel="noopener" style="color:inherit">戸田市「荒川氾濫に備えた広域避難」</a>';
+  elMsgs.textContent = "";
+  document.body.classList.add("res");
+  elResult.classList.add("show");
+  elResult.setAttribute("aria-hidden", "false");
+}
+
+/* 音の準備は少し時間がかかることがあるので、こすり始める前（ボタンを押したとき）に済ませる */
+/* 住まいで2階建て以上なら、用途にかかわらず何階かを先に聞く（アパートが「住宅」になっていることがあるため） */
+let askFloor = 1;
+function showFloor() {
+  const n = floorsOf(BLD[selected]);
+  el("floorVal").textContent = askFloor + "階";
+  el("fDown").disabled = askFloor <= 1;
+  el("fUp").disabled = askFloor >= n;
+}
+el("pickGo").addEventListener("click", () => {
+  if (selected < 0) return;
+  initAudio();
+  const b = BLD[selected];
+  if (floorsOf(b) > 1) {
+    askFloor = 1;
+    showFloor();
+    el("pick").classList.add("hide");
+    el("floorAsk").classList.remove("hide");
+  } else {
+    enterRoom(selected, 1);
+  }
+});
+el("fDown").addEventListener("click", () => { askFloor = Math.max(1, askFloor - 1); showFloor(); });
+el("fUp").addEventListener("click", () => { askFloor = Math.min(floorsOf(BLD[selected]), askFloor + 1); showFloor(); });
+el("floorGo").addEventListener("click", () => enterRoom(selected, askFloor));
+elStop.addEventListener("click", () => startEnding());
+el("again").addEventListener("click", () => enterRoom(G.house, G.floor));
+el("rePick").addEventListener("click", () => showMap());
+
+/* こする：指1本（マウスの左ボタン）で動いた長さ（画面の短い辺を1とする）をためる。
+   見回す：指2本で横に動かす（マウスは右ボタン）。こするのと取り違えないよう、2本のときは雨を増やさない */
+{
+  const ptrs = new Map();
+  canvas.addEventListener("contextmenu", e => { if (G.phase !== "map") e.preventDefault(); });
+  canvas.addEventListener("pointerdown", e => {
+    if (G.phase === "map") return;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 何もしない */ }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button });
+    /* 音は、ブラウザが操作と認めたときだけ始める（指の場合は離したとき） */
+    if (!navigator.userActivation || navigator.userActivation.isActive) initAudio();
+  });
+  canvas.addEventListener("pointerup", () => { if (G.phase !== "map") initAudio(); });
+  canvas.addEventListener("pointermove", e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (ptrs.size >= 2 || p.btn === 2) {
+      /* 2本なら、それぞれの指の動きの半分ずつで回す */
+      view.yaw += dx * 0.004 / (ptrs.size >= 2 ? 2 : 1);
+      aimCamera();
+    } else if (G.phase === "room") {
+      G.pending += Math.hypot(dx, dy) / Math.min(innerWidth, innerHeight);
+      G.lastRub = performance.now();
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  });
+  const up = e => { ptrs.delete(e.pointerId); };
+  canvas.addEventListener("pointerup", up);
+  canvas.addEventListener("pointercancel", up);
+}
+
+/* カメラ：部屋の中に立った人の目（床から1.5m）。
+   沈む部屋：右手前の角に立ち、左奥（テレビと窓）を向く。足もとの床も少し入るよう、やや下を向く。
+   沈まない部屋：窓の近くに立ち、窓の外を見下ろす */
+const view = { target: new THREE.Vector3(), yaw: 0, min: -0.5, max: 0.5 };
+function fitCamera() {
+  const w = window.innerWidth, h = window.innerHeight, a = w / h;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(w, h, false);
+  camera.aspect = a;
+  if (G.mode === "window") {
+    /* 窓から2mほど下がって立ち、外の町を25度ほど見下ろす。これより下がると、窓の下の枠で向かいの家の1階や車が隠れる。
+       縦長の画面は横が狭いので、窓の左寄りに立って、左の窓枠とカーテンが画面に入るようにする */
+    const back = a < 1 ? 2.0 : 2.1;
+    camera.fov = a < 1 ? 72 : 54;
+    const cx = a < 1 ? -1.3 : -0.8;
+    camera.position.set(cx, EYE, ZB + back);
+    const pitch = (a < 1 ? 24 : 27) * Math.PI / 180, far = 12;
+    view.target.set(cx, EYE - far * Math.tan(pitch), ZB + back - far);
+  } else {
+    /* 横長は48度、縦長は横の見える幅が狭くなりすぎないよう広めにする（歪みが目立たない80度まで） */
+    camera.fov = a < 1 ? Math.min(80, 2 * Math.atan(Math.tan(24 * Math.PI / 180) / a) * 180 / Math.PI) : 48;
+    camera.position.set(XR - 0.3, EYE, ZF - 0.3);
+    /* 縦長は少し下を向けて、天井の照明が画面の上で大きく切れないようにする */
+    view.target.set(-1.35, a < 1 ? -0.1 : 0.35, -1.1);
+  }
+  aimCamera();
+  camera.updateProjectionMatrix();
+}
+function aimCamera() {
+  view.yaw = Math.max(view.min, Math.min(view.max, view.yaw));
+  const dx = view.target.x - camera.position.x, dz = view.target.z - camera.position.z;
+  const c = Math.cos(view.yaw), s = Math.sin(view.yaw);
+  camera.lookAt(camera.position.x + dx * c + dz * s, view.target.y, camera.position.z - dx * s + dz * c);
+}
+window.addEventListener("resize", () => {
+  if (G.phase === "map") { mapResize(); } else { fitCamera(); }
+});
+
+function updateWaves(time) {
+  const pos = waterGeo.attributes.position.array;
+  const A = 0.016 + 0.01 * G.rain;
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = waterBase[i], z = waterBase[i + 2] - 8;
+    pos[i + 1] = A * (Math.sin(x * 2.1 + time * 1.3) + 0.7 * Math.sin(z * 2.7 - time * 1.05) + 0.35 * Math.sin((x + z) * 4.6 + time * 2.3));
+  }
+  rippleTex.offset.set(time * 0.006, time * 0.004);
+  waterGeo.attributes.position.needsUpdate = true;
+  waterGeo.computeVertexNormals();
+}
+
+function stepRoom(dt, time) {
+  const b = BLD[G.house];
+
+  if (G.phase === "room") {
+    const cap = CONFIG.rub.maxMmPerSec * dt;
+    const add = Math.min(G.pending * CONFIG.rub.mmPerScreen, cap);
+    G.pending = 0;
+    G.mm = Math.min(MM_MAX, G.mm + add);
+    const inst = cap > 0 ? add / cap : 0;
+    G.intensity += (inst - G.intensity) * Math.min(1, dt * (inst > G.intensity ? 6 : 1.5));
+    if (G.mm >= MM_MAX && !G.hold) startEnding();
+  } else {
+    G.intensity += (0 - G.intensity) * Math.min(1, dt * 1.5);
+  }
+
+  /* 水位：雨の量で決まる深さに、少しずつ追いつく */
+  if (G.phase === "drain") {
+    G.drainT += dt;
+    const k = Math.min(1, G.drainT / CONFIG.drainSec);
+    G.depth = G.drainFrom * (1 - k * k * (3 - 2 * k));
+    if (k >= 1) showResult();
+  } else if (G.phase !== "result") {
+    const target = depthForRain(G.mm, b);
+    const step = CONFIG.waterSpeed * dt;
+    G.depth += Math.max(-step, Math.min(step, target - G.depth));
+    G.maxDepth = Math.max(G.maxDepth, G.depth);
+    if (G.phase === "ending") {
+      if (Math.abs(target - G.depth) < 0.01) G.endT += dt;
+      if (G.endT > 1.6) startDrain();
+    }
+    checkLines(false);
+  }
+
+  /* 雨の強さ（こすっていないときも、雨が始まっていれば少し降る） */
+  const floor = G.phase === "room" || G.phase === "ending" ? (G.mm > 0 ? 0.14 : 0.05) : 0.03;
+  G.rain = Math.max(floor, G.intensity);
+  updateRain(dt, G.rain);
+  updateAudio(G.phase === "map" ? 0 : G.rain);
+  const wetTarget = G.phase === "drain" || G.phase === "result" ? 0.2 : (G.mm > 0 ? 0.2 + 0.8 * G.rain : 0.08);
+  G.wet += (wetTarget - G.wet) * Math.min(1, dt * 0.8);
+  dropMat.opacity = G.wet;
+  dropTex.offset.y += dt * 0.02 * G.rain;
+
+  G.flash = Math.max(0, G.flash - dt / 1.6);
+  const dark = Math.min(0.92, 0.12 + 0.3 * Math.min(1, G.mm / MM_MAX) + 0.4 * G.rain + 0.35 * Math.sin(Math.PI * Math.min(1, G.flash * 1.2)));
+  scene.background.copy(SKY_LIGHT).lerp(SKY_DARK, dark);
+  scene.fog.color.copy(scene.background);
+  scene.fog.far = 95 - 45 * G.rain;
+  updateRipples(dt, G.phase === "drain" || G.phase === "result" ? 0.05 : G.rain, G.depth > 0.001 ? G.depth - FH : -1e9);
+  hemi.intensity = BASE.hemi * (1 - 0.45 * dark);
+  sun.intensity = BASE.sun * (1 - 0.7 * dark);
+
+  applyScene(dt, time);
+
+  /* 画面の数字 */
+  elRain.textContent = Math.floor(G.mm);
+  const st = stepAt(G.mm);
+  elRainSub.textContent = st ? st.label : "";
+  elFill.style.width = (G.mm / MM_MAX * 100).toFixed(2) + "%";
+  RAIN_STEPS.forEach((s, i) => tickEls[i].classList.toggle("on", G.mm >= s.mm));
+  /* 水が引く場面と結果では、引いた後の0mではなく一番深いときの値を出す */
+  const after = G.phase === "drain" || G.phase === "result";
+  el("depthLab").textContent = after ? "一番深いとき" : (G.mode === "window" ? "建物のまわりの水" : "この家の水の深さ");
+  elDepth.textContent = (after ? G.maxDepth : G.depth).toFixed(2);
+  elHint.style.opacity = G.phase === "room" && G.mm < 15 ? 1 : 0;
+  const showStop = G.phase === "room" && G.mm > 0 && G.mm < MM_MAX && performance.now() - G.lastRub > 1200;
+  elStop.classList.toggle("hide", !showStop);
+}
+
+function applyScene(dt, time) {
+  const level = G.depth - FH;
+  const maxLevel = G.maxDepth - FH;
+
+  water.visible = G.depth > 0.001;
+  if (water.visible) {
+    water.position.y = level;
+    /* 目の高さに近づくと水面の筋が横に伸びて見えるので、弱める */
+    waterMat.emissiveIntensity = Math.max(0.2, 1 - Math.max(0, level) / 2.2);
+    updateWaves(time);
+  }
+
+  /* 電気：コンセントが水につかったら、もう戻らない */
+  const powerOn = G.maxDepth < FH1 + H.outlet;
+  for (const m of OUT_LIGHTS) m.emissiveIntensity = powerOn ? 0.55 : 0;
+  lampMat.emissiveIntensity = powerOn ? 0.9 : 0;
+  lampMat.color.setHex(powerOn ? 0xffffff : 0xc9ced1);
+  tvScreenMat.emissiveIntensity = powerOn ? 1 : 0;
+  roomLight.intensity = powerOn ? 0.38 : 0;
+
+  /* 壁の時計：雨の量に合わせて進み、水につかると止まる */
+  const mins = G.clockStop !== null ? G.clockStop : clockMinutes();
+  clockHands.m.rotation.z = -((mins % 60) / 60) * Math.PI * 2;
+  clockHands.h.rotation.z = -(((mins / 60) % 12) / 12) * Math.PI * 2;
+
+  /* ローテーブル：浮いて、少し流される。水が引くとずれた所に残る */
+  const floating = level > H.tableFloat;
+  if (floating) G.floatT += dt;
+  if (G.floatT > 0) {
+    const k = 1 - Math.exp(-G.floatT / 5);
+    const lift = floating ? level - H.tableFloat : 0;
+    const bob = floating ? 0.008 * Math.sin(time * 1.6) : 0;
+    table.position.set(TABLE_BASE.x + 0.2 * k, lift + bob, TABLE_BASE.z - 0.9 * k);
+    table.rotation.set(floating ? 0.02 * Math.sin(time * 1.3) : 0, 0.55 * k, floating ? 0.02 * Math.sin(time * 1.1 + 1) : 0);
+  }
+
+  /* 泥の跡：一番高く来た所まで、水が下がってから見える */
+  const showStain = maxLevel > 0.01 && level < maxLevel - 0.01;
+  const sh = Math.min(maxLevel, CH);
+  for (const s of stains) {
+    s.p.visible = s.l.visible = showStain;
+    if (showStain) { s.p.scale.y = sh; s.p.position.y = sh / 2; s.l.position.y = sh; }
+  }
+  floorMud.visible = maxLevel > 0 && level < 0;
+
+  /* 水面が目の高さを越えたら、濁った水の中の見え方にする */
+  el("under").style.opacity = G.mode === "sink" && level > EYE - 0.02 ? 1 : 0;
+}
+
+/* =====================================================================
+   始まり。確かめ用に、アドレスの後ろで場面を指定できる
+   ?pick=番号 … 地図でその建物を選んだ状態
+   ?b=番号&mm=雨の量 … その家の居間を、その雨の量で開く（自動で終わらない）
+   ?b=番号&mm=雨の量&end=1 … 結果の画面
+   ===================================================================== */
+if (!/[?&]b=/.test(location.search)) ensureMapBuildings();
+mapResize();
+mapFit();
+{
+  const P = new URLSearchParams(location.search);
+  const bi = parseInt(P.get("b"), 10);
+  const pk = parseInt(P.get("pick"), 10);
+  if (bi >= 0 && bi < BLD.length) {
+    enterRoom(bi, parseInt(P.get("f"), 10) || 1);
+    if (P.has("mm")) {
+      const mm = Math.max(0, Math.min(MM_MAX, parseFloat(P.get("mm")) || 0));
+      G.mm = mm;
+      G.hold = true;
+      G.depth = G.maxDepth = depthForRain(mm, BLD[bi]);
+      let last = -1;
+      RAIN_STEPS.forEach((s, i) => { if (mm >= s.mm) last = i; });
+      /* ここまでの一言は出さずに済ませ、最後の目盛りの一言だけ出す */
+      checkLines(true);
+      G.alertIdx = -1;
+      { const ra = riverAlerts(BLD[bi]); for (let i = 0; i < ra.length; i++) if (mm >= ra[i].mm) G.alertIdx = i; }
+      if (P.get("alert") === "1" && G.alertIdx >= 0) showAlert(riverAlerts(BLD[bi])[G.alertIdx]);
+      G.stepIdx = Math.max(-1, last - 1);
+      const lv = G.depth - FH;
+      if (lv > H.tableFloat) G.floatT = 4;
+      if (lv >= H.clock) G.clockStop = clockMinutes();
+      if (mm > 0) { G.lastRub = -1e9; G.rain = 0.14; G.wet = 0.6; }
+      if (P.get("end") === "1") { G.depth = 0; G.floatT = Math.max(G.floatT, 0); showResult(); }
+    }
+  } else if (pk >= 0 && pk < BLD.length) {
+    const b = BLD[pk];
+    mapCtl.tx = mX((b.x0 + b.x1) / 2);
+    mapCtl.tz = mZ((b.y0 + b.y1) / 2);
+    mapCtl.dist = 650;
+    placeMapCam();
+    selectBuilding(pk);
+  }
+}
+
+let lastNow = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, Math.max(0, (now - lastNow) / 1000));
+  lastNow = now;
+  if (G.phase === "map") {
+    /* 地図は、動かしたときだけ描き直す */
+    if (mapNeedsRender) { mapNeedsRender = false; renderMap(); }
+  } else {
+    stepRoom(dt, now / 1000);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

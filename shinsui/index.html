@@ -31,6 +31,12 @@ button{font-family:inherit;-webkit-tap-highlight-color:transparent;cursor:pointe
 .mlab.city{font-size:14px;font-weight:700;background:none;color:#3b4a56;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .mlab.river{font-size:18px;font-weight:700;background:none;color:#1b5f9e;letter-spacing:.2em;text-shadow:0 0 3px #fff,0 0 4px #fff}
 .mlab.breach{background:#c8323b;color:#fff;font-weight:700;font-size:13px;padding:3px 8px}
+/* 駅：線路の上の駅の位置に丸い印を置き、駅名はその真上に出す */
+.mlab.sta{margin-top:-11px;font-weight:700}
+.mlab.sta::after{
+  content:"";position:absolute;left:50%;top:100%;width:8px;height:8px;margin:5px 0 0 -6px;
+  background:#fff;border:2px solid #24323e;border-radius:50%;
+}
 #pickInfo .far{font-size:13px;color:var(--water);margin-top:2px}
 #legend{
   position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 84px);width:172px;box-sizing:border-box;
@@ -46,7 +52,7 @@ button{font-family:inherit;-webkit-tap-highlight-color:transparent;cursor:pointe
   border-radius:10px;padding:10px 16px;font-size:15px;pointer-events:none;
 }
 #floorAsk{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 34px);
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--cred, calc(env(safe-area-inset-bottom) + 22px)) + 12px);
   width:min(92vw,380px);box-sizing:border-box;background:var(--panel-strong);border-radius:14px;padding:14px 16px;
   box-shadow:0 6px 20px rgba(0,0,0,.25);text-align:center;
 }
@@ -57,15 +63,44 @@ button{font-family:inherit;-webkit-tap-highlight-color:transparent;cursor:pointe
 #floorVal{font-size:30px;font-weight:700;min-width:96px;font-variant-numeric:tabular-nums}
 #floorGo{width:100%;height:48px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:16px;font-weight:700}
 #mapTop{
-  position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 12px);
-  background:var(--panel);border-radius:12px;padding:9px 14px;pointer-events:none;
+  position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 12px);width:min(330px,calc(100vw - 92px));box-sizing:border-box;
+  background:var(--panel);border-radius:12px;padding:9px 12px 10px 14px;pointer-events:none;
 }
 #mapTop .t{font-size:17px;font-weight:700}
 #mapTop .s{font-size:13px;color:var(--sub);margin-top:2px}
+/* 住所で探す欄。候補は地図の上に重ねて出す */
+#addr{position:relative;margin-top:8px;pointer-events:auto}
+#addrIn{
+  display:block;width:100%;height:40px;box-sizing:border-box;border:0;border-radius:9px;padding:0 36px 0 11px;margin:0;
+  background:#fff;color:#1d2d3a;font-family:inherit;font-size:16px;outline:none;-webkit-appearance:none;appearance:none;
+  -webkit-user-select:text;user-select:text;
+}
+#addrIn::placeholder{color:#7d8a94}
+#addrIn:focus{box-shadow:0 0 0 2px var(--accent)}
+#addrClr{position:absolute;right:2px;top:2px;width:36px;height:36px;border:0;background:none;color:#7d8a94;font-size:20px;line-height:1;padding:0}
+#addrList{
+  position:absolute;left:0;right:0;top:44px;z-index:5;background:#fff;color:#1d2d3a;border-radius:10px;
+  box-shadow:0 6px 18px rgba(0,0,0,.22);max-height:min(46vh,330px);overflow:auto;-webkit-overflow-scrolling:touch;
+}
+#addrList button{
+  display:block;width:100%;box-sizing:border-box;text-align:left;border:0;border-bottom:1px solid #e3e8ec;background:none;
+  padding:10px 12px;margin:0;font-size:15px;line-height:1.35;color:#1d2d3a;
+}
+#addrList button:last-child{border-bottom:0}
+#addrList button.on,#addrList button:hover{background:#eaf3fb}
+#addrList button small{display:block;font-size:12px;color:#5a6873}
+#addrList .msg2{padding:10px 12px;font-size:14px;line-height:1.5}
 #zoom{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 12px);display:flex;flex-direction:column;gap:8px}
 #zoom button{width:44px;height:44px;border-radius:10px;border:0;background:var(--panel);color:#fff;font-size:24px;line-height:1}
+/* 方位磁針。カメラを回すと一緒に回る。押すと北を上に戻す */
+#compass{
+  position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 120px);width:44px;height:44px;padding:0;border:0;border-radius:50%;
+  background:var(--panel);
+}
+#compass svg{display:block;width:44px;height:44px}
+#pickInfo .adr{font-size:12px;color:var(--sub);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pick{
-  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 34px);
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--cred, calc(env(safe-area-inset-bottom) + 22px)) + 12px);
   width:min(92vw,380px);box-sizing:border-box;background:var(--panel-strong);border-radius:14px;padding:12px 14px;
   display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.25);
 }
@@ -175,8 +210,7 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 #alert .tag{flex:0 0 auto;font-size:11px;color:#c5d2dc;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:1px 7px}
 
 @media (max-width:420px){
-  /* 出典の帯が3行になるので、下の欄を上にずらす */
-  #pick,#floorAsk{bottom:calc(env(safe-area-inset-bottom) + 66px)}
+  /* 下の欄は、出典の帯の高さ（--cred、mapLayout で測る）の上に置く */
   .val{font-size:22px}
   .msg{font-size:15px}
   #hint{font-size:16px}
@@ -191,15 +225,25 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
   <div id="mapLabels"></div>
   <div id="legend"></div>
   <div id="toast" class="hide"></div>
-  <div id="mapTop"><div class="t">家をえらぶ</div><div class="s">地図を寄せて、建物をタップ</div></div>
+  <div id="mapTop"><div class="t">家をえらぶ</div><div class="s">地図を寄せて、建物をタップ</div>
+    <form id="addr" autocomplete="off" role="search" onsubmit="return false">
+      <input id="addrIn" type="text" enterkeyhint="search" placeholder="住所で探す　例：塚越4-16" aria-label="住所で探す" aria-autocomplete="list" aria-controls="addrList" spellcheck="false">
+      <button id="addrClr" type="button" class="hide" aria-label="住所を消す">×</button>
+      <div id="addrList" class="hide" role="listbox"></div>
+    </form>
+  </div>
   <div id="zoom"><button id="zIn" type="button" aria-label="寄せる">＋</button><button id="zOut" type="button" aria-label="引く">−</button></div>
+  <button id="compass" type="button" aria-label="方位磁針。押すと北を上にする"><svg viewBox="0 0 44 44" aria-hidden="true"><g id="needle">
+    <text x="22" y="10.5" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff">北</text>
+    <polygon points="22,12 26.5,22 17.5,22" fill="#e8434c"/><polygon points="22,34 26.5,22 17.5,22" fill="#dfe6ea"/>
+  </g></svg></button>
   <div id="pick" class="hide"><div id="pickInfo"></div><button id="pickGo" type="button">この家にする</button></div>
   <div id="floorAsk" class="hide">
     <div class="q">何階に住んでいますか</div>
     <div class="row2"><button id="fDown" type="button" aria-label="1つ下の階">−</button><span id="floorVal">1階</span><button id="fUp" type="button" aria-label="1つ上の階">＋</button></div>
     <button id="floorGo" type="button">この階にする</button>
   </div>
-  <div id="credit">建物・浸水深：国土交通省 PLATEAU <a href="https://www.geospatial.jp/ckan/dataset/plateau-11223-warabi-shi-2024" target="_blank" rel="noopener">蕨市（2024年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11224-toda-shi-2022" target="_blank" rel="noopener">戸田市（2022年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11203-kawaguchi-shi-2024" target="_blank" rel="noopener">川口市（2024年度）</a>を加工して作成　川・道路・鉄道・駅名：<a href="https://maps.gsi.go.jp/development/vt.html" target="_blank" rel="noopener">国土地理院 ベクトルタイル</a>を加工して作成</div>
+  <div id="credit">建物・浸水深：国土交通省 PLATEAU <a href="https://www.geospatial.jp/ckan/dataset/plateau-11223-warabi-shi-2024" target="_blank" rel="noopener">蕨市（2024年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11224-toda-shi-2022" target="_blank" rel="noopener">戸田市（2022年度）</a>・<a href="https://www.geospatial.jp/ckan/dataset/plateau-11203-kawaguchi-shi-2024" target="_blank" rel="noopener">川口市（2024年度）</a>を加工して作成　川・道路・鉄道・駅名：<a href="https://maps.gsi.go.jp/development/vt.html" target="_blank" rel="noopener">国土地理院 ベクトルタイル</a>を加工して作成　駅の位置・住所：国土交通省 <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-N02-2023.html" target="_blank" rel="noopener">国土数値情報（鉄道）</a>・<a href="https://nlftp.mlit.go.jp/isj/" target="_blank" rel="noopener">位置参照情報</a>を加工して作成</div>
 </div>
 
 <!-- 居間の画面 -->
@@ -239,6 +283,7 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 <script src="three.min.js"></script>
 <script src="buildings_3cities.js"></script>
 <script src="map_layers.js"></script>
+<script src="addresses_3cities.js"></script>
 <script>
 "use strict";
 
@@ -645,7 +690,7 @@ function addLabel(text, x, y, z, cls) {
   d.className = "mlab" + (cls ? " " + cls : "");
   d.textContent = text;
   mapLabelsEl.appendChild(d);
-  mapLabels.push({ el: d, v: new THREE.Vector3(x, y, z) });
+  mapLabels.push({ el: d, v: new THREE.Vector3(x, y, z), pin: cls === "sta" });
 }
 {
   const bx = (mX(BREACH[0].px) + mX(BREACH[1].px)) / 2, bz = (mZ(BREACH[0].py) + mZ(BREACH[1].py)) / 2;
@@ -661,10 +706,13 @@ function addLabel(text, x, y, z, cls) {
     }
   }
   if (zmin < Infinity) addLabel("荒川", rx, 20, (zmin + zmax) / 2 + 30, "river");
-  const want = ["蕨駅", "西川口駅", "戸田公園駅", "戸田駅", "北戸田駅", "蕨市", "戸田市"];
+  /* 市の名前は地理院の注記の位置に置く */
   for (const l of ML.labels) {
-    if (want.includes(l[0])) addLabel(l[0], mX(l[1]), 10, mZ(l[2]), l[0].endsWith("市") ? "city" : "");
+    if (l[0] === "蕨市" || l[0] === "戸田市") addLabel(l[0], mX(l[1]), 10, mZ(l[2]), "city");
   }
+  /* 駅は、国土数値情報の駅の位置（線路の上）に印を置く。地理院の注記の点は文字を置く位置で、
+     駅から離れていることがある（蕨駅は約140m西）ので使わない（build_stations.py） */
+  for (const s of ML.stations) addLabel(s[0], mX(s[1]), 1.2, mZ(s[2]), "sta");
 }
 const _pv = new THREE.Vector3();
 function updateLabels() {
@@ -673,9 +721,11 @@ function updateLabels() {
     _pv.copy(l.v).project(mapCam);
     if (_pv.z > 1 || _pv.x < -1.2 || _pv.x > 1.2 || _pv.y < -1.2 || _pv.y > 1.2) { l.el.style.display = "none"; continue; }
     l.el.style.display = "";
-    /* 画面の端で切れないよう、左右だけ内側に寄せる */
+    /* 画面の端で切れないよう、左右だけ内側に寄せる。駅は印が線路からずれないよう寄せない */
     const half = (l.w || (l.w = l.el.offsetWidth)) / 2;
-    const sx = Math.max(half + 6, Math.min(w - half - 6, (_pv.x + 1) / 2 * w));
+    const px0 = (_pv.x + 1) / 2 * w;
+    if (l.pin && (px0 < half || px0 > w - half)) { l.el.style.display = "none"; continue; }
+    const sx = l.pin ? px0 : Math.max(half + 6, Math.min(w - half - 6, px0));
     l.el.style.transform = "translate(" + (sx - half).toFixed(1) + "px," + ((1 - _pv.y) / 2 * h).toFixed(1) + "px) translate(0,-100%)";
   }
 }
@@ -727,7 +777,8 @@ function showToast(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add("hide"), 1800);
 }
-function selectBuilding(i) {
+/* note は住所で選んだときの一行（「塚越四丁目16番の近く」） */
+function selectBuilding(i, note) {
   selected = i;
   document.getElementById("floorAsk").classList.add("hide");
   while (pickGroup.children.length) {
@@ -743,9 +794,10 @@ function selectBuilding(i) {
   const pin = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 70, 8), pinMat);
   pin.position.set(cx, b.h + 35, cz);
   pickGroup.add(pin);
-  document.getElementById("pickInfo").innerHTML =
+  document.getElementById("pickInfo").innerHTML = (note ? '<div class="adr"></div>' : "") +
     '<div>' + CITIES[b.city].name + "の" + b.usage + (b.storeys ? "・" + b.storeys + "階建て" : "") + '</div>' +
     '<div class="far">荒川から約' + (distToBreach(i) / 1000).toFixed(1) + 'km</div>';
+  if (note) document.querySelector("#pickInfo .adr").textContent = note;
   pick.classList.remove("hide");
 }
 
@@ -794,6 +846,7 @@ function mapResize() {
   mapCam.aspect = innerWidth / innerHeight;
   mapCam.updateProjectionMatrix();
   placeMapCam();
+  mapLayout();
 }
 /* 最初の見え方：町が少なく見えないよう、寄せて始める。
    奥に蕨の町のまん中、手前に荒川と破堤点。左右は、破堤点の少し西から川口の西川口あたりまで（縦長の画面は狭くする） */
@@ -831,6 +884,7 @@ function renderMap() {
   updateBuildingLod();
   renderer.render(mapScene, mapCam);
   updateLabels();
+  updateCompass();
   window.__mapFrames++;
 }
 function pickAt(sx, sy) {
@@ -852,6 +906,7 @@ function pickAt(sx, sy) {
   viewCanvas.addEventListener("contextmenu", e => { if (G.phase === "map") e.preventDefault(); });
   viewCanvas.addEventListener("pointerdown", e => {
     if (G.phase !== "map") return;
+    closeAddrList(true);
     try { viewCanvas.setPointerCapture(e.pointerId); } catch (err) { /* 何もしない */ }
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button });
     if (ptrs.size === 1) tap = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
@@ -902,6 +957,216 @@ function pickAt(sx, sy) {
   }, { passive: false });
   document.getElementById("zIn").addEventListener("click", () => mapZoomAt(innerWidth / 2, innerHeight / 2, 0.5));
   document.getElementById("zOut").addEventListener("click", () => mapZoomAt(innerWidth / 2, innerHeight / 2, 2));
+}
+
+/* =====================================================================
+   住所で探す。国土交通省 位置参照情報の街区（○丁目○番）の代表点（addresses_3cities.js）と、
+   このページの中だけで照合する。入れた住所はどこにも送らない
+   ===================================================================== */
+const AD = window.ADDR;
+const ADDR_OUT = "この試作は蕨・戸田・川口の荒川寄りだけです";
+const KNUM = { "〇": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 };
+function kanjiNum(s) {
+  let n = 0, cur = 0;
+  for (const ch of s) {
+    if (ch === "十") { n += (cur || 1) * 10; cur = 0; }
+    else if (ch === "百") { n += (cur || 1) * 100; cur = 0; }
+    else cur = cur * 10 + KNUM[ch];
+  }
+  return n + cur;
+}
+/* 表記ゆれをそろえる：全角→半角、空白を消す、「四丁目」→「4-」、「16番地の3」「16番3号」→「16-3」、「4の16」→「4-16」、
+   いろいろな横棒→「-」、「ヶ・ヵ」→「ケ」、「の」→「ノ」 */
+function addrNorm(s) {
+  s = String(s || "").normalize("NFKC").replace(/[\s　]+/g, "");
+  s = s.replace(/^埼玉県/, "");
+  s = s.replace(/([〇一二三四五六七八九十百]+)丁目/g, (m, k) => kanjiNum(k) + "丁目");
+  s = s.replace(/(\d)(丁目|番地|番|号)/g, "$1-");
+  s = s.replace(/-[のノ](?=\d)/g, "-");
+  s = s.replace(/(\d)[‐‑‒–—―−ーｰ─━~〜のノ](?=\d)/g, "$1-");
+  s = s.replace(/[ヶヵ]/g, "ケ").replace(/の/g, "ノ");
+  s = s.replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return s;
+}
+const ADDR_TOWNS = AD.towns.map((t, i) => {
+  const m = t[1].match(/^(?:大字)?(.+?)([〇一二三四五六七八九十]+)丁目$/);
+  return {
+    i, city: t[0], name: t[1], base: addrNorm(m ? m[1] : t[1].replace(/^大字/, "")),
+    chome: m ? kanjiNum(m[2]) : null, blocks: new Map(), cx: 0, cy: 0, out: AD.out[i] || ""
+  };
+});
+for (let k = 0; k < AD.b.length; k += 4) ADDR_TOWNS[AD.b[k]].blocks.set(AD.b[k + 1], [AD.b[k + 2], AD.b[k + 3]]);
+for (const T of ADDR_TOWNS) {
+  let sx = 0, sy = 0;
+  for (const p of T.blocks.values()) { sx += p[0]; sy += p[1]; }
+  if (T.blocks.size) { T.cx = sx / T.blocks.size; T.cy = sy / T.blocks.size; }
+}
+const blkWord = T => (T.name.startsWith("大字") ? "番地" : "番");
+
+/* 候補を返す。score：0＝番まで合った、1＝町は合ったが番が無い、2＝町だけ、3＝町の名前の書きかけ */
+function addrSearch(q) {
+  const s0 = addrNorm(q);
+  if (!s0) return null;
+  const tries = [];
+  let m = s0.match(/^(蕨市|戸田市|川口市)(.*)$/);
+  if (m) tries.push({ city: AD.cities.indexOf(m[1]), rest: m[2] });
+  else {
+    tries.push({ city: -1, rest: s0 });
+    /* 「市」を書かずに「蕨塚越4-16」と入れたとき（「戸田公園」「川口1丁目」は町の名前でもあるので、両方試す） */
+    m = s0.match(/^(蕨|戸田|川口)(.*)$/);
+    if (m) tries.push({ city: AD.cities.indexOf(m[1] + "市"), rest: m[2] });
+  }
+  const res = [], seen = new Set();
+  let outside = false;
+  const add = c => { const k = c.t.i + "/" + (c.blk || ""); if (!seen.has(k)) { seen.add(k); res.push(c); } };
+  for (const tr of tries) {
+    const rest = tr.rest.replace(/^大?字/, "");
+    const base = rest.match(/^[^\d-]*/)[0];
+    const nums = (rest.slice(base.length).match(/\d+/g) || []).map(n => String(parseInt(n, 10)));
+    for (const T of ADDR_TOWNS) {
+      if (tr.city >= 0 && T.city !== tr.city) continue;
+      if (T.base !== base) {
+        if (nums.length || !(base ? T.base.startsWith(base) : tr.city >= 0)) continue;
+        if (T.out !== "*") add({ t: T, score: 3 });
+        continue;
+      }
+      let blk = null;
+      if (T.chome !== null) {
+        if (nums.length && +nums[0] !== T.chome) continue;
+        blk = nums[1] || null;
+      } else blk = nums[0] || null;
+      if (T.out === "*") { outside = true; continue; }
+      if (blk) {
+        if (T.blocks.has(blk)) add({ t: T, blk, score: 0 });
+        else if (T.out.split(",").includes(blk)) outside = true;
+        else add({ t: T, score: 1, miss: blk });
+      } else add({ t: T, score: nums.length ? 1 : 2 });
+    }
+  }
+  res.sort((a, b) => a.score - b.score || a.t.city - b.t.city || a.t.base.localeCompare(b.t.base, "ja") || (a.t.chome || 0) - (b.t.chome || 0));
+  return { list: res.slice(0, 8), outside };
+}
+
+/* 街区の代表点から、いちばん近い住まいの建物（maxM m まで）。点が建物の中なら、その建物 */
+function nearestHome(x, y, maxM) {
+  const R = maxM / KM, n = Math.ceil(R / GRID);
+  const gx = Math.floor(x / GRID), gy = Math.floor(y / GRID);
+  let best = -1, bd = R;
+  const done = new Set();
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+    for (const k of grid.get((gx + i) + "," + (gy + j)) || []) {
+      if (done.has(k) || !isHome(k)) continue;
+      done.add(k);
+      const b = BLD[k];
+      const d = inPoly(x, y, b.pts) ? -1 : Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.y0 - y, 0, y - b.y1));
+      if (d < bd) { bd = d; best = k; }
+    }
+  }
+  return best;
+}
+
+const addrIn = document.getElementById("addrIn");
+const addrList = document.getElementById("addrList");
+const addrClr = document.getElementById("addrClr");
+let addrCands = [], addrOn = 0;
+function closeAddrList(blur) {
+  addrList.classList.add("hide");
+  if (blur && document.activeElement === addrIn) addrIn.blur();
+}
+function addrMsg(text) {
+  addrCands = [];
+  addrList.innerHTML = "";
+  const d = document.createElement("div");
+  d.className = "msg2";
+  d.textContent = text;
+  addrList.appendChild(d);
+  addrList.classList.remove("hide");
+}
+function addrMark() {
+  [...addrList.children].forEach((b, k) => b.classList.toggle("on", k === addrOn));
+}
+function addrUpdate() {
+  const q = addrIn.value;
+  addrClr.classList.toggle("hide", !q);
+  const r = addrSearch(q);
+  if (!r) { addrCands = []; closeAddrList(false); return; }
+  if (!r.list.length) {
+    addrMsg(/^[\d-]+$/.test(addrNorm(q)) ? "町の名前から入れてください（例：塚越4-16）" : ADDR_OUT);
+    return;
+  }
+  addrCands = r.list;
+  addrOn = 0;
+  addrList.innerHTML = "";
+  r.list.forEach(c => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "option");
+    b.textContent = AD.cities[c.t.city] + " " + c.t.name + (c.blk ? " " + c.blk + blkWord(c.t) : "");
+    const sub = c.blk ? "" : (c.miss ? c.miss + blkWord(c.t) + "は見つかりません。町の中ほどへ" : "町の中ほどへ");
+    if (sub) { const s = document.createElement("small"); s.textContent = sub; b.appendChild(s); }
+    b.addEventListener("click", () => addrGo(c));
+    addrList.appendChild(b);
+  });
+  addrMark();
+  addrList.classList.remove("hide");
+}
+/* 選んだ候補へ地図を動かし、番まで分かっていれば、いちばん近い住まいを選ぶ */
+function addrGo(c) {
+  const T = c.t;
+  const p = c.blk ? T.blocks.get(c.blk) : [T.cx, T.cy];
+  addrIn.value = AD.cities[T.city] + T.name + (c.blk ? c.blk + blkWord(T) : "");
+  addrClr.classList.remove("hide");
+  closeAddrList(true);
+  const near = c.blk ? nearestHome(p[0], p[1], AD.near_m) : -1;
+  if (near >= 0) {
+    const b = BLD[near];
+    mapCtl.tx = mX((b.x0 + b.x1) / 2);
+    mapCtl.tz = mZ((b.y0 + b.y1) / 2);
+    mapCtl.dist = 520;
+    placeMapCam();
+    selectBuilding(near, T.name + c.blk + blkWord(T) + "の近く");
+  } else {
+    mapCtl.tx = mX(p[0]);
+    mapCtl.tz = mZ(p[1]);
+    mapCtl.dist = c.blk ? 520 : 1100;
+    placeMapCam();
+    selectBuilding(-1);
+    showToast("住まいの建物をタップしてください");
+  }
+}
+/* 住所を打ち直したら、前に選んだ家の欄は閉じる（新しい住所と取り違えないように） */
+addrIn.addEventListener("input", () => { if (selected >= 0) selectBuilding(-1); addrUpdate(); });
+addrIn.addEventListener("focus", () => { if (addrIn.value) addrUpdate(); });
+addrIn.addEventListener("keydown", e => {
+  /* 日本語の変換中の Enter は、変換を決めるためのものなので使わない */
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    if (addrCands.length) addrGo(addrCands[addrOn]);
+  } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && addrCands.length) {
+    e.preventDefault();
+    addrOn = (addrOn + (e.key === "ArrowDown" ? 1 : addrCands.length - 1)) % addrCands.length;
+    addrMark();
+  } else if (e.key === "Escape") closeAddrList(true);
+});
+addrClr.addEventListener("click", () => { addrIn.value = ""; addrUpdate(); addrIn.focus(); });
+
+/* 方位磁針：見ている点と、その200m北の点を画面に写して、北の向きを出す */
+const needleEl = document.getElementById("needle");
+const _cp0 = new THREE.Vector3(), _cp1 = new THREE.Vector3();
+function updateCompass() {
+  _cp0.set(mapCtl.tx, 0, mapCtl.tz).project(mapCam);
+  _cp1.set(mapCtl.tx, 0, mapCtl.tz - 200).project(mapCam);
+  const deg = Math.atan2((_cp1.x - _cp0.x) * innerWidth, (_cp1.y - _cp0.y) * innerHeight) * 180 / Math.PI;
+  needleEl.setAttribute("transform", "rotate(" + deg.toFixed(1) + " 22 22)");
+}
+document.getElementById("compass").addEventListener("click", () => { mapCtl.yaw = 0; placeMapCam(); });
+
+/* 出典の帯の高さに合わせて下の欄を上げ、凡例を住所の欄の下に置く */
+function mapLayout() {
+  document.documentElement.style.setProperty("--cred", document.getElementById("credit").offsetHeight + "px");
+  const top = document.getElementById("mapTop").getBoundingClientRect().bottom;
+  if (top > 0) document.getElementById("legend").style.top = Math.round(top + 10) + "px";
 }
 
 /* =====================================================================
@@ -2453,6 +2718,8 @@ function applyScene(dt, time) {
    ?pick=番号 … 地図でその建物を選んだ状態
    ?b=番号&mm=雨の量 … その家の居間を、その雨の量で開く（自動で終わらない）
    ?b=番号&mm=雨の量&end=1 … 結果の画面
+   ?addr=住所 … 住所の欄にその住所を入れて候補を出した状態（&go=1 で1つ目の候補を選ぶ）
+   ?yaw=角度（ラジアン） … 地図を回した状態（方位磁針の確かめ用）
    ===================================================================== */
 if (!/[?&]b=/.test(location.search)) ensureMapBuildings();
 mapResize();
@@ -2489,6 +2756,12 @@ mapFit();
     mapCtl.dist = 650;
     placeMapCam();
     selectBuilding(pk);
+  }
+  if (P.has("yaw")) { mapCtl.yaw = parseFloat(P.get("yaw")) || 0; placeMapCam(); }
+  if (P.has("addr")) {
+    addrIn.value = P.get("addr");
+    addrUpdate();
+    if (P.get("go") === "1" && addrCands.length) addrGo(addrCands[0]);
   }
 }
 

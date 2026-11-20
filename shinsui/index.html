@@ -202,12 +202,17 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 .btns button{flex:1;height:46px;border:0;border-radius:10px;font-size:15px;font-weight:700}
 #rePick{background:var(--accent);color:#fff}
 /* いまのうちにできること */
-.prep{margin-top:12px}
+/* 「いまのうちにできること」は大事なので、明るい別の枠に入れ、1つずつチェックの印を付ける */
+.prep{margin-top:12px;background:#eaf2f8;border-radius:12px;padding:12px 14px 14px}
 .prep:empty{display:none}
-.prep .ph{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
-.prep ul{margin:0;padding-left:1.2em;font-size:14px;line-height:1.55;color:#dbe5ec}
-.prep li+li{margin-top:6px}
-.prep b{color:#fff}
+.prep .ph{font-size:15px;font-weight:700;color:#1d5f94;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #c9dbe8}
+.prep ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.prep li{position:relative;padding-left:30px;font-size:13.5px;line-height:1.55;color:#3d4d5a}
+.prep li::before{
+  content:"✓";position:absolute;left:0;top:1px;width:21px;height:21px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.prep b{color:#14212b;font-size:15px}
 .src{margin-top:8px;font-size:12px;color:var(--sub)}
 .src summary{cursor:pointer;padding:4px 0;list-style:none}
 .src summary::-webkit-details-marker{display:none}

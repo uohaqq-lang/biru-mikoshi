@@ -2575,49 +2575,72 @@ function showResult() {
   const liters = days * CONFIG.waterPerDayL;
   /* 数字は小さな枠に入れて横に並べる（狭い画面では折り返す） */
   const kv = (k, v, unit, sub) => '<div class="st"><div class="k">' + k + '</div><div class="v">' + v + '<small>' + unit + '</small></div>' + (sub ? '<div class="u">' + sub + '</div>' : '') + '</div>';
-  const rows = [];
   const roomName = G.floor > 1 ? "この部屋（" + G.floor + "階）" : "この部屋";
-  /* sunk：部屋の床から0.5m以上つかる（歩いて逃げにくい深さ）。そこで暮らすことはできないので、飲み水ではなく避難を伝える */
-  let lead, waterRow, daysLabel, sunk = false;
-  /* 部屋の床より上まで水が来たか（来たなら、残る準備ではなく逃げる準備を出す） */
-  let roomWet = false;
-  if (d <= 0.005) {
-    lead = "この雨の量では、この建物に荒川の水は来ない想定です";
-    waterRow = kv("いちばん多い雨（632mm）なら", b.l2.toFixed(2), "m", "地面からの水の高さ");
-    daysLabel = "そのとき、水が引くまで";
-  } else if (d <= FH) {
-    lead = roomName + "まで水は来ません。<br>でも外に出られません";
-    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m");
-    daysLabel = "外に出られない日数（目安）";
-  } else {
-    lead = "この部屋は、床から<span style=\"white-space:nowrap\">" + (d - FH).toFixed(2) + "m</span>まで水につかりました";
-    /* 床からの高さと地面からの高さが2つ並ぶので、差（床の高さ）を添える */
-    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m", "部屋の床は地面から" + FH.toFixed(2) + "m上");
-    daysLabel = "水が引くまで（目安）";
-    sunk = d - FH >= 0.5;
-    roomWet = true;
-  }
-  rows.push('<div class="lead">' + lead + '</div>');
-  rows.push('<div class="rain">あなたが降らせた雨：3日間で' + mm + 'mm<br>' + stTxt + '</div>');
-  rows.push('<div class="stats">' + waterRow + kv(daysLabel, "約" + days, "日") +
-    (!sunk ? kv("1人に要る飲み水（" + days + "日分）", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本") : "") + '</div>');
-  el("resRows").innerHTML = rows.join("");
-  el("resWarn").innerHTML = sunk
-    ? "この部屋には残れません。<br>水が来る前に、水が来ない場所へ逃げてください"
-    : (roomWet
-      ? "上の階に逃げても、何日も取り残されます。早めに、水が来ない場所へ"
-      : (d > 0.005 ? "この部屋にいても、約" + days + "日は外に出られません。できれば早めに、水が来ない場所へ" : (b.l2 > 0.005 ? "雨がもっと多いと、この建物にも水が来ます。知らせが出たら早めに、水が来ない場所へ" : "この建物には、いちばん多い雨でも荒川の水は来ない想定です")));
+  /* 場面の分け方（どの場面でも、上の大きい文・数字・枠・いまのうちにできること が食い違わないようにする）
+     none    … この雨では建物に水が来ない
+     dry     … 建物のまわりは水につかるが、この部屋には来ない（道が0.5m以上なら外に出られない。地図の一言と同じ線）
+     upper   … この部屋はつかるが、建物の上の階には水が来ない（上の階で待てるが、何日も取り残される）
+     wet     … この部屋がつかり、上の階が無いか上の階までつかる。床から0.5m以上なら deep */
+  const level = d - FH;
+  let upperDry = false;
+  for (let k = G.floor + 1; k <= floorsOf(b); k++) if (FH1 + (k - 1) * G.perFloor > d + 0.05) { upperDry = true; break; }
+  const scene = d <= 0.005 ? "none" : (level <= 0 ? "dry" : (upperDry ? "upper" : "wet"));
+  const deep = level >= 0.5;
+  const outBlocked = d >= 0.5;
+  const bottle = "2Lのペットボトル" + Math.ceil(liters / 2) + "本";
+  const drink = where => kv(where + "、1人に要る飲み水（" + days + "日分）", liters, "L", "水道が止まることがあるので。" + bottle);
+  const levelTxt = "<span style=\"white-space:nowrap\">" + level.toFixed(2) + "m</span>";
   /* いまのうちにできること（戸田市「荒川氾濫に備えた広域避難」・首相官邸「災害への備え」より） */
-  let prep = "";
-  if (roomWet) {
-    prep = '<div class="ph">いまのうちにできること</div><ul>' +
-      '<li><b>逃げる先を、家族と決めておく</b><br>水が来ない場所にある、親せきや知人の家、ホテルなど</li>' +
-      '<li><b>電車が止まる前に動く</b><br>みんなが一度に車で逃げると、9割の人が着くまでに約25時間かかる（戸田市の試算）</li></ul>';
-  } else if (d > 0.005) {
-    prep = '<div class="ph">いまのうちにできること</div><ul>' +
+  const PH = '<div class="ph">いまのうちにできること</div><ul>';
+  const P_EVAC = PH +
+    '<li><b>逃げる先を、家族と決めておく</b><br>水が来ない場所にある、親せきや知人の家、ホテルなど</li>' +
+    '<li><b>電車が止まる前に動く</b><br>みんなが一度に車で逃げると、9割の人が着くまでに約25時間かかる（戸田市の試算）</li></ul>';
+  let lead, tiles, warn, prep = "";
+  if (scene === "none") {
+    lead = "この雨の量では、この建物に荒川の水は来ない想定です";
+    tiles = b.l2 > 0.005
+      ? kv("いちばん多い雨（632mm）なら", b.l2.toFixed(2), "m", "地面からの水の高さ") + kv("そのとき水が引くまで", "約" + days, "日", "目安")
+      : "";
+    warn = b.l2 > 0.005
+      ? "雨がもっと多いと、この建物にも水が来ます。知らせが出たら早めに、水が来ない場所へ"
+      : "この建物には、いちばん多い雨でも荒川の水は来ない想定です";
+  } else if (scene === "dry") {
+    lead = roomName + "まで水は来ません。<br>" + (outBlocked ? "でも外に出られません" : "でも、まわりの道は水につかります");
+    tiles = kv("地面からの水の高さ", d.toFixed(2), "m") +
+      kv(outBlocked ? "外に出られない日数（目安）" : "水が引くまで（目安）", "約" + days, "日") +
+      drink("この部屋で待つなら");
+    warn = outBlocked
+      ? "この部屋にいても、約" + days + "日は外に出られません。できれば早めに、水が来ない場所へ"
+      : "水が引くまで約" + days + "日、まわりの道は水につかったままです。できれば早めに、水が来ない場所へ";
+    prep = PH +
       '<li><b>水が来る前に、水が来ない場所へ逃げるのがいちばん安全</b></li>' +
       '<li><b>残るなら、飲み水と食べ物を' + days + '日分以上</b><br>トイレの備えも多めに（携帯トイレなど）</li></ul>';
+  } else {
+    lead = "この部屋は、床から" + levelTxt + "まで水につかりました";
+    /* 床からの高さと地面からの高さが2つ並ぶので、差（床の高さ）を添える */
+    tiles = kv("地面からの水の高さ", d.toFixed(2), "m", "部屋の床は地面から" + FH.toFixed(2) + "m上") +
+      kv("水が引くまで（目安）", "約" + days, "日") +
+      (scene === "upper" ? drink("上の階で待つなら") : "");
+    if (scene === "upper") {
+      warn = deep
+        ? "この部屋には残れません。上の階に逃げても、約" + days + "日は取り残されます。水が来る前に、水が来ない場所へ"
+        : "この部屋は約" + days + "日、水につかったままです。上の階で待つより、水が来る前に、水が来ない場所へ逃げるのが安全です";
+    } else if (deep) {
+      warn = "この部屋には残れません。<br>水が来る前に、水が来ない場所へ逃げてください";
+    } else {
+      warn = "この部屋は約" + days + "日、水につかったままです。<br>水が来る前に、水が来ない場所へ逃げてください";
+    }
+    /* 上の階で待てる場面は、上の飲み水の欄と合わせて、残るときの準備も出す */
+    prep = scene === "upper"
+      ? P_EVAC.replace("</ul>", '<li><b>上の階で待つなら、飲み水と食べ物を' + days + '日分以上</b><br>トイレの備えも多めに（携帯トイレなど）</li></ul>')
+      : P_EVAC;
   }
+  const rows = [];
+  rows.push('<div class="lead">' + lead + '</div>');
+  rows.push('<div class="rain">あなたが降らせた雨：3日間で' + mm + 'mm<br>' + stTxt + '</div>');
+  if (tiles) rows.push('<div class="stats">' + tiles + '</div>');
+  el("resRows").innerHTML = rows.join("");
+  el("resWarn").innerHTML = warn;
   el("resPrep").innerHTML = prep;
   const cityOf = CITIES[b.city] || CITIES[0];
   el("resSrc").innerHTML = '荒川の堤防が切れた場合の想定です。深さと水が引くまでの時間は、国土交通省 PLATEAU ' + cityOf.name + '（' + cityOf.year + '年度）の荒川の値（516mm・632mm）を加工して作成。ほかの雨の量は、その間をつないだ目安です。荒川の水位や決壊の知らせは、この作品の中の目安です。本当に決壊したときは、国や市の「氾濫発生情報」などで知らされます。飲み水の目安（1人1日' + CONFIG.waterPerDayL + 'L）：<a href="https://www.kantei.go.jp/jp/headline/bousai/sonae.html" target="_blank" rel="noopener" style="color:inherit">首相官邸「災害への備え」</a>。浸水する場所の外への避難と、いまのうちにできること（車で約25時間の試算を含む）：<a href="https://www.city.toda.saitama.jp/soshiki/121/kouikihinan.html" target="_blank" rel="noopener" style="color:inherit">戸田市「荒川氾濫に備えた広域避難」</a>';

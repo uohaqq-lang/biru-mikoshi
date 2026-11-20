@@ -188,8 +188,14 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 }
 .btns{display:flex;gap:10px;margin-top:12px}
 .btns button{flex:1;height:46px;border:0;border-radius:10px;font-size:15px;font-weight:700}
-#again{background:var(--accent);color:#fff}
-#rePick{background:rgba(255,255,255,.14);color:#fff}
+#rePick{background:var(--accent);color:#fff}
+/* いまのうちにできること */
+.prep{margin-top:12px}
+.prep:empty{display:none}
+.prep .ph{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
+.prep ul{margin:0;padding-left:1.2em;font-size:14px;line-height:1.55;color:#dbe5ec}
+.prep li+li{margin-top:4px}
+.prep small{display:block;font-size:12px;color:var(--sub)}
 .src{margin-top:8px;font-size:12px;color:var(--sub)}
 .src summary{cursor:pointer;padding:4px 0;list-style:none}
 .src summary::-webkit-details-marker{display:none}
@@ -257,7 +263,7 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
         <div id="rainSub"></div>
       </div>
       <div class="box" id="depthBox">
-        <div class="lab" id="depthLab">この家の水の深さ</div>
+        <div class="lab" id="depthLab">地面からの水の高さ</div>
         <div class="val"><span id="depthVal">0.00</span><small>m</small></div>
       </div>
     </div>
@@ -275,7 +281,8 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
   <div class="card">
     <div id="resRows"></div>
     <div class="warn" id="resWarn">上の階に逃げても、何日も取り残されます。早めに浸水する場所の外へ</div>
-    <div class="btns"><button id="again" type="button">もう一度</button><button id="rePick" type="button">家を選びなおす</button></div>
+    <div class="prep" id="resPrep"></div>
+    <div class="btns"><button id="rePick" type="button">違う家を選んでみる</button></div>
     <details class="src"><summary>出典</summary><div id="resSrc"></div></details>
   </div>
 </div>
@@ -2508,7 +2515,7 @@ function showResult() {
   const b = BLD[G.house];
   const mm = Math.floor(G.mm);
   const st = stepAt(G.mm);
-  const stTxt = !st ? "10年に1回より少ない量" : (G.mm >= MM_MAX ? "想定最大" : (mm === st.mm ? st.label : st.label + "をこえる量"));
+  const stTxt = !st ? "10年に1回ほどしか降らない大雨より少ない" : (G.mm >= MM_MAX ? "国が考えている、いちばん多い雨" : (mm === st.mm ? st.label + "ほどしか降らない大雨と同じ" : st.label + "ほどしか降らない大雨より多い"));
   const d = depthForRain(G.mm, b);
   const days = Math.max(1, Math.ceil(b.durH / 24));
   const liters = days * CONFIG.waterPerDayL;
@@ -2517,32 +2524,50 @@ function showResult() {
   const roomName = G.floor > 1 ? "この部屋（" + G.floor + "階）" : "この部屋";
   /* sunk：部屋の床から0.5m以上つかる（歩いて逃げにくい深さ）。そこで暮らすことはできないので、飲み水ではなく避難を伝える */
   let lead, waterRow, daysLabel, sunk = false;
+  /* 部屋の床より上まで水が来たか（来たなら、残る準備ではなく逃げる準備を出す） */
+  let roomWet = false;
   if (d <= 0.005) {
     lead = "この雨の量では、この建物に荒川の水は来ない想定です";
-    waterRow = kv("想定最大（632mm）のとき、建物のまわりの水", b.l2.toFixed(2), "m");
-    daysLabel = "想定最大のとき、水が引くまで";
+    waterRow = kv("いちばん多い雨（632mm）のときの、地面からの水の高さ", b.l2.toFixed(2), "m");
+    daysLabel = "そのとき、水が引くまで";
   } else if (d <= FH) {
-    lead = roomName + "は無事。<br>でも外に出られません";
-    waterRow = kv("建物のまわりの水", d.toFixed(2), "m");
-    daysLabel = "外に出られない";
+    lead = roomName + "まで水は来ません。<br>でも外に出られません";
+    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m");
+    daysLabel = "外に出られない日数（目安）";
   } else {
     lead = "この部屋は、床から<span style=\"white-space:nowrap\">" + (d - FH).toFixed(2) + "m</span>まで水につかりました";
-    waterRow = kv("建物のまわりの水", d.toFixed(2), "m");
-    daysLabel = "水が引くまで";
+    /* 床からの高さと地面からの高さが2つ並ぶので、差（床の高さ）を添える */
+    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m", "この部屋の床は、地面から" + FH.toFixed(2) + "m上");
+    daysLabel = "水が引くまで（目安）";
     sunk = d - FH >= 0.5;
+    roomWet = true;
   }
   rows.push('<div class="lead">' + lead + '</div>');
-  rows.push('<div class="rain">あなたが降らせた雨　' + mm + 'mm（' + stTxt + '）</div>');
+  rows.push('<div class="rain">あなたが降らせた雨：3日間で' + mm + 'mm<br>' + stTxt + '</div>');
   rows.push(waterRow);
-  rows.push(kv(daysLabel, "約" + days, "日", G.mm < MM_MAX && d > 0.005 ? "想定最大の雨のとき" : ""));
-  if (!sunk) rows.push(kv("1人に要る飲み水", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本"));
-  if (G.mm < MM_MAX && d > 0.005) rows.push('<div class="note2">想定最大（632mm）なら、建物のまわりは' + b.l2.toFixed(2) + 'm</div>');
+  rows.push(kv(daysLabel, "約" + days, "日"));
+  if (!sunk) rows.push(kv("1人に要る飲み水（" + days + "日分）", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本"));
   el("resRows").innerHTML = rows.join("");
   el("resWarn").textContent = sunk
-    ? "この部屋には残れません。水が来る前に、浸水する場所の外へ逃げてください"
-    : "上の階に逃げても、何日も取り残されます。早めに浸水する場所の外へ";
+    ? "この部屋には残れません。水が来る前に、水が来ない場所へ逃げてください"
+    : (roomWet
+      ? "上の階に逃げても、何日も取り残されます。早めに、水が来ない場所へ"
+      : (d > 0.005 ? "この部屋にいても、約" + days + "日は外に出られません。できれば早めに、水が来ない場所へ" : (b.l2 > 0.005 ? "雨がもっと多いと、この建物にも水が来ます。知らせが出たら早めに、水が来ない場所へ" : "この建物には、いちばん多い雨でも荒川の水は来ない想定です")));
+  /* いまのうちにできること（戸田市「荒川氾濫に備えた広域避難」・首相官邸「災害への備え」より） */
+  let prep = "";
+  if (roomWet) {
+    prep = '<div class="ph">いまのうちにできること</div><ul>' +
+      '<li>逃げる先を家族と決めておく。水が来ない場所にある、親せきや知人の家、ホテルなど</li>' +
+      '<li>早めに動く。電車が止まる前なら、電車でも逃げられる<small>車は道が混んで進めなくなります。戸田市の試算では、市の全員が一度に車で逃げると、9割の人が水の来ない場所に着くまでに約25時間かかります</small></li></ul>';
+  } else if (d > 0.005) {
+    prep = '<div class="ph">いまのうちにできること</div><ul>' +
+      '<li>水が来る前なら、水が来ない場所へ逃げるのがいちばん安全</li>' +
+      '<li>残るなら、飲み水と食べ物を' + days + '日分以上用意しておく</li>' +
+      '<li>トイレの備えを多めに（携帯トイレなど）</li></ul>';
+  }
+  el("resPrep").innerHTML = prep;
   const cityOf = CITIES[b.city] || CITIES[0];
-  el("resSrc").innerHTML = '荒川の堤防が切れた場合の想定です。深さと水が引くまでの時間は、国土交通省 PLATEAU ' + cityOf.name + '（' + cityOf.year + '年度）の荒川の値（516mm・632mm）を加工して作成。ほかの雨の量は、その間をつないだ目安です。荒川の水位や決壊の知らせは、この作品の中の目安です。本当に決壊したときは、国や市の「氾濫発生情報」などで知らされます。飲み水の目安（1人1日' + CONFIG.waterPerDayL + 'L）：<a href="https://www.kantei.go.jp/jp/headline/bousai/sonae.html" target="_blank" rel="noopener" style="color:inherit">首相官邸「災害への備え」</a>。浸水する場所の外への避難：<a href="https://www.city.toda.saitama.jp/soshiki/121/kouikihinan.html" target="_blank" rel="noopener" style="color:inherit">戸田市「荒川氾濫に備えた広域避難」</a>';
+  el("resSrc").innerHTML = '荒川の堤防が切れた場合の想定です。深さと水が引くまでの時間は、国土交通省 PLATEAU ' + cityOf.name + '（' + cityOf.year + '年度）の荒川の値（516mm・632mm）を加工して作成。ほかの雨の量は、その間をつないだ目安です。荒川の水位や決壊の知らせは、この作品の中の目安です。本当に決壊したときは、国や市の「氾濫発生情報」などで知らされます。飲み水の目安（1人1日' + CONFIG.waterPerDayL + 'L）：<a href="https://www.kantei.go.jp/jp/headline/bousai/sonae.html" target="_blank" rel="noopener" style="color:inherit">首相官邸「災害への備え」</a>。浸水する場所の外への避難と、いまのうちにできること（車で約25時間の試算を含む）：<a href="https://www.city.toda.saitama.jp/soshiki/121/kouikihinan.html" target="_blank" rel="noopener" style="color:inherit">戸田市「荒川氾濫に備えた広域避難」</a>';
   elMsgs.textContent = "";
   document.body.classList.add("res");
   elResult.classList.add("show");
@@ -2575,7 +2600,6 @@ el("fDown").addEventListener("click", () => { askFloor = Math.max(1, askFloor - 
 el("fUp").addEventListener("click", () => { askFloor = Math.min(floorsOf(BLD[selected]), askFloor + 1); showFloor(); });
 el("floorGo").addEventListener("click", () => enterRoom(selected, askFloor));
 elStop.addEventListener("click", () => startEnding());
-el("again").addEventListener("click", () => enterRoom(G.house, G.floor));
 el("rePick").addEventListener("click", () => showMap());
 
 /* こする：指1本（マウスの左ボタン）で動いた長さ（画面の短い辺を1とする）をためる。
@@ -2730,7 +2754,7 @@ function stepRoom(dt, time) {
   RAIN_STEPS.forEach((s, i) => tickEls[i].classList.toggle("on", G.mm >= s.mm));
   /* 水が引く場面と結果では、引いた後の0mではなく一番深いときの値を出す */
   const after = G.phase === "drain" || G.phase === "result";
-  el("depthLab").textContent = after ? "一番深いとき" : (G.mode === "window" ? "建物のまわりの水" : "この家の水の深さ");
+  el("depthLab").textContent = after ? "一番高いとき" : "地面からの水の高さ";
   elDepth.textContent = (after ? G.maxDepth : G.depth).toFixed(2);
   elHint.style.opacity = G.phase === "room" && G.mm < 15 ? 1 : 0;
   const showStop = G.phase === "room" && G.mm > 0 && G.mm < MM_MAX && performance.now() - G.lastRub > 1200;

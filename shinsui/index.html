@@ -1181,7 +1181,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xc6d1d9);
 scene.fog = new THREE.Fog(0xc6d1d9, 14, 90);
-const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 80);
+/* 手前の切り取りを0.05mにすると、スマホでは奥行きの精度が足りず、床の重なった面がちらついた（Androidで確認）。0.15mにする */
+const camera = new THREE.PerspectiveCamera(50, 1, 0.15, 80);
 
 /* 明かり */
 const hemi = new THREE.HemisphereLight(0xffffff, 0xa9a296, 0.72);
@@ -1194,6 +1195,7 @@ sun.shadow.camera.left = -4; sun.shadow.camera.right = 4;
 sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 20;
 sun.shadow.bias = -0.0015;
+sun.shadow.normalBias = 0.02;
 scene.add(sun);
 const roomLight = new THREE.PointLight(0xfff7ea, 0.38, 9, 1.5);
 roomLight.position.set(0, H.ceiling - 0.25, 0);
@@ -1860,18 +1862,20 @@ function setFloorHeight(h) {
   foundation.position.y = -h / 2;
   balcony.visible = h > FH1 + 0.5;
 }
-const floorTop = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), mat(0xffffff, { map: woodTex }));
+/* 床の面どうし（基礎の上面・フローリング・台所のタイル・ラグ・泥）は、スマホでもちらつかないよう数mmずつ離し、
+   さらに手前に寄せる指定（polygonOffset）も付ける */
+const floorTop = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), mat(0xffffff, { map: woodTex, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
 floorTop.rotation.x = -Math.PI / 2;
-floorTop.position.set(0, 0.001, 0);
+floorTop.position.set(0, 0.005, 0);
 floorTop.receiveShadow = true;
 room.add(floorTop);
 const KX0 = 0.45, KZ1 = -0.9;
-const kitchenFloor = new THREE.Mesh(new THREE.PlaneGeometry(XR - KX0, KZ1 - ZB), mat(0xffffff, { map: tileTex }));
+const kitchenFloor = new THREE.Mesh(new THREE.PlaneGeometry(XR - KX0, KZ1 - ZB), mat(0xffffff, { map: tileTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
 kitchenFloor.rotation.x = -Math.PI / 2;
-kitchenFloor.position.set((XR + KX0) / 2, 0.003, (KZ1 + ZB) / 2);
+kitchenFloor.position.set((XR + KX0) / 2, 0.011, (KZ1 + ZB) / 2);
 kitchenFloor.receiveShadow = true;
 room.add(kitchenFloor);
-const rug = box(1.5, 0.012, 1.7, mat(0xa6b2bb, { map: rugTex }), -0.55, 0.008, 0.65);
+const rug = box(1.5, 0.012, 1.7, mat(0xa6b2bb, { map: rugTex }), -0.55, 0.017, 0.65);
 rug.castShadow = false;
 room.add(rug);
 
@@ -2159,7 +2163,7 @@ addStain(RW, 0, ZB + 0.004, 0);
 addStain(RW, 0, ZF - 0.02, Math.PI);
 const floorMud = new THREE.Mesh(new THREE.PlaneGeometry(RW, RD), new THREE.MeshLambertMaterial({ color: 0x6f5f42, transparent: true, opacity: 0.45, depthWrite: false }));
 floorMud.rotation.x = -Math.PI / 2;
-floorMud.position.y = 0.017;
+floorMud.position.y = 0.03;
 room.add(floorMud);
 
 /* 水面 */

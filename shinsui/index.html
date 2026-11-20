@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>浸水体験（試作）</title>
+<!-- タブとホーム画面のマーク（家が水につかる絵） -->
+<link rel="icon" href="icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
   --panel: rgba(24, 36, 48, .74);
@@ -182,9 +185,18 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 .kv .v small{font-size:15px;font-weight:600;margin-left:2px}
 .kv .v .u{display:block;font-size:12px;font-weight:400;color:var(--sub);margin-top:1px}
 .note2{font-size:12px;color:var(--sub);margin-top:8px}
+/* 結果の数字は横に並べ、いちばん目立つのは下の「逃げる」の枠にする */
+/* 2列。3つ目（飲み水）は下の段に横いっぱいで置く（3列だと狭い画面で見出しが途中で折れる） */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.stats .st:nth-child(3){grid-column:1/-1}
+.stats .st{background:rgba(255,255,255,.06);border-radius:10px;padding:8px 10px;min-width:0}
+.stats .k{font-size:12px;color:#c5d2dc;line-height:1.35}
+.stats .v{font-size:24px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;line-height:1.25;margin-top:2px}
+.stats .v small{font-size:13px;font-weight:600;margin-left:2px}
+.stats .u{font-size:11px;color:var(--sub);line-height:1.35;margin-top:1px}
 .warn{
   margin-top:12px;background:#2c3a47;border-left:5px solid var(--water);border-radius:8px;
-  padding:10px 12px;font-size:15px;font-weight:700;line-height:1.5;color:#fff;
+  padding:12px 12px;font-size:17px;font-weight:700;line-height:1.5;color:#fff;
 }
 .btns{display:flex;gap:10px;margin-top:12px}
 .btns button{flex:1;height:46px;border:0;border-radius:10px;font-size:15px;font-weight:700}
@@ -194,8 +206,8 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 .prep:empty{display:none}
 .prep .ph{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px}
 .prep ul{margin:0;padding-left:1.2em;font-size:14px;line-height:1.55;color:#dbe5ec}
-.prep li+li{margin-top:4px}
-.prep small{display:block;font-size:12px;color:var(--sub)}
+.prep li+li{margin-top:6px}
+.prep b{color:#fff}
 .src{margin-top:8px;font-size:12px;color:var(--sub)}
 .src summary{cursor:pointer;padding:4px 0;list-style:none}
 .src summary::-webkit-details-marker{display:none}
@@ -213,6 +225,8 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 #alert.show{opacity:1;transform:none}
 #alert.breach{border-left-color:#c8323b;background:#2b2328}
 #alert .at{flex:1 1 auto;font-size:16px;font-weight:700;color:#fff;line-height:1.4}
+#alert.breach .at{font-size:21px}
+#alert.breach{padding:14px 14px;border-left-width:8px}
 #alert .tag{flex:0 0 auto;font-size:11px;color:#c5d2dc;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:1px 7px}
 
 @media (max-width:420px){
@@ -397,8 +411,10 @@ function showAlert(a) {
   box.classList.add("show");
   clearTimeout(alertTimer);
   alertTimer = setTimeout(() => box.classList.remove("show"), a.breach ? 6500 : 5000);
-  /* 知らせを読んでいる間も、雨の増え方をゆるめる */
-  G.readUntil = Math.max(G.readUntil, performance.now() + (a.breach ? 3200 : 2400));
+  /* 知らせが出たら、どれだけこすっていても少しの間は雨を増やさない（決壊は長め）。
+     そのあとも読んでいる間は、雨の増え方をゆるめる */
+  G.holdUntil = Math.max(G.holdUntil || 0, performance.now() + (a.breach ? 4500 : 1800));
+  G.readUntil = Math.max(G.readUntil, performance.now() + (a.breach ? 5500 : 2600));
   if (window.__lineLog) window.__lineLog.push([Math.round(G.mm), +G.depth.toFixed(2), "【知らせ】" + a.text, Math.round(performance.now())]);
   if (a.breach) { G.flash = 1; playBreachSound(); }
 }
@@ -2337,7 +2353,7 @@ const G = {
   /* 荒川の知らせをどこまで出したか、決壊の演出の残り */
   alertIdx: -1, flash: 0,
   /* 順番待ちの一言、読み終わるまでの時刻、次の一言を出してよい時刻 */
-  lineQ: [], readUntil: 0, nextLineAt: 0
+  lineQ: [], readUntil: 0, nextLineAt: 0, holdUntil: 0
 };
 
 const el = id => document.getElementById(id);
@@ -2389,7 +2405,7 @@ function paceNow() {
   /* この家でもう出る一言が残っていなければ、最後まで速く進める（何も起きない時間を作らない） */
   const base = G.mm < RAIN_STEPS[0].mm ? p.early : (G.mm < z0 - 8 ? p.warn : (linesAhead() ? p.flood : p.early));
   /* まだ出ていない一言が待っているなら、雨は増やさない（一言と水がずれないように） */
-  if (G.lineQ.length > 0) return 0;
+  if (G.lineQ.length > 0 || performance.now() < G.holdUntil) return 0;
   return base * (isReading() ? p.reading : 1);
 }
 /* 水の上がり方の倍率：一言が待っている間はほぼ止め、読んでいる間はゆるめる。一言がもう残っていなければ速く */
@@ -2451,7 +2467,7 @@ function resetRoom() {
   Object.assign(G, {
     mm: 0, depth: 0, maxDepth: 0, pending: 0, intensity: 0, rain: 0.05, wet: 0.08, lastRub: -1e9,
     stepIdx: -1, fired: new Set(), floatT: 0, endT: 0, clockStop: null, hold: false, alertIdx: -1, flash: 0,
-    lineQ: [], readUntil: 0, nextLineAt: 0
+    lineQ: [], readUntil: 0, nextLineAt: 0, holdUntil: 0
   });
   table.position.copy(TABLE_BASE);
   table.rotation.set(0, 0, 0);
@@ -2519,7 +2535,8 @@ function showResult() {
   const d = depthForRain(G.mm, b);
   const days = Math.max(1, Math.ceil(b.durH / 24));
   const liters = days * CONFIG.waterPerDayL;
-  const kv = (k, v, unit, sub) => '<div class="kv"><span class="k">' + k + '</span><span class="v">' + v + '<small>' + unit + '</small>' + (sub ? '<span class="u">' + sub + '</span>' : '') + '</span></div>';
+  /* 数字は小さな枠に入れて横に並べる（狭い画面では折り返す） */
+  const kv = (k, v, unit, sub) => '<div class="st"><div class="k">' + k + '</div><div class="v">' + v + '<small>' + unit + '</small></div>' + (sub ? '<div class="u">' + sub + '</div>' : '') + '</div>';
   const rows = [];
   const roomName = G.floor > 1 ? "この部屋（" + G.floor + "階）" : "この部屋";
   /* sunk：部屋の床から0.5m以上つかる（歩いて逃げにくい深さ）。そこで暮らすことはできないので、飲み水ではなく避難を伝える */
@@ -2528,7 +2545,7 @@ function showResult() {
   let roomWet = false;
   if (d <= 0.005) {
     lead = "この雨の量では、この建物に荒川の水は来ない想定です";
-    waterRow = kv("いちばん多い雨（632mm）のときの、地面からの水の高さ", b.l2.toFixed(2), "m");
+    waterRow = kv("いちばん多い雨（632mm）なら", b.l2.toFixed(2), "m", "地面からの水の高さ");
     daysLabel = "そのとき、水が引くまで";
   } else if (d <= FH) {
     lead = roomName + "まで水は来ません。<br>でも外に出られません";
@@ -2537,19 +2554,18 @@ function showResult() {
   } else {
     lead = "この部屋は、床から<span style=\"white-space:nowrap\">" + (d - FH).toFixed(2) + "m</span>まで水につかりました";
     /* 床からの高さと地面からの高さが2つ並ぶので、差（床の高さ）を添える */
-    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m", "この部屋の床は、地面から" + FH.toFixed(2) + "m上");
+    waterRow = kv("地面からの水の高さ", d.toFixed(2), "m", "部屋の床は地面から" + FH.toFixed(2) + "m上");
     daysLabel = "水が引くまで（目安）";
     sunk = d - FH >= 0.5;
     roomWet = true;
   }
   rows.push('<div class="lead">' + lead + '</div>');
   rows.push('<div class="rain">あなたが降らせた雨：3日間で' + mm + 'mm<br>' + stTxt + '</div>');
-  rows.push(waterRow);
-  rows.push(kv(daysLabel, "約" + days, "日"));
-  if (!sunk) rows.push(kv("1人に要る飲み水（" + days + "日分）", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本"));
+  rows.push('<div class="stats">' + waterRow + kv(daysLabel, "約" + days, "日") +
+    (!sunk ? kv("1人に要る飲み水（" + days + "日分）", liters, "L", "2Lのペットボトル" + Math.ceil(liters / 2) + "本") : "") + '</div>');
   el("resRows").innerHTML = rows.join("");
-  el("resWarn").textContent = sunk
-    ? "この部屋には残れません。水が来る前に、水が来ない場所へ逃げてください"
+  el("resWarn").innerHTML = sunk
+    ? "この部屋には残れません。<br>水が来る前に、水が来ない場所へ逃げてください"
     : (roomWet
       ? "上の階に逃げても、何日も取り残されます。早めに、水が来ない場所へ"
       : (d > 0.005 ? "この部屋にいても、約" + days + "日は外に出られません。できれば早めに、水が来ない場所へ" : (b.l2 > 0.005 ? "雨がもっと多いと、この建物にも水が来ます。知らせが出たら早めに、水が来ない場所へ" : "この建物には、いちばん多い雨でも荒川の水は来ない想定です")));
@@ -2557,13 +2573,12 @@ function showResult() {
   let prep = "";
   if (roomWet) {
     prep = '<div class="ph">いまのうちにできること</div><ul>' +
-      '<li>逃げる先を家族と決めておく。水が来ない場所にある、親せきや知人の家、ホテルなど</li>' +
-      '<li>早めに動く。電車が止まる前なら、電車でも逃げられる<small>車は道が混んで進めなくなります。戸田市の試算では、市の全員が一度に車で逃げると、9割の人が水の来ない場所に着くまでに約25時間かかります</small></li></ul>';
+      '<li><b>逃げる先を、家族と決めておく</b><br>水が来ない場所にある、親せきや知人の家、ホテルなど</li>' +
+      '<li><b>電車が止まる前に動く</b><br>みんなが一度に車で逃げると、9割の人が着くまでに約25時間かかる（戸田市の試算）</li></ul>';
   } else if (d > 0.005) {
     prep = '<div class="ph">いまのうちにできること</div><ul>' +
-      '<li>水が来る前なら、水が来ない場所へ逃げるのがいちばん安全</li>' +
-      '<li>残るなら、飲み水と食べ物を' + days + '日分以上用意しておく</li>' +
-      '<li>トイレの備えを多めに（携帯トイレなど）</li></ul>';
+      '<li><b>水が来る前に、水が来ない場所へ逃げるのがいちばん安全</b></li>' +
+      '<li><b>残るなら、飲み水と食べ物を' + days + '日分以上</b><br>トイレの備えも多めに（携帯トイレなど）</li></ul>';
   }
   el("resPrep").innerHTML = prep;
   const cityOf = CITIES[b.city] || CITIES[0];
@@ -2654,10 +2669,17 @@ function fitCamera() {
     view.target.set(cx, EYE - far * Math.tan(pitch), ZB + back - far);
   } else {
     /* 横長は48度、縦長は横の見える幅が狭くなりすぎないよう広めにする（歪みが目立たない80度まで） */
-    camera.fov = a < 1 ? Math.min(80, 2 * Math.atan(Math.tan(24 * Math.PI / 180) / a) * 180 / Math.PI) : 48;
+    /* 縦長のスマホでは横が狭く、80度では部屋の一部しか見えなかった（横に約42度）。
+       100度まで広げると、左の額からテレビ・窓・右の台所まで入り、手前のソファの歪みもまだ気にならない */
+    camera.fov = a < 1 ? Math.min(100, 2 * Math.atan(Math.tan(24 * Math.PI / 180) / a) * 180 / Math.PI) : 48;
     camera.position.set(XR - 0.3, EYE, ZF - 0.3);
-    /* 縦長は少し下を向けて、天井の照明が画面の上で大きく切れないようにする */
-    view.target.set(-1.35, a < 1 ? -0.1 : 0.35, -1.1);
+    view.target.set(-1.35, a < 1 ? 0.3 : 0.35, -1.1);
+    /* 確かめ用：?cfov=縦の視野 &cback=角から下がる距離(m) &cy=目の高さ &cty=見る先の高さ */
+    const CQ = new URLSearchParams(location.search);
+    if (CQ.has("cfov")) camera.fov = +CQ.get("cfov");
+    if (CQ.has("cback")) { const k = +CQ.get("cback"); camera.position.x += k * 0.7071; camera.position.z += k * 0.7071; }
+    if (CQ.has("cy")) camera.position.y = +CQ.get("cy");
+    if (CQ.has("cty")) view.target.y = +CQ.get("cty");
   }
   aimCamera();
   camera.updateProjectionMatrix();

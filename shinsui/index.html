@@ -229,6 +229,27 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 #alert.breach{padding:14px 14px;border-left-width:8px}
 #alert .tag{flex:0 0 auto;font-size:11px;color:#c5d2dc;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:1px 7px}
 
+/* ---------- 最初の画面 ---------- */
+#intro{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  padding:16px;box-sizing:border-box;background:rgba(14,22,30,.6);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:opacity .4s;
+}
+#intro.out{opacity:0;pointer-events:none}
+#intro .icard{
+  background:#1d2933;border-radius:18px;padding:24px 22px 16px;width:min(100%,400px);box-sizing:border-box;
+  box-shadow:0 10px 34px rgba(0,0,0,.45);max-height:calc(100vh - 32px);overflow:auto;color:#fff;text-align:center;
+}
+#intro img{display:block;margin:0 auto 10px;border-radius:14px}
+#intro .ia{font-size:13px;color:var(--water);font-weight:700;letter-spacing:.06em}
+#intro h1{font-size:22px;line-height:1.45;margin:6px 0 10px;font-weight:700}
+#intro .ib{font-size:14px;line-height:1.6;color:#dbe5ec;margin:0 0 14px;text-align:left}
+#intro ol{list-style:none;margin:0 0 16px;padding:0;text-align:left;display:flex;flex-direction:column;gap:8px}
+#intro li{display:flex;align-items:center;gap:10px;font-size:15px;line-height:1.45;background:rgba(255,255,255,.06);border-radius:10px;padding:9px 12px}
+#intro li span{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+#introGo{width:100%;height:50px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:700}
+#intro .ic{font-size:12px;color:var(--sub);margin-top:8px}
+
 @media (max-width:420px){
   /* 下の欄は、出典の帯の高さ（--cred、mapLayout で測る）の上に置く */
   .val{font-size:22px}
@@ -288,6 +309,23 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
   <div id="msgs"></div>
   <button id="stop" type="button" class="hide">ここまでにする</button>
   <div id="note">目安</div>
+</div>
+
+<!-- 最初の画面：何をするものかと、遊び方 -->
+<div id="intro">
+  <div class="icard">
+    <img src="icon-180.png" alt="" width="64" height="64">
+    <div class="ia">蕨市・戸田市・川口市</div>
+    <h1>荒川があふれたら、<br>家はどこまで水につかる？</h1>
+    <p class="ib">国の浸水の想定をもとに、自分の家の部屋に水が上がってくる様子を見られます。</p>
+    <ol>
+      <li><span>1</span>地図で家をえらぶ（住所でも探せます）</li>
+      <li><span>2</span>画面をこすって、雨を降らせる</li>
+      <li><span>3</span>部屋のどこまで水が来るかを見る</li>
+    </ol>
+    <button id="introGo" type="button">はじめる</button>
+    <div class="ic">雨の音が出ます</div>
+  </div>
 </div>
 
 <!-- 結果 -->
@@ -2616,6 +2654,14 @@ el("fUp").addEventListener("click", () => { askFloor = Math.min(floorsOf(BLD[sel
 el("floorGo").addEventListener("click", () => enterRoom(selected, askFloor));
 elStop.addEventListener("click", () => startEnding());
 el("rePick").addEventListener("click", () => showMap());
+/* 最初の画面：「はじめる」で閉じる。ここで音の準備もする（ブラウザは押した操作のあとでないと音を出せない） */
+el("introGo").addEventListener("click", () => {
+  initAudio();
+  el("intro").classList.add("out");
+  setTimeout(() => el("intro").classList.add("hide"), 450);
+});
+/* 確かめ用に場面を指定して開いたときは、最初の画面を出さない */
+if (/[?&](b|pick|addr)=/.test(location.search)) el("intro").classList.add("hide");
 
 /* こする：指1本（マウスの左ボタン）で動いた長さ（画面の短い辺を1とする）をためる。
    見回す：指2本で横に動かす（マウスは右ボタン）。こするのと取り違えないよう、2本のときは雨を増やさない */

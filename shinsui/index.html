@@ -317,6 +317,12 @@ const CONFIG = {
     maxMmPerSec: 632 / 20
   },
 
+  /* 雨の増え方を段階で変える（上の rub にかける倍率）。
+     まだ何も起きない間（〜299mm）は速く進め、荒川の知らせが出る間は少しゆっくり、
+     水がこちらに向かってからは、上がっていく様子を見ていられるようにゆっくりにする。
+     一言を読んでいる間は、さらに reading をかける */
+  pace: { early: 2.5, warn: 0.8, flood: 0.35, reading: 0.4 },
+
   /* 水位が雨の量に追いつく速さ（m/秒） */
   waterSpeed: 0.4,
 
@@ -384,6 +390,9 @@ function showAlert(a) {
   box.classList.add("show");
   clearTimeout(alertTimer);
   alertTimer = setTimeout(() => box.classList.remove("show"), a.breach ? 6500 : 5000);
+  /* 知らせを読んでいる間も、雨の増え方をゆるめる */
+  G.readUntil = Math.max(G.readUntil, performance.now() + (a.breach ? 3200 : 2400));
+  if (window.__lineLog) window.__lineLog.push([Math.round(G.mm), +G.depth.toFixed(2), "【知らせ】" + a.text, Math.round(performance.now())]);
   if (a.breach) { G.flash = 1; playBreachSound(); }
 }
 const LINE_FLOOR = "床の上に水が上がってきた";
@@ -2319,7 +2328,9 @@ const G = {
   /* 何階か、1つの階の高さ、部屋が沈むか（sink）沈まず窓の外を見るか（window） */
   floor: 1, perFloor: 3, mode: "sink",
   /* 荒川の知らせをどこまで出したか、決壊の演出の残り */
-  alertIdx: -1, flash: 0
+  alertIdx: -1, flash: 0,
+  /* 順番待ちの一言、読み終わるまでの時刻、次の一言を出してよい時刻 */
+  lineQ: [], readUntil: 0, nextLineAt: 0
 };
 
 const el = id => document.getElementById(id);
@@ -2333,7 +2344,24 @@ const tickEls = RAIN_STEPS.map(s => {
   return t;
 });
 
-function showLine(text) {
+/* 一言は順番待ちにして、1つずつ出す（同じ瞬間に重なっても捨てない）。
+   次の一言は、前の一言を読み終わるくらいの時間がたってから出す */
+function readMs(text) {
+  return Math.max(1700, Math.min(3200, 1100 + 100 * text.replace(/\s/g, "").length));
+}
+function queueLine(text) { G.lineQ.push(text); }
+function isReading() { return G.lineQ.length > 0 || performance.now() < G.readUntil; }
+function pumpLines() {
+  const now = performance.now();
+  if (!G.lineQ.length || now < G.nextLineAt) return;
+  const text = G.lineQ.shift();
+  const ms = readMs(text);
+  G.nextLineAt = now + ms;
+  G.readUntil = Math.max(G.readUntil, G.nextLineAt);
+  showLine(text, ms + 1600);
+  if (window.__lineLog) window.__lineLog.push([Math.round(G.mm), +G.depth.toFixed(2), text, Math.round(now)]);
+}
+function showLine(text, life) {
   const m = document.createElement("div");
   m.className = "msg";
   m.textContent = text.replace(/。(?=[^\n])/g, "。\n");
@@ -2344,7 +2372,39 @@ function showLine(text) {
   setTimeout(() => {
     m.classList.remove("show");
     setTimeout(() => { if (m.parentNode) m.parentNode.removeChild(m); }, 600);
-  }, 3600);
+  }, life || 3600);
+}
+
+/* 今の雨の増え方の倍率 */
+function paceNow() {
+  const p = CONFIG.pace;
+  const z0 = mmZeroOf(BLD[G.house]);
+  /* この家でもう出る一言が残っていなければ、最後まで速く進める（何も起きない時間を作らない） */
+  const base = G.mm < RAIN_STEPS[0].mm ? p.early : (G.mm < z0 - 8 ? p.warn : (linesAhead() ? p.flood : p.early));
+  /* まだ出ていない一言が待っているなら、雨は増やさない（一言と水がずれないように） */
+  if (G.lineQ.length > 0) return 0;
+  return base * (isReading() ? p.reading : 1);
+}
+/* 水の上がり方の倍率：一言が待っている間はほぼ止め、読んでいる間はゆるめる。一言がもう残っていなければ速く */
+function waterPaceNow() {
+  if (G.lineQ.length > 0) return 0.08;
+  if (isReading()) return 0.5;
+  return G.mm >= mmZeroOf(BLD[G.house]) && !linesAhead() ? 5 : 1;
+}
+/* 想定最大の深さまでに、まだ出ていない一言があるか（深さは地面から、m） */
+function linesAhead() {
+  const maxD = BLD[G.house].l2;
+  if (!G.fired.has("road") && 0.01 <= maxD) return true;
+  if (G.mode === "window") {
+    for (const r of OUTSIDE_LINES) {
+      const at = r.at === null ? FH1 + G.perFloor : r.at;
+      if (!G.fired.has("o" + r.text) && at <= maxD) return true;
+    }
+    return false;
+  }
+  if (!G.fired.has("floor") && FH + 0.005 <= maxD) return true;
+  for (const r of RISING_LINES) if (!G.fired.has(r.at) && FH + r.at <= maxD) return true;
+  return false;
 }
 
 function clockMinutes() {
@@ -2377,13 +2437,14 @@ function checkLines(silent) {
     }
   }
   if (G.clockStop === null && level >= H.clock) G.clockStop = clockMinutes();
-  if (!silent) for (const t of out.slice(-2)) showLine(t);
+  if (!silent) for (const t of out) queueLine(t);
 }
 
 function resetRoom() {
   Object.assign(G, {
     mm: 0, depth: 0, maxDepth: 0, pending: 0, intensity: 0, rain: 0.05, wet: 0.08, lastRub: -1e9,
-    stepIdx: -1, fired: new Set(), floatT: 0, endT: 0, clockStop: null, hold: false, alertIdx: -1, flash: 0
+    stepIdx: -1, fired: new Set(), floatT: 0, endT: 0, clockStop: null, hold: false, alertIdx: -1, flash: 0,
+    lineQ: [], readUntil: 0, nextLineAt: 0
   });
   table.position.copy(TABLE_BASE);
   table.rotation.set(0, 0, 0);
@@ -2602,12 +2663,17 @@ function updateWaves(time) {
 function stepRoom(dt, time) {
   const b = BLD[G.house];
 
+  if (G.auto > 0 && G.phase === "room") { G.pending += G.auto * dt; G.lastRub = performance.now(); }
   if (G.phase === "room") {
+    /* こすった量はそのまま、雨への変わり方だけ段階で変える。cap（雨の強さの見え方の基準）は変えない */
+    const k = paceNow();
     const cap = CONFIG.rub.maxMmPerSec * dt;
-    const add = Math.min(G.pending * CONFIG.rub.mmPerScreen, cap);
+    const raw = Math.min(G.pending * CONFIG.rub.mmPerScreen, cap);
+    const add = raw * k;
     G.pending = 0;
     G.mm = Math.min(MM_MAX, G.mm + add);
-    const inst = cap > 0 ? add / cap : 0;
+    /* 雨の見た目の強さは、こすった速さのまま */
+    const inst = cap > 0 ? raw / cap : 0;
     G.intensity += (inst - G.intensity) * Math.min(1, dt * (inst > G.intensity ? 6 : 1.5));
     if (G.mm >= MM_MAX && !G.hold) startEnding();
   } else {
@@ -2622,14 +2688,17 @@ function stepRoom(dt, time) {
     if (k >= 1) showResult();
   } else if (G.phase !== "result") {
     const target = depthForRain(G.mm, b);
-    const step = CONFIG.waterSpeed * dt;
+    /* 一言を読んでいる間は、水の上がり方もゆるめる */
+    const step = CONFIG.waterSpeed * dt * waterPaceNow();
     G.depth += Math.max(-step, Math.min(step, target - G.depth));
     G.maxDepth = Math.max(G.maxDepth, G.depth);
     if (G.phase === "ending") {
       if (Math.abs(target - G.depth) < 0.01) G.endT += dt;
-      if (G.endT > 1.6) startDrain();
+      /* 一言を全部読み終わってから水を引かせる */
+      if (G.endT > 1.6 && !isReading()) startDrain();
     }
     checkLines(false);
+    pumpLines();
   }
 
   /* 雨の強さ（こすっていないときも、雨が始まっていれば少し降る） */
@@ -2734,6 +2803,8 @@ mapFit();
   const pk = parseInt(P.get("pick"), 10);
   if (bi >= 0 && bi < BLD.length) {
     enterRoom(bi, parseInt(P.get("f"), 10) || 1);
+    /* ?auto=1秒にこする画面の数 … 自動でこすり続ける（流れの時間の確かめ用。__lineLog に一言の記録が残る） */
+    if (P.has("auto")) { G.auto = parseFloat(P.get("auto")) || 0; window.__lineLog = []; window.__t0 = performance.now(); }
     if (P.has("mm")) {
       const mm = Math.max(0, Math.min(MM_MAX, parseFloat(P.get("mm")) || 0));
       G.mm = mm;

@@ -255,6 +255,20 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 #introGo{width:100%;height:50px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:700}
 #intro .ic{font-size:12px;color:var(--sub);margin-top:8px}
 
+/* 11/24 本人「スマホだとこの見え方は仕方ないけど、パソコンならもうちょい横にでかくして見やすく」
+   → 横に広い画面では、結果の枠を横に広げて2列にし、縦に長くスクロールしなくても全部見えるようにする。
+     左＝結果の数字と「逃げる」の枠とボタン、右＝いまのうちにできること */
+@media (min-width:900px) and (min-aspect-ratio:4/3){
+  #result .card{width:min(92vw,900px);padding:22px 24px 14px;display:grid;grid-template-columns:1fr 1fr;column-gap:22px;
+    grid-template-areas:"rows prep" "warn prep" "btns prep" "src src";align-content:start}
+  #resRows{grid-area:rows}
+  #resWarn{grid-area:warn}
+  #result .btns{grid-area:btns;align-self:start}
+  #resPrep{grid-area:prep;margin-top:0;align-self:start}
+  #result .src{grid-area:src}
+  .lead{font-size:20px}
+  .prep li{font-size:14.5px}
+}
 @media (max-width:420px){
   /* 下の欄は、出典の帯の高さ（--cred、mapLayout で測る）の上に置く */
   .val{font-size:22px}

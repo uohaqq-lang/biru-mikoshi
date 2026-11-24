@@ -234,26 +234,43 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 #alert.breach{padding:14px 14px;border-left-width:8px}
 #alert .tag{flex:0 0 auto;font-size:11px;color:#c5d2dc;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:1px 7px}
 
-/* ---------- 最初の画面 ---------- */
+/* ---------- 最初の画面 ----------
+   11/24 本人「説明書みたい」→ 文字で説明せず、後ろで町に雨が降って水が広がる様子を見せ、問い1行とボタンだけにする。
+   後ろの町は地図と同じ3D（renderIntro）。文字が負けないよう、まん中を暗くする */
 #intro{
   position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
-  padding:16px;box-sizing:border-box;background:rgba(14,22,30,.6);
-  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:opacity .4s;
+  padding:16px 16px calc(var(--cred, 40px) + 16px);box-sizing:border-box;color:#fff;text-align:center;transition:opacity .5s;
+  background:
+    radial-gradient(ellipse 75% 42% at 50% 47%, rgba(6,12,18,.62), rgba(6,12,18,.18)),
+    linear-gradient(rgba(6,12,18,.45), rgba(6,12,18,0) 32%, rgba(6,12,18,0) 68%, rgba(6,12,18,.5));
 }
 #intro.out{opacity:0;pointer-events:none}
-#intro .icard{
-  background:#1d2933;border-radius:18px;padding:24px 22px 16px;width:min(100%,400px);box-sizing:border-box;
-  box-shadow:0 10px 34px rgba(0,0,0,.45);max-height:calc(100vh - 32px);overflow:auto;color:#fff;text-align:center;
+#introRain{pointer-events:none}
+#intro .ibox{position:relative;display:flex;flex-direction:column;align-items:center}
+#intro h1{
+  margin:0 0 34px;font-size:clamp(30px,4.2vw,58px);line-height:1.35;font-weight:700;letter-spacing:.05em;
+  text-shadow:0 2px 18px rgba(0,0,0,.7),0 0 4px rgba(0,0,0,.5);
 }
-#intro img{display:block;margin:0 auto 10px;border-radius:14px}
-#intro .ia{font-size:13px;color:var(--water);font-weight:700;letter-spacing:.06em}
-#intro h1{font-size:22px;line-height:1.45;margin:6px 0 10px;font-weight:700}
-#intro .ib{font-size:14px;line-height:1.6;color:#dbe5ec;margin:0 0 14px;text-align:left}
-#intro ol{list-style:none;margin:0 0 16px;padding:0;text-align:left;display:flex;flex-direction:column;gap:8px}
-#intro li{display:flex;align-items:center;gap:10px;font-size:15px;line-height:1.45;background:rgba(255,255,255,.06);border-radius:10px;padding:9px 12px}
-#intro li span{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
-#introGo{width:100%;height:50px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:700}
-#intro .ic{font-size:12px;color:var(--sub);margin-top:8px}
+#intro h1 .br{display:none}
+#introGo{
+  width:240px;height:58px;border:0;border-radius:29px;background:var(--accent);color:#fff;font-size:19px;font-weight:700;
+  letter-spacing:.12em;box-shadow:0 6px 22px rgba(0,0,0,.4);
+}
+#introGo:hover{background:#4b9cdc}
+#intro .ic{font-size:13px;color:rgba(255,255,255,.78);margin-top:12px;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+#intro .tag{
+  position:absolute;right:12px;top:calc(env(safe-area-inset-top) + 12px);
+  /* 枠で囲むとボタンに見える（初見役の指摘）ので、文字だけにする */
+  font-size:12px;color:rgba(255,255,255,.72);letter-spacing:.08em;text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none;
+}
+/* 最初の画面の間は、地図の欄を隠し、出典の帯だけ最初の画面の上に出す（後ろの町は PLATEAU と地理院のデータで描いている） */
+body.intro #mapTop,body.intro #legend,body.intro #zoom,body.intro #compass,body.intro #mapLabels,
+body.intro #pick,body.intro #toast,body.intro #floorAsk{visibility:hidden}
+body.intro #credit{z-index:60;background:rgba(6,12,18,.55);color:rgba(255,255,255,.7)}
+@media (max-width:600px){
+  #intro h1{font-size:clamp(30px,9.6vw,40px)}
+  #intro h1 .br{display:inline}
+}
 
 /* 11/24 本人「スマホだとこの見え方は仕方ないけど、パソコンならもうちょい横にでかくして見やすく」
    → 横に広い画面では、結果の枠を横に広げて2列にし、縦に長くスクロールしなくても全部見えるようにする。
@@ -277,7 +294,7 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
 }
 </style>
 </head>
-<body>
+<body class="intro">
 <canvas id="view"></canvas>
 
 <!-- 地図の画面 -->
@@ -330,18 +347,12 @@ body.res #hud,body.res #note,body.res #msgs,body.res #stop,body.res #hint,body.r
   <div id="note">目安</div>
 </div>
 
-<!-- 最初の画面：何をするものかと、遊び方 -->
+<!-- 最初の画面：後ろで町に水が広がる。文字は問い1行とボタンだけ -->
 <div id="intro">
-  <div class="icard">
-    <img src="icon-180.png" alt="" width="64" height="64">
-    <div class="ia">蕨市・戸田市・川口市</div>
-    <h1>荒川があふれたら、<br>家はどこまで水につかる？</h1>
-    <p class="ib">国の浸水の想定をもとに、自分の家の部屋に水が上がってくる様子を見られます。</p>
-    <ol>
-      <li><span>1</span>地図で家をえらぶ（住所でも探せます）</li>
-      <li><span>2</span>画面をこすって、雨を降らせる</li>
-      <li><span>3</span>部屋のどこまで水が来るかを見る</li>
-    </ol>
+  <canvas id="introRain" aria-hidden="true"></canvas>
+  <div class="tag">目安</div>
+  <div class="ibox">
+    <h1>あなたの家は、<br class="br">どこまで沈む？</h1>
     <button id="introGo" type="button">はじめる</button>
     <div class="ic">雨の音が出ます</div>
   </div>
@@ -626,6 +637,7 @@ mapScene.add(lineMesh(ML.rail, 1.2, 0x55606a, 1));
    画面の外の区画は three が描かない。 */
 const CHUNK_M = 600;
 const bldChunks = [];
+const bldMats = [];
 
 /* 屋根の三角形：凸なら扇形に分け（速い）、へこみがあれば three の分割を使う */
 function roofTriangles(xs, zs, n) {
@@ -731,6 +743,8 @@ function ensureMapBuildings() {
   const bmat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, side: THREE.DoubleSide });
   /* 屋根だけの区画は壁の影が無く白っぽく見えるので、少し暗くして、近くの立体と色の濃さをそろえる */
   const roofMat = new THREE.MeshLambertMaterial({ color: 0xc4c4c4, vertexColors: true, flatShading: true, side: THREE.DoubleSide });
+  /* 最初の画面では色分けをやめて灰色にするので、元の色を覚えておく */
+  bldMats.push(bmat, roofMat);
   const groups = new Map();
   BLD.forEach((b, i) => {
     const k = Math.floor(mX((b.x0 + b.x1) / 2) / CHUNK_M) + "," + Math.floor(mZ((b.y0 + b.y1) / 2) / CHUNK_M);
@@ -762,6 +776,7 @@ const pinMat = new THREE.MeshBasicMaterial({ color: 0x1f7ae0, transparent: true,
 
 /* 堤防が切れる想定の場所の印 */
 const breachMat = new THREE.MeshBasicMaterial({ color: 0xd2353f });
+const breachMeshes = [];
 for (const b of BREACH) {
   const x = mX(b.px), z = mZ(b.py);
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 110, 10), breachMat);
@@ -769,6 +784,7 @@ for (const b of BREACH) {
   const head = new THREE.Mesh(new THREE.SphereGeometry(16, 16, 12), breachMat);
   head.position.set(x, 118, z);
   mapScene.add(pole, head);
+  breachMeshes.push(pole, head);
 }
 
 /* 地図の文字（画面の上に重ねる） */
@@ -2699,11 +2715,12 @@ el("rePick").addEventListener("click", () => showMap());
 /* 最初の画面：「はじめる」で閉じる。ここで音の準備もする（ブラウザは押した操作のあとでないと音を出せない） */
 el("introGo").addEventListener("click", () => {
   initAudio();
+  endIntro();
   el("intro").classList.add("out");
-  setTimeout(() => el("intro").classList.add("hide"), 450);
+  setTimeout(() => el("intro").classList.add("hide"), 550);
 });
 /* 確かめ用に場面を指定して開いたときは、最初の画面を出さない */
-if (/[?&](b|pick|addr)=/.test(location.search)) el("intro").classList.add("hide");
+if (/[?&](b|pick|addr)=/.test(location.search)) { el("intro").classList.add("hide"); document.body.classList.remove("intro"); }
 
 /* こする：指1本（マウスの左ボタン）で動いた長さ（画面の短い辺を1とする）をためる。
    見回す：指2本で横に動かす（マウスは右ボタン）。こするのと取り違えないよう、2本のときは雨を増やさない */
@@ -2974,11 +2991,158 @@ mapFit();
   }
 }
 
+/* =====================================================================
+   最初の画面の後ろ：地図と同じ町を少し上から見下ろし、ゆっくり回る。雨が降り、
+   堤防が切れる想定の場所から、建物のすき間（地面）に水がじわじわ広がる。INTRO_LOOP 秒ごとにくり返す。
+   重くしないよう、1秒に30回まで・画素の細かさ1.25倍まで・遠い区画は屋根だけ、霧の向こうは描かない
+   ===================================================================== */
+const intro = { on: !/[?&](b|pick|addr)=/.test(location.search), last: -1e9, t0: performance.now() };
+const INTRO_LOOP = 18;
+const INTRO_SKY = 0x56636d;
+const INTRO_Q = new URLSearchParams(location.search);
+/* 確かめ用：?it=秒 … その時刻で止めた絵にする（ループの途中の絵を撮る） */
+const INTRO_FIX = INTRO_Q.has("it") ? (+INTRO_Q.get("it") || 0) : null;
+const introBreach = new THREE.Vector2(
+  (mX(BREACH[0].px) + mX(BREACH[1].px)) / 2, (mZ(BREACH[0].py) + mZ(BREACH[1].py)) / 2);
+/* 回る中心：蕨の町のまん中と破堤点の間。破堤点から少し東（戸田・川口の側）に寄せる */
+const introCenter = new THREE.Vector2(
+  introBreach.x + 900, (introBreach.y + mZ((CITY_BOUNDS[0].minY + CITY_BOUNDS[0].maxY) / 2)) / 2);
+/* 中心から見て破堤点と反対の側にカメラを置く向き */
+const introYaw0 = Math.atan2(introCenter.x - introBreach.x, introCenter.y - introBreach.y);
+const introFloodMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false,
+  uniforms: {
+    uC: { value: introBreach }, uR: { value: 0 }, uT: { value: 0 }, uOp: { value: 1 },
+    uFN: { value: 2000 }, uFF: { value: 5000 }, uSky: { value: new THREE.Color(INTRO_SKY) }
+  },
+  vertexShader: "varying vec2 vP;varying float vD;void main(){vec4 w=modelMatrix*vec4(position,1.0);vP=w.xz;vec4 v=viewMatrix*w;vD=-v.z;gl_Position=projectionMatrix*v;}",
+  fragmentShader: [
+    "uniform vec2 uC;uniform float uR;uniform float uT;uniform float uOp;uniform float uFN;uniform float uFF;uniform vec3 uSky;varying vec2 vP;varying float vD;",
+    "void main(){",
+    /* 水の先は、まっすぐな円にならないよう少しゆがめる */
+    "  float n=70.0*sin(vP.x*0.0021+uT*0.15)*sin(vP.y*0.0027-uT*0.12)+40.0*sin((vP.x-vP.y)*0.0063+0.3*uT);",
+    "  float d=distance(vP,uC)+n;",
+    "  float a=1.0-smoothstep(uR-220.0,uR,d);",
+    /* 先のほうは浅く薄い色、奥は濃い色。水面は少しゆらぐ */
+    "  float deep=smoothstep(0.0,900.0,uR-d);",
+    "  float w=0.5+0.5*sin(vP.x*0.045+uT*1.1)*sin(vP.y*0.038-uT*0.9);",
+    "  vec3 c=mix(vec3(0.36,0.62,0.82),vec3(0.19,0.40,0.58),deep)+0.05*w;",
+    /* 水の先に、少し明るい縁を付けて、広がっていくのが分かるようにする */
+    "  float edge=smoothstep(uR-300.0,uR-140.0,d)*(1.0-smoothstep(uR-140.0,uR,d));",
+    "  c+=0.22*edge;",
+    /* 遠くは、町と同じように霧にとける */
+    "  float f=smoothstep(uFN,uFF,vD);",
+    "  gl_FragColor=vec4(mix(c,uSky,f),a*uOp*(0.8+0.12*deep)*(1.0-f));",
+    "}"].join("\n")
+});
+const introFlood = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000), introFloodMat);
+introFlood.rotation.x = -Math.PI / 2;
+introFlood.visible = false;
+mapScene.add(introFlood);
+
+/* 雨：画面の上に重ねた2Dの絵に、細い斜めの線を降らせる */
+const introRainEl = el("introRain");
+const introRainCtx = introRainEl.getContext("2d");
+const introDrops = Array.from({ length: 170 }, () => ({ x: Math.random(), y: Math.random(), l: 0.6 + Math.random() * 0.8, v: 0.9 + Math.random() * 0.7 }));
+function drawIntroRain(dt) {
+  const w = innerWidth, h = innerHeight;
+  if (introRainEl.width !== w || introRainEl.height !== h) { introRainEl.width = w; introRainEl.height = h; }
+  const c = introRainCtx;
+  c.clearRect(0, 0, w, h);
+  c.strokeStyle = "rgba(205,222,236,.32)";
+  c.lineWidth = 1;
+  c.beginPath();
+  const len = Math.max(14, h * 0.028);
+  for (const d of introDrops) {
+    d.y += d.v * dt * 1.3;
+    d.x -= d.v * dt * 0.12;
+    if (d.y > 1.05) { d.y = -0.05; d.x = Math.random() * 1.1; }
+    if (d.x < -0.05) d.x += 1.1;
+    const x = d.x * w, y = d.y * h, L = len * d.l;
+    c.moveTo(x, y);
+    c.lineTo(x + L * 0.1, y - L);
+  }
+  c.stroke();
+}
+
+function startIntro() {
+  if (!intro.on) return;
+  for (const m of bldMats) { m.userData.c0 = m.color.getHex(); m.vertexColors = false; }
+  bldMats[0] && bldMats[0].color.set(0xb4bec6);
+  bldMats[1] && bldMats[1].color.set(0x9aa5ad);
+  mapScene.background.set(INTRO_SKY);
+  mapScene.fog = new THREE.Fog(INTRO_SKY, 2000, 5200);
+  for (const m of breachMeshes) m.visible = false;
+  introFlood.visible = true;
+  mapScene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+}
+function endIntro() {
+  if (!intro.on) return;
+  intro.on = false;
+  for (const m of bldMats) { m.vertexColors = true; if (m.userData.c0 != null) m.color.set(m.userData.c0); }
+  mapScene.background.set(0xdfe6ea);
+  mapScene.fog = null;
+  for (const m of breachMeshes) m.visible = true;
+  introFlood.visible = false;
+  mapScene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+  document.body.classList.remove("intro");
+  introRainCtx.clearRect(0, 0, introRainEl.width, introRainEl.height);
+  /* カメラと画素の細かさを地図の設定に戻す */
+  mapResize();
+  mapNeedsRender = true;
+}
+function renderIntro(now) {
+  if (now - intro.last < 32) return;
+  const dt = Math.min(0.1, (now - intro.last) / 1000);
+  intro.last = now;
+  const t = INTRO_FIX != null ? INTRO_FIX : (now - intro.t0) / 1000;
+  drawIntroRain(dt);
+  /* 画素の細かさ：地図より粗くして軽くする */
+  const pr = Math.min(window.devicePixelRatio || 1, 1.25);
+  if (renderer.getPixelRatio() !== pr) { renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false); }
+  /* カメラ：蕨の上あたりから、荒川（破堤点）の方を35度ほど見下ろす。水が奥からこちらへ来るのが見えるよう、
+     1回りはせず、左右に1分かけてゆっくり振る。縦長の画面は少し引く */
+  const portrait = innerWidth < innerHeight;
+  const dist = +INTRO_Q.get("idist") || (portrait ? 2300 : 1900);
+  const pitch = 0.6;
+  const yaw = introYaw0 + 0.4 * Math.sin(t * 2 * Math.PI / 60);
+  mapCam.position.set(
+    introCenter.x + dist * Math.cos(pitch) * Math.sin(yaw), dist * Math.sin(pitch),
+    introCenter.y + dist * Math.cos(pitch) * Math.cos(yaw));
+  mapCam.lookAt(introCenter.x, 0, introCenter.y);
+  mapCam.aspect = innerWidth / innerHeight;
+  mapCam.updateProjectionMatrix();
+  mapScene.fog.near = dist * 0.9;
+  mapScene.fog.far = dist * 2.6;
+  introFloodMat.uniforms.uFN.value = mapScene.fog.near;
+  introFloodMat.uniforms.uFF.value = mapScene.fog.far;
+  /* 近い区画は壁と屋根、遠い区画は屋根だけ、霧で見えない区画は描かない */
+  for (const c of bldChunks) {
+    const d = c.c.distanceTo(mapCam.position);
+    c.full.visible = d < dist * 1.25;
+    c.roof.visible = !c.full.visible && d < dist * 2.7;
+  }
+  /* 水：ループの初めは破堤点のまわりだけ。じわじわ広がりながら少しずつ深くなり、最後に薄れて消える */
+  const s = t % INTRO_LOOP;
+  const g = Math.min(1, s / (INTRO_LOOP - 3.5));
+  const e = g * g * (3 - 2 * g);
+  const u = introFloodMat.uniforms;
+  u.uR.value = 150 + 5200 * e;
+  u.uT.value = t;
+  u.uOp.value = s < INTRO_LOOP - 2.2 ? Math.min(1, s / 0.8) : Math.max(0, (INTRO_LOOP - s) / 2.2);
+  introFlood.position.y = 1.0 + 2.6 * e;
+  renderer.render(mapScene, mapCam);
+  window.__introFrames = (window.__introFrames || 0) + 1;
+}
+startIntro();
+
 let lastNow = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, Math.max(0, (now - lastNow) / 1000));
   lastNow = now;
-  if (G.phase === "map") {
+  if (G.phase === "map" && intro.on) {
+    renderIntro(now);
+  } else if (G.phase === "map") {
     /* 地図は、動かしたときだけ描き直す */
     if (mapNeedsRender) { mapNeedsRender = false; renderMap(); }
   } else {

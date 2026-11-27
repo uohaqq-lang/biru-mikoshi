@@ -1,9 +1,8 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<base href="../">
-<meta name="robots" content="noindex">
 <meta charset="utf-8">
+<base href="../">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>ビル神輿</title>
 <link rel="icon" href="data:,"><!-- 空のアイコン：ブラウザが favicon.ico を取りに行って404を出さないように（直す係 第2回・2-2） -->
@@ -315,6 +314,16 @@
   body.calm1 #stick .dn, body.calm1 #stick .lf, body.calm1 #stick .rt { visibility:hidden; }   /* 運び出しの直後は「進む」だけ */
   body.sm #stick { right:14px; bottom:40px; width:118px; height:118px; }
   body.sm #knob { width:48px; height:48px; margin:-24px 0 0 -24px; }
+  /* 11/27 スマホの操作の直し（友人「もうちょい操作性を上げないとだめ」）：倒した向きへそのまま進む形にしたので、
+     「進む」「⟲」「⟳」の字は消し、下の「バック」だけ残す（真下へ倒したときだけ後ろへ下がる）。
+     指を置いた所にスティックが出る（.float。位置は JS で left/top を入れる）。触っていない間は元の位置に薄く出しておく */
+  #stick .up, #stick .lf, #stick .rt { display:none; }
+  #stick::before { content:''; position:absolute; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%; background:var(--dim); opacity:.5; pointer-events:none; }
+  @media (pointer:coarse) {
+    #stick { transition:opacity .25s; }
+    #stick:not(.on):not(.glow) { opacity:.5; }
+    #stick.float { right:auto !important; bottom:auto !important; transition:none; }
+  }
   /* 小さな地図：スマホは出さない（本人「いらない」）。PC（マウスの画面）だけ左上に丸く出す。神輿の進む向きがいつも上（カメラと同じ向き） */
   #mini { display:none !important; top:12px; bottom:auto; left:12px; width:180px; height:180px; border-radius:50%; }
   /* 11/14 36fix：結果の画面（.result）でも地図を消す（下の body.result #mini より、こちらの指定が強くて勝っていた） */
@@ -604,7 +613,7 @@
 <div id="zoom"><button id="zIn" title="寄る（＋）">＋</button><button id="zOut" title="引く（−）">−</button><button id="recenter" title="神輿のところへ戻る">◎</button></div>
 <div id="rot"><button id="rL" title="押している間 左へ向きを変える（Q・←）">⟲ 向き</button><button id="rR" title="押している間 右へ向きを変える（E・→）">向き ⟳</button></div>
 <div id="dialWrap"><button id="back" title="押している間 後ろへ下がる（↓）">バック</button><button id="hold" title="進む（スペース・↑）">進む</button>
-  <div id="stick" title="上へ倒すと進む（↑）・下へ倒すとバック（↓）・左右へ倒すと向きを変える（← →）"><span class="lb up">進む</span><span class="lb dn">バック</span><span class="lb lf">⟲</span><span class="lb rt">⟳</span><div id="knob"></div></div>
+  <div id="stick" title="倒した向きへ進む（真下はバック）"><span class="lb up">進む</span><span class="lb dn">バック</span><span class="lb lf">⟲</span><span class="lb rt">⟳</span><div id="knob"></div></div>
   <div id="keys"><button class="k" id="kU" title="進む（↑・W・スペース）"><b>↑</b><small>進む</small></button><button class="k" id="kL" title="左へ向きを変える（←・A）"><b>←</b><small>向き</small></button><button class="k" id="kD" title="バック（↓・S）"><b>↓</b><small>バック</small></button><button class="k" id="kR" title="右へ向きを変える（→・D）"><b>→</b><small>向き</small></button></div></div>
 <button id="again">やり直す</button>
 <button id="skip">飛ばす ▶</button>
@@ -612,7 +621,7 @@
 <script src="lib/three.min.js"></script>
 <script src="data/kakegoe.js"></script><!-- 担いで進む間の掛け声（10/23 候補1「大勢の棒読み」に替えた。前の版は data/kakegoe_旧.js） -->
 <script src="data/kakegoe_miyadashi.js"></script><!-- 魂振りの掛け声「オイサ、ハッ」（候補5） -->
-<script src="preview/BGM/bgm_a1.js"></script><!-- BGM「A1」（Web Audio でその場で作る曲。書き出しの BGM/render.html も同じファイルを読む）。無ければ曲なしで動く -->
+<script src="BGM/bgm_a1.js"></script><!-- BGM「A1」（Web Audio でその場で作る曲。書き出しの BGM/render.html も同じファイルを読む）。無ければ曲なしで動く -->
 <script>/* 題字の画面で、曲の部品が届く前に太鼓の印を押していたら、ここで鳴らし始める */ if (window.__earlyAudio && window.__earlyAudio.play) window.__earlyAudio.play();</script>
 <script src="data/difficulty.js"></script><!-- 建物ごとの難しさ（tools/difficulty.py が書く）。無くても動く -->
 <script src="remodel.js"></script><!-- 作り直した名所（雷門・本堂・浅草神社）の形。無ければ今までの形 -->
@@ -4181,6 +4190,10 @@ function start(DATA, isAsakusa) {
 
   // ---------- 進む ----------
   // 道は決めない。進むのは建物の向き（S.head）へまっすぐ。曲がるのは「向き」ボタンだけ。
+  /* 11/27 スマホのスティックの状態（使い方は rotStep の上の説明。step の壁沿いの滑りでも、曲がっている側を見るので先に置く） */
+  const STK = { on: false, m: 0, phi: 0, back: false, w: 0, err: 0 };
+  /* 指で触る画面か（スマホ）。11/27 の直しはスマホだけに効かせ、PC（マウス・キー）の動きは変えない */
+  const COARSE = matchMedia('(pointer:coarse)');
   // はみ出す足元の点の数（つかえているかの比べに使う。高さは見ない）
   function outCount(x, y, ori) {
     const c = Math.cos(ori), s = Math.sin(ori);
@@ -4193,6 +4206,23 @@ function start(DATA, isAsakusa) {
     const h = S.head;
     let nx = S.x + Math.cos(h) * ds, ny = S.y + Math.sin(h) * ds;
     let res = check(nx, ny, h + S.rot);
+    /* 11/27 スマホは倒した向きへ曲がりながら進むので、壁へ深い角度（45°より深く）で当たることが増える。
+       そのときも止めずに、進む向きのうちぶつかる成分だけを消して壁に沿って滑らせる：向きを15°ずつ振った方へ、進む量×cos（振った角）だけ動かせるかを、
+       浅い角から順に左右とも試す（75°まで。スティックで曲がっている側を先に）。建物の向きは変えない。バックにも効かせる。高さ（桁下）で当たったときは今までどおり止まる。
+       下の2つ（横へ0.3〜1.5mずらす・横へ0.25mまでずらす）より先に試す：あちらは1歩ごとに横へ跳ぶので、自動の確かめで壁ぎわを秒速13m（進む速さの2倍）で
+       ガタガタ横すべりした。こちらで動けないとき（ほぼ正面から当たった・細い所で角がかする）だけ、今までのずらし方を使う。PC は今までどおり */
+    if (res && COARSE.matches && res.kind !== 'height') {
+      const sg0 = STK.w < 0 ? -1 : 1;
+      for (const deg of [15, 30, 45, 60, 75]) {
+        const a = deg * Math.PI / 180, d = ds * Math.cos(a);
+        let hit = false;
+        for (const sg of [sg0, -sg0]) {
+          const hh = h + sg * a, hx = S.x + Math.cos(hh) * d, hy = S.y + Math.sin(hh) * d;
+          if (!check(hx, hy, h + S.rot)) { nx = hx; ny = hy; res = null; hit = true; break; }
+        }
+        if (hit) break;
+      }
+    }
     if (res && ((res.kind === 'width' && res.need <= 0.05) || res.kind === 'block')) {
       /* 幅は足りているのに角がかする：担ぎ手が少し横にずらして抜けられるか試す。11/01 向きは振らない（前は3〜10°振っていて、勝手に曲がって見えた） */
       const a = h + Math.PI / 2;
@@ -4391,12 +4421,65 @@ function start(DATA, isAsakusa) {
   const rotHold = { dir: 0, t0: 0, last: 0 };
   function startRot(dir) { rotHint(false); if (S.b && mode === 'carry') firstPush(); if (rotHold.dir === dir) return; rotHold.dir = dir; rotHold.t0 = performance.now(); rotHold.last = rotHold.t0; }
   function stopRot() { rotHold.dir = 0; }
-  let stickTurn = 0, stickTurnT = 0;   // ジョイスティックの左右（−1〜1。正が左回り）。倒している間、毎秒60°×倒し具合で回す
+  let stickTurnT = 0;
+  /* 11/27 スマホのスティック：倒した向き（画面の上＝カメラの前）を行きたい向きにして、神輿がそちらへなめらかに曲がる。
+     STK.phi：画面の上から測った倒した向き（ラジアン。正が左）。STK.m：倒し具合（0〜1）。STK.w：いま曲がっている速さ（ラジアン/秒）。
+     前は左右へ倒すと、その場で毎秒70°×倒し具合で回るだけで、行きたい向きへ指を向けても進まなかった（友人「もうちょい操作性を上げないとだめ」）。
+     曲がる速さ：残りの角度に比例（STK_K）、上限 STK_WMAX（重い建物ほど下げる）。速さの変わり方を STK_TAU 秒でならし、急に向きが跳ばないようにする。
+     カメラは神輿を少し遅れて追うので、カメラの前を基準にすると、倒し続けた間は回り続ける（右へ倒し続ければ円を描く）。
+     カメラが遅れている間に、倒した向きと逆へ曲がってしまわないよう、残りの角度が倒した向きと逆になったら曲げない */
+  /* 係数の決め方（自動の確かめで測った）：STK_K を 3.2 にしたら、カメラが追ってくる分も足されて、斜め45°に倒すだけで毎秒80°以上回り続けた（1.5秒で123°）。
+     1.5 にすると、倒した角度とほぼ同じだけ1秒で曲がる（45°なら毎秒約45〜50°、真横なら上限の毎秒95°）。
+     曲がる速さのならし：曲がり始めは STK_TAU、止めるときは STK_TAU_OFF 秒（上へ戻したのに惰性で6°余り回っていたので、止めるほうを速く） */
+  const STK_DIR = new THREE.Vector3();
+  const STK_K = 1.5, STK_WMAX = 95 * Math.PI / 180, STK_TAU = 0.09, STK_TAU_OFF = 0.04;
+  /* 向きだけ変える（当たるなら半分・4分の1で試し、だめなら曲げない）。前の rotate は当たると毎回ドンと揺らすので、スティックでは使わない。
+     いまの置き方がもう道からはみ出しているときは、はみ出しが増えない回し方なら許す（step と同じ決まり） */
+  function steerTurn(da) {
+    if (!S.b || S.intro || S.done || mode !== 'carry' || !da) return 0;
+    const o0 = outCount(S.x, S.y, S.head + S.rot);
+    for (const f of [1, 0.5, 0.25]) {
+      const nh = S.head + da * f;
+      if (!check(S.x, S.y, nh + S.rot) || (o0 > 0 && outCount(S.x, S.y, nh + S.rot) <= o0)) { S.head = nh; S.stuck = null; record(); return da * f; }
+    }
+    /* 11/27 その場で回れない（行き止まりに正面から当たり、建物の角が壁に触れている）ときは、担ぎ手が少し下がりながら向きを変える。
+       自動の確かめで、行き止まりに当たったあと右へ倒しても1.5秒まったく回れなかった。下がる量は回す角度に比例させ（建物の長さの半分×角度の1.5倍、1こま8cmまで）、
+       真後ろ・斜め後ろの順に試す */
+    const c = Math.cos(S.head), s = Math.sin(S.head), back = Math.min(0.08, 1.5 * Math.abs(da) * ((S.dim && S.dim.L) || 4) / 2);
+    for (const [bu, bv] of [[-back, 0], [-back, back], [-back, -back], [-2 * back, 0]]) {
+      const px = S.x + bu * c - bv * s, py = S.y + bu * s + bv * c, nh = S.head + da;
+      if (!check(px, py, nh + S.rot)) { S.x = px; S.y = py; S.head = nh; S.stuck = null; record(); return da; }
+    }
+    return 0;
+  }
+  function stickSteer(dt) {
+    /* バグ探し2：進む（hold.on）が止まっているときは曲げない（前は画面が裏へ回った後、その場で回り続けた） */
+    if (!STK.on || !hold.on || STK.back || !S.b || S.intro || S.done || mode !== 'carry') { STK.w = 0; STK.err = 0; return; }
+    /* バグ探し3：基準は、実際に画面に映っているカメラの向き（画面の上）にする。
+       前は S.camHead（神輿の真後ろのカメラ）を基準にしていたので、受け渡しの直後・町会の波・節目の引きなど、カメラが真後ろから外れている間は、
+       画面の上と30〜90°ずれた方へ曲がった。カメラが真下を向いて向きが決まらないときだけ S.camHead を使う */
+    camera.getWorldDirection(STK_DIR);
+    const hl = Math.hypot(STK_DIR.x, STK_DIR.z);
+    const ref = hl > 0.05 ? Math.atan2(-STK_DIR.z, STK_DIR.x) : S.camHead === undefined ? S.head : S.camHead;
+    STK.ref = ref;
+    let err = 0;
+    if (STK.phi) {
+      err = ref + STK.phi - S.head; err = Math.atan2(Math.sin(err), Math.cos(err));
+      if (err * STK.phi < 0) err = 0;
+    }
+    STK.err = err;
+    const wmax = STK_WMAX * (1 - 0.3 * (S.heavy || 0)), wc = Math.max(-wmax, Math.min(wmax, STK_K * err));
+    const easing = Math.abs(wc) < Math.abs(STK.w) || wc * STK.w < 0;
+    STK.w += (wc - STK.w) * (1 - Math.exp(-dt / (easing ? STK_TAU_OFF : STK_TAU)));
+    if (Math.abs(STK.w) > 1e-4) { const got = steerTurn(STK.w * dt); if (!got) STK.w *= 0.5; }
+    /* 大きく曲がる間は少し遅く（残りの角度が25°を超えると落とし始め、100°で6割まで） */
+    const q = Math.max(0, Math.min(1, (Math.abs(err) - 0.44) / (1.75 - 0.44)));
+    hold.k = STK.m * (1 - 0.4 * q * q * (3 - 2 * q));
+  }
   function rotStep() {
     /* 11/07 受け渡しの一本締めの間は曲がれない（hoStop） */
-    if (hoStop()) { stickTurnT = 0; rotHold.last = performance.now(); return; }
-    if (stickTurn) { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) rotate(70 * dt * stickTurn, true); }
-    else stickTurnT = 0;
+    if (hoStop()) { stickTurnT = 0; STK.w = 0; rotHold.last = performance.now(); return; }
+    { const now = performance.now(), dt = Math.min(0.1, stickTurnT ? (now - stickTurnT) / 1000 : 0); stickTurnT = now; if (dt > 0) stickSteer(dt); }
     if (!rotHold.dir) return;
     const now = performance.now();
     const dt = Math.min(0.1, (now - rotHold.last) / 1000), top = 70 * (1 - 0.35 * (S.heavy || 0)), rate = 20 + (top - 20) * Math.min(1, (now - rotHold.t0) / 350);   /* 11/06 速さに合わせて曲がりも 60→70°/秒 */
@@ -5376,31 +5459,91 @@ function start(DATA, isAsakusa) {
      ずれが半径の4割を超えた向きだけを入れる（斜めなら進む＋向き）。離すと真ん中に戻って全部止める */
   /* 倒した量で速さと曲がり方が変わる（アナログ）。少し倒せばゆっくり、端まで倒せば今までの速さ（進む 秒速15m・バック 6m・向き 毎秒60°）。
      真ん中の少しは遊び。向きは押した瞬間に15°回すボタンのやり方をやめ、倒している間なめらかに回す（rotStep の stickTurn） */
-  const stk = $('stick'), knob = $('knob'), ST = { id: null, fwd: false, back: false };
+  /* 11/27 倒した向きへ進む形に替えた（STK と stickSteer）。倒し具合：中心から半径の2割までは遊び、そこから端の手前1割で全速。
+     向き：真上から±7°は真上とみなす（まっすぐ進みたいのに少しずつ曲がらないように）。
+     真下から±30°（いったん入ったら±40°まで）はバック。その場で向きを変えて後ろへ進む形にしなかったのは、
+     仲見世の細い通りでは長い建物が回れずに止まること、カメラが一気に半回転して酔いやすいこと。バックなら画面は動かず、今までの抜け出し（担ぎ直し）もそのまま効く */
+  const stk = $('stick'), knob = $('knob'), ST = { id: null, fwd: false, back: false, cx: 0, cy: 0 };
   const ramp = (v, a) => Math.max(0, Math.min(1, (v - a) / (1 - a - 0.1)));
-  function stickSet(fk, bk, tr) {
-    if (document.body.classList.contains('calm1')) { bk = 0; tr = 0; }
-    const fwd = fk > 0, back = bk > 0 && !fwd;
+  const STK_DEAD = 7 * Math.PI / 180, STK_BACK_IN = 150 * Math.PI / 180, STK_BACK_OUT = 140 * Math.PI / 180;
+  function stickSet(m, phi) {
+    const calm = document.body.classList.contains('calm1');
+    let back = false;
+    if (m > 0 && !calm) back = Math.abs(phi) > (ST.back ? STK_BACK_OUT : STK_BACK_IN);
+    if (calm) phi = 0;
+    if (Math.abs(phi) < STK_DEAD) phi = 0;
+    const fwd = m > 0 && !back;
     if (fwd !== ST.fwd) { ST.fwd = fwd; fwd ? startHold() : stopHold(); }
     if (back !== ST.back) { ST.back = back; back ? startBack() : stopBack(); }
-    hold.k = fwd ? fk : back ? bk : 1;
-    if (tr && !stickTurn) { rotHint(false); if (S.b && mode === 'carry') firstPush(); }
-    stickTurn = tr;
+    /* 11/27 バグ探し2：画面が裏へ回った（blur）などで、進む・バックだけが外から止められたときは、倒している間に入れ直す
+       （前は ST.fwd が残ったまま startHold を呼び直さず、上へ戻しても進まなかった） */
+    if (fwd && !hold.on) startHold();
+    if (back && !hold.back) startBack();
+    if (fwd && phi && !STK.phi) { rotHint(false); if (S.b && mode === 'carry') firstPush(); }
+    STK.on = fwd; STK.back = back; STK.m = m; STK.phi = fwd ? phi : 0;
+    if (!fwd) STK.w = 0;
+    hold.k = fwd || back ? m : 1;
   }
   function stickMove(e) {
-    const r = stk.getBoundingClientRect(), R = r.width / 2 - knob.offsetWidth / 2;
-    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const R = stk.offsetWidth / 2 - knob.offsetWidth / 2;
+    let dx = e.clientX - ST.cx, dy = e.clientY - ST.cy;
     const L = Math.hypot(dx, dy); if (L > R) { dx *= R / L; dy *= R / L; }
     knob.style.transform = `translate(${dx}px,${dy}px)`;
-    const nx = dx / R, ny = dy / R;
-    /* 11/01 左右の遊びを半径の2割から3割に（真上に倒したつもりで指が少し横へずれても回らないように） */
-    stickSet(ramp(-ny, 0.2), ramp(ny, 0.2), -Math.sign(nx) * ramp(Math.abs(nx), 0.3));
+    const nx = dx / R, ny = dy / R, m = ramp(Math.hypot(nx, ny), 0.2);
+    stickSet(m, m > 0 ? Math.atan2(-nx, -ny) : 0);
   }
-  function stickEnd() { ST.id = null; stk.classList.remove('on'); knob.style.transform = ''; stickSet(0, 0, 0); }
-  stk.addEventListener('pointerdown', e => { e.preventDefault(); ST.id = e.pointerId; stk.setPointerCapture(e.pointerId); stk.classList.add('on'); stickMove(e); });
+  /* 指を置いた所を中心にする（float）。離したら元の位置へ戻す（CSS で薄く出る）。
+     11/27 バグ探し6：画面の端ぎりぎりに置くと丸の半分が外に出て、その向きへ倒し切れなかった。丸がまるごと画面に入るよう、中心を内側へ寄せる
+     （端に置いた指は、はじめから端の向きへ少し倒れた形になる） */
+  function stickStart(e, float) {
+    e.preventDefault(); ST.id = e.pointerId; ST.land = innerWidth > innerHeight;
+    if (float) {
+      stk.classList.add('float');
+      const hw = stk.offsetWidth / 2, hh = stk.offsetHeight / 2, mg = 4;
+      const cx = Math.max(hw + mg, Math.min(innerWidth - hw - mg, e.clientX)), cy = Math.max(hh + mg, Math.min(innerHeight - hh - mg, e.clientY));
+      stk.style.left = (cx - hw) + 'px'; stk.style.top = (cy - hh) + 'px';
+      ST.cx = cx; ST.cy = cy;
+    } else { const r = stk.getBoundingClientRect(); ST.cx = r.left + r.width / 2; ST.cy = r.top + r.height / 2; }
+    /* 引き取れなかったときは、下の window の pointermove・pointerup で追う */
+    try { stk.setPointerCapture(e.pointerId); } catch (er) { /* 引き取れない環境 */ }
+    stk.classList.add('on'); stickMove(e);
+  }
+  function stickEnd() { ST.id = null; stk.classList.remove('on', 'float'); stk.style.left = stk.style.top = ''; knob.style.transform = ''; stickSet(0, 0); }
+  const coarse = COARSE;
+  /* 11/27 バグ探し1：指を離した知らせが一度抜けると、ST.id が残り続けてスティックが二度と出なかった。
+     画面に触れている指の数（タッチの知らせの touches の数）を覚えておき、新しい指が来たときに、その前は0本だった（＝前の指はもう離れている）なら、
+     前の指は捨てて新しい指を受け付ける。離した知らせは window でも聞く（スティックの上で聞けなかったときのため）。指が全部離れたら必ず離した扱いにする */
+  let touchN = 0;
+  const touchCount = e => { touchN = e.touches ? e.touches.length : 0; if (touchN === 0 && ST.id !== null) stickEnd(); };
+  for (const ev of ['touchstart', 'touchend', 'touchcancel']) window.addEventListener(ev, touchCount, { capture: true, passive: true });
+  const staleCheck = e => { if (ST.id !== null && e.pointerId !== ST.id && e.pointerType === 'touch' && touchN === 0) stickEnd(); };
+  window.addEventListener('pointermove', e => { if (e.pointerId === ST.id && e.target !== stk) stickMove(e); }, true);
+  for (const ev of ['pointerup', 'pointercancel']) window.addEventListener(ev, e => { if (e.pointerId === ST.id) stickEnd(); }, true);
+  /* スマホ（指の画面）は、元の丸を触っても指の所を中心にする（どこを触っても同じ動きにそろえる）。PC は今までどおり丸の中心 */
+  stk.addEventListener('pointerdown', e => { staleCheck(e); if (ST.id !== null) return; stickStart(e, coarse.matches); });
   stk.addEventListener('pointermove', e => { if (e.pointerId === ST.id) stickMove(e); });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) stk.addEventListener(ev, e => { if (e.pointerId === ST.id) stickEnd(); });
   stk.addEventListener('contextmenu', e => e.preventDefault());
+  /* 11/27 指を置いた所にスティックが出る：横持ちは画面の左半分、縦持ちは下半分の、町の画面（ボタンや札の上ではない所）を触ったとき。
+     担いで動ける間だけ（運び出し・お祓い・結果の間は、今までどおり画面のタップで飛ばすなどに使う）。町の画面のドラッグ（見る所を動かす）は、その外側で今までどおり。
+     バグ探し4：スティックを使っている間に、2本目の指が同じ範囲（下半分・左半分）に来たときは、町のドラッグ（見る所を動かす）へ流さない
+     （前は流していたので、カメラが神輿を追わなくなり、神輿が画面の外へ走っていった） */
+  view.addEventListener('pointerdown', e => {
+    if (!coarse.matches || e.pointerType === 'mouse') return;
+    if (mode !== 'carry' || !S.b || S.intro || S.done || opening || !stk.getClientRects().length) return;
+    const land = innerWidth > innerHeight;
+    if (land ? e.clientX > innerWidth / 2 : e.clientY < innerHeight / 2) return;
+    staleCheck(e);
+    e.stopPropagation();
+    if (ST.id !== null) return;
+    stickStart(e, true);
+  }, true);
+  /* バグ探し2・5：画面が裏へ回った・縦横を回したときは、指を離したのと同じ扱いにする（スティックを元の位置へ戻し、進む・曲がるを止める） */
+  const stickDrop = () => { if (ST.id !== null) stickEnd(); };
+  window.addEventListener('blur', stickDrop);
+  window.addEventListener('pagehide', stickDrop);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') stickDrop(); });
+  window.addEventListener('resize', () => { if (ST.id !== null && (innerWidth > innerHeight) !== ST.land) stickEnd(); });
   window.addEventListener('keydown', e => {
     if (e.code === 'Space' || kIs(e, KEY_U)) { e.preventDefault(); if (!e.repeat) startHold(); }
     if (kIs(e, KEY_D)) { e.preventDefault(); if (!e.repeat) startBack(); }
@@ -10004,7 +10147,22 @@ function start(DATA, isAsakusa) {
          右へのずらしは0.35→0.1rad、見下ろしは約51°→約41°、見る所は前へ0.15D→0.3D（曲がり角が早く見える） */
       /* 11/01 本人「まっすぐ前に倒しても斜めに行く」：遅れを0.6秒から0.25秒に縮め、進む向きと画面の上がすぐ一致するようにした */
       { const cdt = Math.min(0.1, Math.max(0, (t - tPrev) / 1000)), hd = S.head;
-        if (S.camHead === undefined || S.intro) S.camHead = S.head; else { let d = hd - S.camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); S.camHead += d * (1 - Math.exp(-cdt / 0.25)); } }
+        /* 11/27 スマホで担いでいる間（酔いの直し）：前の追い方（遅れ0.25秒の一次の追従）は、曲がり始めの瞬間にカメラの回る速さが急に立ち上がり、
+           担ぎ直し（realign）などで向きが大きく跳んだときは半回転を1秒足らずで回していた。
+           遅れは同じ0.25秒くらいのまま、回る速さもなめらかに変わる追い方（ばねと同じ。行き過ぎない強さ CAM_W0）にし、回る速さに上限（毎秒150°）を付ける。
+           高さ・距離は変えない。PC と、お祓い・結果など担ぐ場面の外は今までどおり */
+        const CAM_W0 = 8, CAM_WMAX = 150 * Math.PI / 180;
+        if (S.camHead === undefined || S.intro) { S.camHead = S.head; S.camW = 0; }
+        else if (COARSE.matches && mode === 'carry' && !S.done) {
+          const n = Math.max(1, Math.ceil(cdt / 0.01)), h = cdt / n;
+          for (let i = 0; i < n; i++) {
+            let e = hd - S.camHead; e = Math.atan2(Math.sin(e), Math.cos(e));
+            S.camW = (S.camW || 0) + (CAM_W0 * CAM_W0 * e - 2 * CAM_W0 * (S.camW || 0)) * h;
+            S.camW = Math.max(-CAM_WMAX, Math.min(CAM_WMAX, S.camW));
+            S.camHead += S.camW * h;
+          }
+        }
+        else { S.camW = 0; let d = hd - S.camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); S.camHead += d * (1 - Math.exp(-cdt / 0.25)); } }
       /* 11/01 本人「カメラが斜めから撮ってる」「まっすぐ前に倒しても斜めに行く」：担いでいる間、カメラはいつも神輿の真後ろ（進む向き＝画面の上）。
          前は、塔が高いほど斜め後ろへ最大0.55rad回し（開いている側へ、0.7秒ごとに決め直す）、最初の1棟が乗るまでは右後ろから写していた。
          回り込むのは、お祓い・魂振り（camOrbit）と、花火・高さ比べのカメラだけ */
@@ -10354,6 +10512,14 @@ function start(DATA, isAsakusa) {
     capBump: () => ({ n: CB.n, live: CB.list.size, capMsg: CAPM.done, capMsgN: CAPM.n, capMsgT: CAPM.log.map(e => +(e[0] / 1000).toFixed(1)), capMsgAt: CAPM.log.map(e => [+(e[0] / 1000).toFixed(1), e[1] + 1, e[2]]), capReach: CAPM.reach.map(e => [+(e[0] / 1000).toFixed(1), e[1] + 1, e[2]]), stall: Math.round(performance.now() - (S.capStallT || -1e9)), at: [...CB.list.keys()].map(b => [+b.d.cx.toFixed(1), +b.d.cy.toFixed(1), +b.h.toFixed(1)]) }),
     hrun: () => ({ i: HR.i, nm: (LMK[Math.min(Math.max(0, HR.i), LMK.length - 1)] || {}).nm, H: +(stackHeight() + LIFT).toFixed(1), next: !!HR.next, vis: getComputedStyle($('hrun')).display !== 'none' }),
     hanabi: () => HB.on ? { t: +hbNow().toFixed(2), end: +HB.end.toFixed(2), n: HB.n, clk: HB.clk, flash: +HB.flash.toFixed(2), bursts: HB.bursts.length, ms: HB.ms } : null };
+  /* 11/27 スマホ操作の確かめ用：スティックの状態・カメラの向き・速さ、置き場所を移す（壁沿いの滑りを見る）、置けるか */
+  Object.assign(window.__mikoshi, {
+    stk: () => ({ on: STK.on, back: STK.back, m: +STK.m.toFixed(2), phi: +STK.phi.toFixed(3), w: +STK.w.toFixed(3), err: +STK.err.toFixed(3), k: +hold.k.toFixed(2), hold: hold.on, hback: hold.back, camHead: S.camHead, camW: S.camW || 0, v: +(S.v || 0).toFixed(2), head: S.head, x: S.x, y: S.y, stuck: S.stuck && S.stuck.kind, locked: hold.locked, float: stk.classList.contains('float'), id: ST.id, ref: STK.ref, cx: ST.cx, cy: ST.cy, touchN }),
+    place: (x, y, h) => { S.x = x; S.y = y; if (h != null) S.head = h; S.stuck = null; S.v = 0; return !check(x, y, S.head + S.rot); },
+    fits: (x, y, h) => !check(x, y, (h == null ? S.head : h) + S.rot),
+    why: (x, y, h) => { const r = check(x, y, (h == null ? S.head : h) + S.rot); return r ? { kind: r.kind, need: r.need, att: !!touchAttachable(r) } : null; },
+    hoStopNow: () => hoStop()
+  });
 }
 </script>
 </body>
